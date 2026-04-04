@@ -576,16 +576,16 @@ async function doMSLogin(){
     if(account){
       // Match MS account to employee list
       const email=account.username.toLowerCase();
-      const emp=EMPLOYEES.find(e=>(e.email||'').toLowerCase()===email||e.id===email.split('@')[0]);
+      const emp=EMPLOYEES.find(e=>(e.email||'').toLowerCase()===email||(e.email||'').toLowerCase().split('@')[0]===email.split('@')[0]);
       if(emp){
-        // Auto-select role and employee
+        // Find fresh role from ROLES array
         const role=ROLES.find(r=>r.id===emp.role);
         if(role){
-          S.selectedRole=role;
-          S.user={...emp,roleConfig:role};
+          S.selectedRole={...role}; // copy to avoid stale ref
+          S.user={...emp,roleConfig:S.selectedRole};
           document.getElementById('login-overlay').style.display='none';
           buildNav();initDefGrid();setToday();
-          navigate(role.tabs[0]);
+          navigate(S.selectedRole.tabs[0]);
           setTimeout(()=>loadL4FromSP(),800);
           return;
         }
@@ -819,7 +819,9 @@ function logout(){
   document.getElementById('nav-user-btn').innerHTML='';
 }
 function buildNav(){
-  const tabs=S.selectedRole.tabs;
+  const role=S.selectedRole||S.user?.roleConfig;
+  const tabs=(role?.tabs)||['dash'];
+  console.log('buildNav tabs:', tabs, 'role:', role?.id);
   document.getElementById('nav-tabs').innerHTML=TABS_CONFIG
     .filter(t=>tabs.includes(t.id))
     .map(t=>`<div class="nav-tab" id="tab-${t.id}" onclick="navigate('${t.id}')">${t.label}</div>`)
