@@ -492,14 +492,18 @@ let spSiteId = null;
 async function doMSLogin(){
   const errEl=document.getElementById('ms-login-err');
   errEl.style.display='none';
-  if(!initMSAL()){
-    errEl.textContent='Client ID ยังไม่ได้ตั้งค่า';
-    errEl.style.display='block';
-    return;
+  const btn=document.querySelector('#login-step0 button');
+  if(!msalInstance){
+    const ok=initMSAL();
+    if(!ok){
+      errEl.textContent='ไม่สามารถเชื่อมต่อ Microsoft — ตรวจสอบ Client ID';
+      errEl.style.display='block';
+      return;
+    }
   }
   try{
     errEl.style.display='none';
-    document.querySelector('#login-step0 button').textContent='⏳ กำลัง login...';
+    if(btn) btn.textContent='⏳ กำลัง login...';
     const account=await msalLogin();
     if(account){
       // Match MS account to employee list
@@ -525,12 +529,12 @@ async function doMSLogin(){
     } else {
       errEl.textContent='Login ไม่สำเร็จ กรุณาลองใหม่';
       errEl.style.display='block';
-      document.querySelector('#login-step0 button').textContent='เข้าสู่ระบบด้วย Microsoft';
+      const b=document.querySelector('#login-step0 button');if(b)b.innerHTML='<svg width="18" height="18" viewBox="0 0 21 21" fill="none"><rect x="1" y="1" width="9" height="9" fill="#F25022"/><rect x="11" y="1" width="9" height="9" fill="#7FBA00"/><rect x="1" y="11" width="9" height="9" fill="#00A4EF"/><rect x="11" y="11" width="9" height="9" fill="#FFB900"/></svg> เข้าสู่ระบบด้วย Microsoft';
     }
   }catch(e){
     errEl.textContent='Error: '+e.message;
     errEl.style.display='block';
-    document.querySelector('#login-step0 button').textContent='เข้าสู่ระบบด้วย Microsoft';
+    const b=document.querySelector('#login-step0 button');if(b)b.innerHTML='<svg width="18" height="18" viewBox="0 0 21 21" fill="none"><rect x="1" y="1" width="9" height="9" fill="#F25022"/><rect x="11" y="1" width="9" height="9" fill="#7FBA00"/><rect x="1" y="11" width="9" height="9" fill="#00A4EF"/><rect x="11" y="11" width="9" height="9" fill="#FFB900"/></svg> เข้าสู่ระบบด้วย Microsoft';
   }
 }
 function skipMSLogin(){
@@ -1401,6 +1405,24 @@ function renderDash(){
       <td>${p.slitDone?'<span class="pill p-ok">เสร็จ</span>':done>0?'<span class="pill p-blue">กำลังทำ</span>':'<span class="pill p-amber">รอ</span>'}</td></tr>`;}).join('')}
     </tbody></table></div>`:'<div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center">ยังไม่มีแผน OSE</div>';
 }
+// ── Auto-init MSAL on page load ──────────────────────────────────
+window.addEventListener('load', function(){
+  const ready = initMSAL();
+  if(ready){
+    console.log('✅ MSAL initialized — Client ID:', AZURE_CONFIG.clientId.slice(0,8)+'...');
+  } else {
+    console.warn('⚠️ MSAL not initialized');
+  }
+  // Handle MSAL redirect response (if any)
+  if(msalInstance){
+    msalInstance.handleRedirectPromise().then(resp=>{
+      if(resp && resp.accessToken){
+        graphToken = resp.accessToken;
+        console.log('✅ Graph token from redirect');
+      }
+    }).catch(e=>console.error('Redirect error:',e));
+  }
+});
 </script>
 </body>
 </html>
