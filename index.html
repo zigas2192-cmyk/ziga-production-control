@@ -917,22 +917,30 @@ async function applyPacking(){
     showProgress(`กำลังบันทึก ${c.serial} (${i+1}/${S._pendingMCIDs.length})`,i+1,S._pendingMCIDs.length);
     try{
       // L4 fields — exact match to PrdCtrl_M4_Mcoil_Inventory schema (A-K)
+      // Number fields: ThicknessMM, WidthMM → must be number
+      // Text fields: Title, ItemNumber, ProductName, BatchNumber, WeightKG, Factory, Coating, PONo, Remarks → string
+      // Choice field: MCIDStatus → exact string value
+      // DateTime field: ReceivedDate → ISO 8601 string
       const fields={
-        Title:        c.serial,
-        ItemNumber:   c.item     ||undefined,
-        ProductName:  c.name     ||undefined,
-        BatchNumber:  c.batch    ||undefined,
-        ThicknessMM:  c.thick    ||undefined,
-        WidthMM:      c.width    ||undefined,
-        WeightKG:     c.wt_kg>0  ? String(c.wt_kg) : undefined,
-        Factory:      c.factory  ||undefined,
-        Coating:      c.coating  ||undefined,
-        PONo:         c.pono     ||undefined,
-        ReceivedDate: c.recDate  ||undefined,
+        Title:        String(c.serial||'').trim(),
+        ItemNumber:   c.item    ? String(c.item).trim()    : undefined,
+        ProductName:  c.name    ? String(c.name).trim()    : undefined,
+        BatchNumber:  c.batch   ? String(c.batch).trim()   : undefined,
+        ThicknessMM:  c.thick   ? Number(c.thick)          : undefined,
+        WidthMM:      c.width   ? Number(c.width)          : undefined,
+        WeightKG:     c.wt_kg>0 ? String(c.wt_kg)         : undefined,
+        Factory:      c.factory ? String(c.factory).trim() : undefined,
+        Coating:      c.coating ? String(c.coating).trim() : undefined,
+        PONo:         c.pono    ? String(c.pono).trim()    : undefined,
         MCIDStatus:   'ในคลัง',
       };
+      // ReceivedDate: convert to ISO if present
+      if(c.recDate){
+        try{fields.ReceivedDate=new Date(c.recDate).toISOString();}
+        catch(e){/* skip invalid date */}
+      }
       // Remove undefined fields to avoid 400 errors
-      Object.keys(fields).forEach(k=>{ if(fields[k]===undefined) delete fields[k]; });
+      Object.keys(fields).forEach(k=>{ if(fields[k]===undefined||fields[k]==='') delete fields[k]; });
       const result=await spAddItem(SP_LISTS.L4, fields);
       if(result){ c.spId=result.id; saved++; }
       else skipped++;
