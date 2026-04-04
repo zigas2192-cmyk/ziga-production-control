@@ -1005,17 +1005,34 @@ async function loadL4FromSP(){
     showProgress('กำลังโหลด MCID จาก SharePoint...',0,1);
     const items=await spGetItems(SP_LISTS.L4,'',500);
     if(!items.length){hideProgress();return;}
+    // Map SP internal field names (field_1..field_17) to app properties
+    // field_1=ItemNumber, field_2=ProductName, field_3=BatchNumber
+    // field_4=ThicknessMM, field_5=WidthMM, field_6=WeightKG
+    // field_7=Factory, field_8=Coating, field_9=PONo
+    // field_10=ReceivedDate, field_11=OSENo, field_12=MCIDStatus
+    // field_13=WeightBefore, field_14=WeightAfter, field_15=WeightScrap
+    // field_16=WeightNet, field_17=Remarks
     S.mcids=items.map(f=>({
       serial:   f.Title||'',
-      item:     f.ItemNumber||'',
-      name:     f.ProductName||'',
-      batch:    f.BatchNumber||'',
-      thick:    parseFloat(f.ThicknessMM)||0,
-      wt_kg:    parseFloat(f.WeightKG)||0,
-      used:     f.MCIDStatus==='จ่ายแล้ว'||f.MCIDStatus==='สลิตแล้ว',
-      oseNo:    f.OSENo||'',
+      item:     f.field_1||'',
+      name:     f.field_2||'',
+      batch:    f.field_3||'',
+      thick:    parseFloat(f.field_4)||0,
+      width:    parseFloat(f.field_5)||1250,
+      wt_kg:    parseFloat(f.field_6)||0,
+      factory:  f.field_7||'',
+      coating:  f.field_8||'',
+      pono:     f.field_9||'',
+      recDate:  f.field_10||'',
+      oseNo:    f.field_11||'',
+      status:   f.field_12||'ในคลัง',
+      used:     f.field_12==='จ่ายแล้ว'||f.field_12==='สลิตแล้ว',
+      wBefore:  parseFloat(f.field_13)||0,
+      wAfter:   parseFloat(f.field_14)||0,
+      wScrap:   parseFloat(f.field_15)||0,
+      wNet:     parseFloat(f.field_16)||0,
+      remarks:  f.field_17||'',
       spId:     f.id||'',
-      status:   f.MCIDStatus||'ในคลัง',
     }));
     hideProgress();
     renderPackingList();updatePackingStats();
