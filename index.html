@@ -310,6 +310,28 @@ table.ax-t .ax-total{background:var(--green-lt);color:var(--green);font-weight:6
       </div>
       <div class="card">
         <div class="card-title">MCID ในคลัง <span class="pill p-blue" id="pk-list-count">0</span></div>
+        <!-- Filter bar -->
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
+          <select id="pk-f-thick" onchange="renderPackingList()" style="padding:6px 10px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-family:var(--sans);font-size:12px;color:var(--ink);outline:none;cursor:pointer">
+            <option value="">ทุกความหนา</option>
+          </select>
+          <select id="pk-f-width" onchange="renderPackingList()" style="padding:6px 10px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-family:var(--sans);font-size:12px;color:var(--ink);outline:none;cursor:pointer">
+            <option value="">ทุกหน้ากว้าง</option>
+          </select>
+          <select id="pk-f-factory" onchange="renderPackingList()" style="padding:6px 10px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-family:var(--sans);font-size:12px;color:var(--ink);outline:none;cursor:pointer">
+            <option value="">ทุกโรงงาน</option>
+          </select>
+          <select id="pk-f-coating" onchange="renderPackingList()" style="padding:6px 10px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-family:var(--sans);font-size:12px;color:var(--ink);outline:none;cursor:pointer">
+            <option value="">ทุกชั้นเคลือบ</option>
+          </select>
+          <select id="pk-f-status" onchange="renderPackingList()" style="padding:6px 10px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-family:var(--sans);font-size:12px;color:var(--ink);outline:none;cursor:pointer">
+            <option value="">ทุกสถานะ</option>
+            <option value="ว่าง">ว่าง</option>
+            <option value="ใช้แล้ว">ใช้แล้ว</option>
+          </select>
+          <button onclick="resetPkFilters()" style="padding:6px 10px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:11px;cursor:pointer;color:var(--ink3)">↺ ล้าง filter</button>
+          <span id="pk-filter-count" style="font-size:11px;color:var(--ink3);margin-left:4px"></span>
+        </div>
         <div id="pk-mcid-list"><div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center">ยังไม่มีข้อมูล</div></div>
       </div>
     </div>
@@ -1017,24 +1039,86 @@ function showProgress(msg,cur,total){
     <div style="margin-top:4px;color:#847F74;font-size:10px">${cur}/${total} (${pct}%)</div>`;
 }
 function hideProgress(){const el=document.getElementById('sp-progress');if(el)el.remove();}
+function populatePkFilters(){
+  const thicks=[...new Set(S.mcids.map(c=>c.thick).filter(Boolean))].sort((a,b)=>a-b);
+  const widths=[...new Set(S.mcids.map(c=>c.width).filter(Boolean))].sort((a,b)=>a-b);
+  const factories=[...new Set(S.mcids.map(c=>c.factory).filter(Boolean))].sort();
+  const coatings=[...new Set(S.mcids.map(c=>c.coating).filter(Boolean))].sort();
+  const sel=(id,opts)=>{
+    const el=document.getElementById(id);
+    if(!el)return;
+    const cur=el.value;
+    el.innerHTML=`<option value="">${el.options[0].text}</option>`+opts.map(o=>`<option value="${o}">${o}</option>`).join('');
+    el.value=cur;
+  };
+  sel('pk-f-thick', thicks.map(t=>t+'mm'));
+  sel('pk-f-width', widths.map(w=>w+'mm'));
+  sel('pk-f-factory', factories);
+  sel('pk-f-coating', coatings);
+}
+function resetPkFilters(){
+  ['pk-f-thick','pk-f-width','pk-f-factory','pk-f-coating','pk-f-status'].forEach(id=>{
+    const el=document.getElementById(id);if(el)el.value='';
+  });
+  renderPackingList();
+}
 function renderPackingList(){
   updatePackingStats();
   const el=document.getElementById('pk-mcid-list');
   const cnt=document.getElementById('pk-list-count');
   cnt.textContent=S.mcids.length;
   if(!S.mcids.length){el.innerHTML='<div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center">ยังไม่มีข้อมูล</div>';return;}
-  // group by item
+
+  // Populate filter dropdowns
+  populatePkFilters();
+
+  // Read filter values
+  const fThick   = (document.getElementById('pk-f-thick')?.value||'').replace('mm','');
+  const fWidth   = (document.getElementById('pk-f-width')?.value||'').replace('mm','');
+  const fFactory = document.getElementById('pk-f-factory')?.value||'';
+  const fCoating = document.getElementById('pk-f-coating')?.value||'';
+  const fStatus  = document.getElementById('pk-f-status')?.value||'';
+
+  // Filter
+  let filtered=S.mcids.filter(c=>{
+    if(fThick   && String(c.thick)!==fThick) return false;
+    if(fWidth   && String(c.width)!==fWidth) return false;
+    if(fFactory && c.factory!==fFactory) return false;
+    if(fCoating && c.coating!==fCoating) return false;
+    if(fStatus==='ว่าง'   && c.used) return false;
+    if(fStatus==='ใช้แล้ว' && !c.used) return false;
+    return true;
+  });
+
+  // Update filter count
+  const fcEl=document.getElementById('pk-filter-count');
+  if(fcEl) fcEl.textContent=filtered.length<S.mcids.length?`แสดง ${filtered.length} / ${S.mcids.length}`:'';
+
+  if(!filtered.length){el.innerHTML='<div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center">ไม่มี MCID ตาม filter ที่เลือก</div>';return;}
+
+  // Group by item
   const byItem={};
-  S.mcids.forEach(c=>{if(!byItem[c.item])byItem[c.item]=[];byItem[c.item].push(c);});
+  filtered.forEach(c=>{if(!byItem[c.item])byItem[c.item]=[];byItem[c.item].push(c);});
+
   el.innerHTML=Object.entries(byItem).map(([item,coils])=>`
-    <div style="margin-bottom:10px">
+    <div style="margin-bottom:12px">
       <div class="sec-lbl">${item} — ${coils[0].name.slice(0,50)} (${coils.length} ลูก)</div>
-      <div class="mcid-list" style="max-height:120px">
-        ${coils.map(c=>`<div class="mcid-item ${c.used?'used':''}">
-          <div class="mcid-srl">${c.serial}</div>
-          <div class="mcid-dtl">${c.thick}mm</div>
-          <div style="margin-left:auto;font-family:var(--mono);font-size:11px">${c.thick}mm · ${c.wt_kg.toFixed(3)} kg${c.factory?' · '+c.factory:''}</div>
-          ${c.used?'<span class="pill p-amber">ใช้แล้ว</span>':'<span class="pill p-ok">ว่าง</span>'}
+      <div class="mcid-list" style="max-height:200px">
+        ${coils.map(c=>`
+        <div class="mcid-item ${c.used?'used':''}">
+          <div>
+            <div class="mcid-srl">${c.serial}</div>
+            <div class="mcid-dtl" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:3px">
+              ${c.thick?`<span class="pill p-gray">${c.thick}mm</span>`:''}
+              ${c.width?`<span class="pill p-gray">W${c.width}</span>`:''}
+              ${c.factory?`<span class="pill p-blue" style="font-size:9px">${c.factory}</span>`:''}
+              ${c.coating?`<span class="pill p-teal" style="font-size:9px">${c.coating}</span>`:''}
+            </div>
+          </div>
+          <div style="margin-left:auto;text-align:right">
+            <div style="font-family:var(--mono);font-size:12px;font-weight:600">${c.wt_kg.toFixed(3)} kg</div>
+            <div style="margin-top:3px">${c.used?'<span class="pill p-amber">ใช้แล้ว</span>':'<span class="pill p-ok">ว่าง</span>'}</div>
+          </div>
         </div>`).join('')}
       </div>
     </div>`).join('');
