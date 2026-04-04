@@ -6,7 +6,7 @@
 <title>ZIGA · Factory Operations</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
 <style>
 :root{
   --bg:#F5F4F0;--card:#FFF;--panel:#ECEAE4;--panel2:#E0DDD5;
@@ -548,15 +548,25 @@ function initMSAL() {
     console.warn('⚠️ MSAL: ยังไม่ได้ตั้ง Client ID — ใช้ mock login');
     return false;
   }
-  msalInstance = new msal.PublicClientApplication({
-    auth: {
-      clientId: AZURE_CONFIG.clientId,
-      authority: `https://login.microsoftonline.com/${AZURE_CONFIG.tenantId}`,
-      redirectUri: AZURE_CONFIG.redirectUri,
-    },
-    cache: { cacheLocation: 'sessionStorage' },
-  });
-  return true;
+  if(typeof msal === 'undefined'){
+    console.error('❌ MSAL library not loaded');
+    return false;
+  }
+  try {
+    msalInstance = new msal.PublicClientApplication({
+      auth: {
+        clientId: AZURE_CONFIG.clientId,
+        authority: `https://login.microsoftonline.com/${AZURE_CONFIG.tenantId}`,
+        redirectUri: AZURE_CONFIG.redirectUri,
+      },
+      cache: { cacheLocation: 'sessionStorage' },
+    });
+    console.log('✅ MSAL ready');
+    return true;
+  } catch(e) {
+    console.error('MSAL init error:', e);
+    return false;
+  }
 }
 
 async function msalLogin() {
