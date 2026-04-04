@@ -700,6 +700,18 @@ async function getListId(listName) {
   return id;
 }
 
+// ── Debug: get actual SP field internal names ───────────────────
+async function spGetFields(listName){
+  const siteId = await getSiteId();
+  const listId = await getListId(listName);
+  if(!siteId||!listId) return;
+  const r = await graphGet(`/sites/${siteId}/lists/${listId}/fields?$select=displayName,internalName,fieldType&$top=100`);
+  if(r?.value){
+    console.table(r.value.filter(f=>!f.internalName.startsWith('_')&&f.internalName!=='ContentType')
+      .map(f=>({display:f.displayName, internal:f.internalName, type:f.fieldType})));
+  }
+}
+
 async function spGetItems(listName, filter = '', top = 500) {
   const siteId = await getSiteId();
   const listId = await getListId(listName);
@@ -911,6 +923,10 @@ async function applyPacking(){
   }
 
   showProgress('กำลังบันทึกเข้า SharePoint L4...',0,S._pendingMCIDs.length);
+
+  // First: discover actual field names
+  console.log('🔍 Discovering SP field names...');
+  await spGetFields(SP_LISTS.L4);
 
   for(let i=0;i<S._pendingMCIDs.length;i++){
     const c=S._pendingMCIDs[i];
