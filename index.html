@@ -662,7 +662,11 @@ async function graphPost(path, body) {
     headers: { Authorization: `Bearer ${graphToken}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  if (!resp.ok) { console.error('Graph POST error:', resp.status); return null; }
+  if (!resp.ok) {
+    const errText = await resp.text();
+    console.error('Graph POST error:', resp.status, path, errText);
+    return null;
+  }
   return resp.json();
 }
 
@@ -678,8 +682,11 @@ async function graphPatch(path, body) {
 
 async function getSiteId() {
   if (spSiteId) return spSiteId;
+  console.log('getSiteId: fetching', SP_SITE_PATH);
   const site = await graphGet(`/sites/${SP_SITE_PATH}`);
-  spSiteId = site?.id ?? null;
+  if(!site) { console.error('getSiteId: failed — check SP_SITE_PATH:', SP_SITE_PATH); return null; }
+  spSiteId = site.id;
+  console.log('getSiteId ✓', spSiteId);
   return spSiteId;
 }
 
@@ -687,7 +694,10 @@ async function getListId(listName) {
   const siteId = await getSiteId();
   if (!siteId) return null;
   const r = await graphGet(`/sites/${siteId}/lists?$filter=displayName eq '${listName}'`);
-  return r?.value?.[0]?.id ?? null;
+  const id = r?.value?.[0]?.id ?? null;
+  if(!id) console.error('getListId: not found:', listName, '— available:', r?.value?.map(l=>l.displayName));
+  else console.log('getListId ✓', listName, id);
+  return id;
 }
 
 async function spGetItems(listName, filter = '', top = 500) {
@@ -704,8 +714,10 @@ async function spGetItems(listName, filter = '', top = 500) {
 
 async function spAddItem(listName, fields) {
   const siteId = await getSiteId();
+  if(!siteId){ console.error('spAddItem: no siteId for', listName); return null; }
   const listId = await getListId(listName);
-  if (!siteId || !listId) return null;
+  if(!listId){ console.error('spAddItem: list not found:', listName); return null; }
+  console.log('spAddItem →', listName, 'fields:', JSON.stringify(fields));
   return graphPost(`/sites/${siteId}/lists/${listId}/items`, { fields });
 }
 
@@ -856,11 +868,22 @@ function parsePacking(file){
   reader.onload=e=>{
     const wb=XLSX.read(e.target.result,{type:'array'});
     const data=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1});
-    const parsed=data.slice(1).filter(r=>r[3]).map(r=>{
-      const name=String(r[1]||'');
-      const thMatch=name.match(/th\s*([\d.]+)\s*mm/i);
-      const thick=thMatch?parseFloat(thMatch[1]):0;
-      return {item:String(r[0]||''),name:name.slice(0,60),batch:String(r[2]||''),serial:String(r[3]||''),wt_g:Number(r[4]||0),wt_kg:Number(r[4]||0)/1000,thick,used:false};
+    // Format A-K (row 1 = header, skip)
+    // A=Title(Serial), B=ItemNumber, C=ProductName, D=BatchNumber,
+    // E=ThicknessMM, F=WidthMM, G=WeightKG, H=Factory, I=Coating, J=PONo, K=ReceivedDate
+    const parsed=data.slice(1).filter(r=>r[0]).map(r=>{
+      const serial   = String(r[0]||'').trim();
+      const item     = String(r[1]||'').trim();
+      const name     = String(r[2]||'').trim();
+      const batch    = String(r[3]||'').trim();
+      const thick    = parseFloat(r[4])||0;
+      const width    = parseFloat(r[5])||1250;
+      const wt_kg    = parseFloat(r[6])||0;
+      const factory  = String(r[7]||'').trim();
+      const coating  = String(r[8]||'').trim();
+      const pono     = String(r[9]||'').trim();
+      const recDate  = r[10] ? String(r[10]).trim() : '';
+      return {serial,item,name,batch,thick,width,wt_kg,factory,coating,pono,recDate,used:false};
     });
     S._pendingMCIDs=parsed;
     const types=new Set(parsed.map(p=>p.item)).size;
@@ -893,18 +916,23 @@ async function applyPacking(){
     const c=S._pendingMCIDs[i];
     showProgress(`กำลังบันทึก ${c.serial} (${i+1}/${S._pendingMCIDs.length})`,i+1,S._pendingMCIDs.length);
     try{
+      // L4 fields — exact match to PrdCtrl_M4_Mcoil_Inventory schema (A-K)
       const fields={
-        Title:          c.serial,
-        ItemNumber:     c.item,
-        ProductName:    c.name,
-        BatchNumber:    c.batch,
-        ThicknessMM:    c.thick||null,
-        WidthMM:        1250,
-        WeightKG:       String(c.wt_kg.toFixed(3)),
-        MCIDStatus:     'ในคลัง',
-        ReceivedDate:   today,
-        ReportedBy:     S.user?.name||'',
+        Title:        c.serial,
+        ItemNumber:   c.item     ||undefined,
+        ProductName:  c.name     ||undefined,
+        BatchNumber:  c.batch    ||undefined,
+        ThicknessMM:  c.thick    ||undefined,
+        WidthMM:      c.width    ||undefined,
+        WeightKG:     c.wt_kg>0  ? String(c.wt_kg) : undefined,
+        Factory:      c.factory  ||undefined,
+        Coating:      c.coating  ||undefined,
+        PONo:         c.pono     ||undefined,
+        ReceivedDate: c.recDate  ||undefined,
+        MCIDStatus:   'ในคลัง',
       };
+      // Remove undefined fields to avoid 400 errors
+      Object.keys(fields).forEach(k=>{ if(fields[k]===undefined) delete fields[k]; });
       const result=await spAddItem(SP_LISTS.L4, fields);
       if(result){ c.spId=result.id; saved++; }
       else skipped++;
@@ -975,7 +1003,7 @@ function renderPackingList(){
         ${coils.map(c=>`<div class="mcid-item ${c.used?'used':''}">
           <div class="mcid-srl">${c.serial}</div>
           <div class="mcid-dtl">${c.thick}mm</div>
-          <div style="margin-left:auto;font-family:var(--mono);font-size:11px">${c.wt_kg.toFixed(3)} kg</div>
+          <div style="margin-left:auto;font-family:var(--mono);font-size:11px">${c.thick}mm · ${c.wt_kg.toFixed(3)} kg${c.factory?' · '+c.factory:''}</div>
           ${c.used?'<span class="pill p-amber">ใช้แล้ว</span>':'<span class="pill p-ok">ว่าง</span>'}
         </div>`).join('')}
       </div>
