@@ -185,9 +185,11 @@ table.ft tr:hover td{background:var(--panel)}
 table.ft .total-row td{font-weight:600;background:var(--green-lt);color:var(--green)}
 
 /* upload */
-.upload-zone{border:2px dashed var(--b2);border-radius:var(--r);padding:20px;text-align:center;cursor:pointer;transition:all .12s;background:var(--panel)}
-.upload-zone:hover{border-color:var(--blue);background:var(--blue-bg)}
+.upload-zone{display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border:1px solid var(--b2);border-radius:var(--rs);cursor:pointer;transition:all .12s;background:var(--panel);font-size:13px;font-weight:500;color:var(--ink2)}
+.upload-zone:hover{border-color:var(--blue);background:var(--blue-bg);color:var(--blue)}
 .upload-zone input{display:none}
+.upload-zone .uz-icon{font-size:16px}
+.upload-zone .uz-name{font-size:11px;color:var(--ink3);margin-left:4px}
 
 /* mcid list */
 .mcid-list{display:flex;flex-direction:column;gap:4px;max-height:260px;overflow-y:auto}
@@ -294,14 +296,15 @@ table.ax-t .ax-total{background:var(--green-lt);color:var(--green);font-weight:6
       </div>
       <div class="card">
         <div class="card-title">Upload Packing List</div>
-        <div class="upload-zone" onclick="document.getElementById('pk-file').click()"
-          ondragover="event.preventDefault();this.classList.add('drag')"
-          ondragleave="this.classList.remove('drag')"
-          ondrop="handleDrop(event,'pk')">
-          <input type="file" id="pk-file" accept=".xlsx,.xls" onchange="parsePacking(this.files[0])">
-          <div style="font-size:26px;margin-bottom:7px">📦</div>
-          <div style="font-size:13px;font-weight:500">packing_list.xlsx จาก AX</div>
-          <div style="font-size:11px;color:var(--ink3);margin-top:3px">Item number · Batch number · Serial number · Physical inventory</div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <div class="upload-zone" onclick="document.getElementById('pk-file').click()"
+            ondragover="event.preventDefault()" ondrop="handleDrop(event,'pk')">
+            <input type="file" id="pk-file" accept=".xlsx,.xls,.csv" onchange="parsePacking(this.files[0])">
+            <span class="uz-icon">📦</span>
+            <span>Upload Packing List</span>
+            <span class="uz-name">.xlsx / .csv</span>
+          </div>
+          <span id="pk-file-name" style="font-size:11px;color:var(--ink3)"></span>
         </div>
         <div id="pk-result" style="display:none;margin-top:10px">
           <div class="alert a-ok" id="pk-summary"></div>
@@ -342,11 +345,15 @@ table.ax-t .ax-total{background:var(--green-lt);color:var(--green);font-weight:6
         <div class="pg-sub">Import AX export → เรียงลำดับ → กำหนดวัน → ประมาณการณ์ Cap</div></div>
       <div class="card">
         <div class="card-title">Import AX Export (OSE)</div>
-        <div class="upload-zone" onclick="document.getElementById('ax-file').click()"
-          ondragover="event.preventDefault()" ondrop="handleDrop(event,'ax')">
-          <input type="file" id="ax-file" accept=".xlsx,.xls" onchange="parseAX(this.files[0])">
-          <div style="font-size:26px;margin-bottom:7px">📋</div>
-          <div style="font-size:13px;font-weight:500">OSE-OFM-ORW.xlsx จาก AX</div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <div class="upload-zone" onclick="document.getElementById('ax-file').click()"
+            ondragover="event.preventDefault()" ondrop="handleDrop(event,'ax')">
+            <input type="file" id="ax-file" accept=".xlsx,.xls,.csv" onchange="parseAX(this.files[0])">
+            <span class="uz-icon">📋</span>
+            <span>Upload OSE-OFM-ORW</span>
+            <span class="uz-name">.xlsx / .csv</span>
+          </div>
+          <span id="ax-file-name" style="font-size:11px;color:var(--ink3)"></span>
         </div>
         <div id="ax-result" style="display:none;margin-top:10px">
           <div class="alert a-ok" id="ax-summary"></div>
@@ -929,6 +936,8 @@ function parsePacking(file){
     const kg=(parsed.reduce((s,p)=>s+p.wt_kg,0)).toFixed(1);
     document.getElementById('pk-summary').textContent=`✓ พบ ${parsed.length} MCID · ${types} ประเภท · ${kg} kg`;
     document.getElementById('pk-result').style.display='block';
+    const fn=document.getElementById('pk-file-name');
+    if(fn)fn.textContent=file.name;
   };
   reader.readAsArrayBuffer(file);
 }
@@ -1166,6 +1175,8 @@ function parseAX(file){
     const orw=parsed.filter(j=>j.type==='ORW').length;
     document.getElementById('ax-summary').textContent=`✓ พบ ${parsed.length} JOB active — OSE:${ose} OFM:${ofm} ORW:${orw}`;
     document.getElementById('ax-result').style.display='block';
+    const fn=document.getElementById('ax-file-name');
+    if(fn)fn.textContent=file.name;
   };
   reader.readAsArrayBuffer(file);
 }
