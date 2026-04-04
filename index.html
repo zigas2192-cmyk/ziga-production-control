@@ -1,0 +1,1252 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>ZIGA · Factory Operations</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
+<style>
+:root{
+  --bg:#F5F4F0;--card:#FFF;--panel:#ECEAE4;--panel2:#E0DDD5;
+  --ink:#1A1916;--ink2:#46443E;--ink3:#847F74;--ink4:#C0BDB4;
+  --b:rgba(0,0,0,.08);--b2:rgba(0,0,0,.14);
+  --blue:#1259A5;--blue-bg:#E5F0FB;--blue-bd:#7DB3E8;
+  --green:#236B23;--green-bg:#E8F3E8;--green-bd:#7BBF7B;--green-lt:#F2F9F2;
+  --amber:#7A470A;--amber-bg:#FEF0D8;--amber-bd:#E89A2A;
+  --red:#A01E1E;--red-bg:#FBEBEB;--red-bd:#EF9090;
+  --purple:#433FA8;--purple-bg:#EEEDFE;--purple-bd:#A8A2E8;
+  --teal:#0D6B50;--teal-bg:#E0F5EE;--teal-bd:#55C8A0;
+  --sans:'IBM Plex Sans Thai',sans-serif;--mono:'IBM Plex Mono',monospace;
+  --r:10px;--rs:6px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14px;display:flex;flex-direction:column}
+
+/* ── LOGIN ── */
+#login-overlay{position:fixed;inset:0;z-index:9999;background:rgba(26,25,22,.92);display:flex;align-items:center;justify-content:center;padding:16px;overflow-y:auto}
+.login-box{background:var(--card);border-radius:14px;padding:24px 26px;width:100%;max-width:480px;margin:auto}
+.login-logo{font-size:18px;font-weight:600;margin-bottom:2px}
+.login-logo span{color:#9D97E8}
+.login-sub{font-size:11px;color:var(--ink3);margin-bottom:16px}
+.role-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px}
+.role-btn{border:1px solid var(--b2);border-radius:var(--rs);padding:12px;cursor:pointer;background:var(--panel);text-align:center;transition:all .12s}
+.role-btn:hover,.role-btn.selected{border-color:var(--purple-bd);background:var(--purple-bg)}
+.rb-icon{font-size:22px;margin-bottom:5px}
+.rb-title{font-size:12px;font-weight:500;color:var(--ink)}
+.rb-sub{font-size:10px;color:var(--ink3);margin-top:2px}
+.emp-search{width:100%;padding:8px 12px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-family:var(--sans);font-size:13px;outline:none;margin-bottom:8px}
+.emp-search:focus{border-color:var(--purple-bd);background:#fff}
+.emp-list{max-height:220px;overflow-y:auto;border:1px solid var(--b);border-radius:var(--rs);background:var(--card)}
+.emp-item{display:flex;align-items:center;gap:10px;padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--b);transition:all .1s}
+.emp-item:last-child{border-bottom:none}
+.emp-item:hover{background:var(--purple-bg)}
+.emp-id{font-family:var(--mono);font-size:11px;color:var(--ink3);width:90px;flex-shrink:0}
+.emp-name{font-size:12px;font-weight:500;color:var(--ink);flex:1}
+.emp-pos{font-size:10px;color:var(--ink3)}
+.login-back{font-size:11px;color:var(--ink3);cursor:pointer;text-decoration:underline;margin-bottom:12px;display:block}
+.login-back:hover{color:var(--ink)}
+
+/* ── SHELL ── */
+.shell{display:flex;flex-direction:column;height:100%}
+#topnav{background:var(--ink);color:#fff;display:flex;align-items:center;height:46px;padding:0 12px;flex-shrink:0}
+.nav-brand{font-size:12px;font-weight:500;margin-right:12px;white-space:nowrap;flex-shrink:0}
+.nav-brand span{color:#9D97E8}
+.nav-tabs{display:flex;gap:0;overflow-x:auto;flex:1;scrollbar-width:none}
+.nav-tabs::-webkit-scrollbar{display:none}
+.nav-tab{padding:0 11px;height:46px;display:flex;align-items:center;font-size:11px;cursor:pointer;white-space:nowrap;color:rgba(255,255,255,.4);border-bottom:2px solid transparent;transition:all .12s;flex-shrink:0}
+.nav-tab:hover{color:rgba(255,255,255,.75)}
+.nav-tab.active{color:#fff;border-bottom-color:#9D97E8}
+.nav-user{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:11px;color:rgba(255,255,255,.5);cursor:pointer;flex-shrink:0;padding-left:10px;white-space:nowrap}
+.nav-user:hover{color:#fff}
+
+.content{flex:1;overflow-y:auto;padding:16px}
+.page{display:none}.page.active{display:block}
+
+/* ── COMMON ── */
+.pg-hd{margin-bottom:14px}
+.pg-title{font-size:17px;font-weight:500}
+.pg-sub{font-size:11px;color:var(--ink3);margin-top:2px}
+.card{background:var(--card);border:1px solid var(--b);border-radius:var(--r);padding:14px 16px;margin-bottom:10px}
+.card-title{font-size:12px;font-weight:500;margin-bottom:11px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(105px,1fr));gap:7px;margin-bottom:10px}
+.stat{background:var(--panel);border-radius:var(--rs);padding:9px 11px}
+.sn{font-size:20px;font-weight:500;line-height:1}.sl{font-size:10px;color:var(--ink3);margin-top:2px}
+.s-blue{color:var(--blue)}.s-green{color:var(--green)}.s-amber{color:var(--amber)}.s-red{color:var(--red)}.s-purple{color:var(--purple)}.s-teal{color:var(--teal)}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.ff{margin-bottom:9px}
+.ff label{display:block;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);margin-bottom:3px}
+.fi{width:100%;padding:7px 10px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:13px;color:var(--ink);font-family:var(--sans);outline:none;transition:border-color .12s}
+.fi:focus{border-color:var(--purple-bd);background:#fff}
+.fi.auto{background:var(--green-lt);border-color:var(--green-bd);color:var(--green);font-family:var(--mono);font-size:12px}
+.fi.sel{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23847F74'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;appearance:none;padding-right:26px;cursor:pointer}
+.fi-big{font-size:22px;font-weight:500;font-family:var(--mono);text-align:center;padding:10px}
+.btn{padding:7px 14px;border-radius:var(--rs);font-size:12px;font-weight:500;cursor:pointer;border:1px solid;transition:all .12s;font-family:var(--sans);display:inline-flex;align-items:center;gap:5px}
+.btn-p{background:var(--green);border-color:var(--green);color:#fff}.btn-p:hover{opacity:.85}
+.btn-s{background:transparent;border-color:var(--b2);color:var(--ink2)}.btn-s:hover{background:var(--panel)}
+.btn-blue{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn-amber{background:var(--amber);border-color:var(--amber);color:#fff}
+.btn-full{width:100%;justify-content:center;padding:12px;font-size:14px;border-radius:var(--r);margin-top:6px}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+.btn-row{display:flex;gap:7px;justify-content:flex-end;margin-top:10px;flex-wrap:wrap}
+.pill{display:inline-block;font-size:10px;font-weight:500;padding:2px 7px;border-radius:10px;border:1px solid;white-space:nowrap}
+.p-ok{background:var(--green-bg);border-color:var(--green-bd);color:var(--green)}
+.p-blue{background:var(--blue-bg);border-color:var(--blue-bd);color:var(--blue)}
+.p-amber{background:var(--amber-bg);border-color:var(--amber-bd);color:var(--amber)}
+.p-red{background:var(--red-bg);border-color:var(--red-bd);color:var(--red)}
+.p-purple{background:var(--purple-bg);border-color:var(--purple-bd);color:var(--purple)}
+.p-teal{background:var(--teal-bg);border-color:var(--teal-bd);color:var(--teal)}
+.p-gray{background:var(--panel);border-color:var(--b2);color:var(--ink3)}
+.alert{border-radius:var(--rs);padding:8px 12px;font-size:12px;line-height:1.6;margin-bottom:9px;display:flex;gap:8px}
+.a-ok{background:var(--green-bg);border:1px solid var(--green-bd);color:var(--green)}
+.a-info{background:var(--blue-bg);border:1px solid var(--blue-bd);color:var(--blue)}
+.a-warn{background:var(--amber-bg);border:1px solid var(--amber-bd);color:var(--amber)}
+.a-err{background:var(--red-bg);border:1px solid var(--red-bd);color:var(--red)}
+.divider{height:1px;background:var(--b);margin:11px 0}
+.sec-lbl{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--ink3);margin-bottom:7px}
+.mono{font-family:var(--mono);font-size:11px}
+.tbl-wrap{border:1px solid var(--b);border-radius:var(--rs);overflow:auto}
+table.ft{width:100%;border-collapse:collapse;font-size:12px;min-width:400px}
+table.ft th{padding:7px 10px;background:var(--panel);color:var(--ink2);font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--b);text-align:left;white-space:nowrap}
+table.ft td{padding:7px 10px;border-bottom:1px solid var(--b);color:var(--ink2);vertical-align:middle}
+table.ft tr:last-child td{border-bottom:none}
+table.ft tr:hover td{background:var(--panel)}
+table.ft .total-row td{font-weight:600;background:var(--green-lt);color:var(--green)}
+
+/* upload */
+.upload-zone{border:2px dashed var(--b2);border-radius:var(--r);padding:20px;text-align:center;cursor:pointer;transition:all .12s;background:var(--panel)}
+.upload-zone:hover{border-color:var(--blue);background:var(--blue-bg)}
+.upload-zone input{display:none}
+
+/* mcid list */
+.mcid-list{display:flex;flex-direction:column;gap:4px;max-height:260px;overflow-y:auto}
+.mcid-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--b);border-radius:var(--rs);cursor:pointer;transition:all .1s;user-select:none}
+.mcid-item:hover{border-color:var(--green-bd);background:var(--green-lt)}
+.mcid-item.sel{background:var(--green-bg);border-color:var(--green)}
+.mcid-item.used{opacity:.5;cursor:default;background:var(--amber-bg);border-color:var(--amber-bd)}
+.mchk{width:16px;height:16px;border-radius:3px;border:1.5px solid var(--b2);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700}
+.mcid-item.sel .mchk{background:var(--green);border-color:var(--green);color:#fff}
+.mcid-srl{font-family:var(--mono);font-size:12px;font-weight:500;flex:1}
+.mcid-dtl{font-size:10px;color:var(--ink3)}
+
+/* ose row */
+.ose-row{border:1px solid var(--b);border-radius:var(--rs);padding:11px 13px;margin-bottom:6px;cursor:pointer;transition:all .1s}
+.ose-row:hover{border-color:var(--amber-bd)}
+.ose-row.active{border-color:var(--amber);border-width:1.5px;background:var(--amber-bg)}
+.ose-no{font-family:var(--mono);font-size:13px;font-weight:500}
+.ose-sub{font-size:11px;color:var(--ink3);margin-top:2px;line-height:1.4}
+
+/* slit weight form */
+.wt-form{background:var(--panel);border-radius:var(--rs);padding:12px;margin-bottom:6px;border:1px solid var(--b)}
+.wt-serial{font-family:var(--mono);font-size:13px;font-weight:500;margin-bottom:8px;color:var(--ink)}
+.wt-done{background:var(--green-bg);border-color:var(--green-bd)}
+.wt-done .wt-serial{color:var(--green)}
+
+/* ax result */
+.ax-table-wrap{border:2px solid var(--blue-bd);border-radius:var(--r);overflow:hidden;margin-top:8px}
+.ax-hd{background:var(--blue);color:#fff;padding:10px 13px;font-size:12px;font-weight:500}
+table.ax-t{width:100%;border-collapse:collapse;font-size:11px}
+table.ax-t th{padding:6px 10px;background:var(--blue-bg);color:var(--blue);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--blue-bd);text-align:left}
+table.ax-t td{padding:7px 10px;border-bottom:1px solid var(--blue-bd);font-family:var(--mono);color:var(--ink2)}
+table.ax-t tr:last-child td{border-bottom:none}
+table.ax-t .ax-total{background:var(--green-lt);color:var(--green);font-weight:600}
+
+/* defect */
+.def-type-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:8px 0}
+.dt{border-radius:var(--rs);padding:7px;border:1px solid;cursor:pointer;font-size:10px;line-height:1.4;text-align:center;transition:all .1s}
+.dt-a{background:var(--green-bg);border-color:var(--green-bd);color:var(--green)}
+.dt-b{background:var(--amber-bg);border-color:var(--amber-bd);color:var(--amber)}
+.dt-c{background:var(--red-bg);border-color:var(--red-bd);color:var(--red)}
+.dt.sel{box-shadow:0 0 0 2px currentColor;font-weight:600}
+.dt-code{font-size:12px;font-weight:700;display:block;margin-bottom:2px}
+
+/* dashboard */
+.dash-row{display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--b);font-size:12px}
+.dash-row:last-child{border-bottom:none}
+
+@media(max-width:600px){.content{padding:10px}.g2,.g3{grid-template-columns:1fr}.def-type-grid{grid-template-columns:1fr 1fr}.role-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<!-- ── LOGIN ── -->
+<div id="login-overlay">
+  <div class="login-box">
+    <div class="login-logo">ZIGA <span>·</span> Factory</div>
+    <div class="login-sub" id="login-sub">เลือกประเภทงานของคุณ</div>
+    <div id="login-step1">
+      <div class="role-grid" id="role-grid"></div>
+    </div>
+    <div id="login-step2" style="display:none">
+      <a class="login-back" onclick="backToRoles()">← เปลี่ยนประเภทงาน</a>
+      <div style="margin-bottom:10px;font-size:12px;color:var(--ink3)">เลือกชื่อของคุณ</div>
+      <div id="emp-list" class="emp-list"></div>
+      <div id="emp-err" style="display:none;color:var(--red);font-size:11px;margin:8px 0">กรุณาเลือกชื่อ</div>
+    </div>
+  </div>
+</div>
+
+<div class="shell">
+  <nav id="topnav">
+    <div class="nav-brand">ZIGA <span>·</span> Factory</div>
+    <div class="nav-tabs" id="nav-tabs"></div>
+    <div class="nav-user" onclick="logout()" id="nav-user-btn"></div>
+  </nav>
+  <div class="content" id="content">
+
+    <!-- ① PACKING LIST -->
+    <div class="page" id="page-packing">
+      <div class="pg-hd"><div class="pg-title">รับเหล็กม้วน — Import Packing List</div>
+        <div class="pg-sub">Upload ไฟล์ packing list จาก AX → ยืนยันรับเข้าคลัง</div></div>
+      <div class="stats">
+        <div class="stat"><div class="sn s-blue" id="pk-total">0</div><div class="sl">MCID รวม</div></div>
+        <div class="stat"><div class="sn s-green" id="pk-types">0</div><div class="sl">ประเภทเหล็ก</div></div>
+        <div class="stat"><div class="sn s-teal" id="pk-kg">0</div><div class="sl">น้ำหนักรวม (kg)</div></div>
+        <div class="stat"><div class="sn s-amber" id="pk-used">0</div><div class="sl">ใช้แล้ว</div></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Upload Packing List</div>
+        <div class="upload-zone" onclick="document.getElementById('pk-file').click()"
+          ondragover="event.preventDefault();this.classList.add('drag')"
+          ondragleave="this.classList.remove('drag')"
+          ondrop="handleDrop(event,'pk')">
+          <input type="file" id="pk-file" accept=".xlsx,.xls" onchange="parsePacking(this.files[0])">
+          <div style="font-size:26px;margin-bottom:7px">📦</div>
+          <div style="font-size:13px;font-weight:500">packing_list.xlsx จาก AX</div>
+          <div style="font-size:11px;color:var(--ink3);margin-top:3px">Item number · Batch number · Serial number · Physical inventory</div>
+        </div>
+        <div id="pk-result" style="display:none;margin-top:10px">
+          <div class="alert a-ok" id="pk-summary"></div>
+          <div class="btn-row"><button class="btn btn-p" onclick="applyPacking()">✓ ยืนยันรับเข้าคลัง</button></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">MCID ในคลัง <span class="pill p-blue" id="pk-list-count">0</span></div>
+        <div id="pk-mcid-list"><div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center">ยังไม่มีข้อมูล</div></div>
+      </div>
+    </div>
+
+    <!-- ② OSE PLAN (AS) -->
+    <div class="page" id="page-ose-plan">
+      <div class="pg-hd"><div class="pg-title">วางแผน OSE — สั่งสลิท</div>
+        <div class="pg-sub">Import AX export → เรียงลำดับ → กำหนดวัน → ประมาณการณ์ Cap</div></div>
+      <div class="card">
+        <div class="card-title">Import AX Export (OSE)</div>
+        <div class="upload-zone" onclick="document.getElementById('ax-file').click()"
+          ondragover="event.preventDefault()" ondrop="handleDrop(event,'ax')">
+          <input type="file" id="ax-file" accept=".xlsx,.xls" onchange="parseAX(this.files[0])">
+          <div style="font-size:26px;margin-bottom:7px">📋</div>
+          <div style="font-size:13px;font-weight:500">OSE-OFM-ORW.xlsx จาก AX</div>
+        </div>
+        <div id="ax-result" style="display:none;margin-top:10px">
+          <div class="alert a-ok" id="ax-summary"></div>
+          <div class="btn-row"><button class="btn btn-p" onclick="applyAX()">✓ นำเข้าระบบ</button></div>
+        </div>
+      </div>
+      <div class="g2">
+        <div class="card">
+          <div class="card-title">OSE ที่รอกำหนดการ</div>
+          <div id="ose-pending-list"><div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center">ยังไม่มี OSE</div></div>
+        </div>
+        <div class="card" id="ose-plan-form-card" style="display:none">
+          <div class="card-title" id="ose-plan-form-title">ตั้งค่า OSE</div>
+          <div id="ose-plan-spec" style="background:var(--amber-bg);border:1px solid var(--amber-bd);border-radius:var(--rs);padding:9px 12px;margin-bottom:10px;font-size:11px;line-height:1.6;color:var(--amber)"></div>
+          <div class="ff"><label>เลือก MCID (filter ตาม spec)</label>
+            <div class="mcid-list" id="ose-mcid-sel" style="max-height:180px"></div>
+            <div id="ose-mcid-summary" style="display:none;margin-top:5px;font-size:11px;padding:6px 10px;border-radius:var(--rs);background:var(--purple-bg);color:var(--purple)"></div>
+          </div>
+          <div class="g2">
+            <div class="ff"><label>วันเริ่มสลิท</label><input class="fi" type="date" id="ose-start"></div>
+            <div class="ff"><label>Cap (นาที/ลูก)</label><input class="fi" type="number" id="ose-cap" value="50" oninput="calcOSEDays()"></div>
+          </div>
+          <div class="ff"><label>ประมาณการณ์ (auto)</label><input class="fi auto" id="ose-estimate" readonly></div>
+          <div class="ff"><label>ลำดับงาน</label><input class="fi" type="number" id="ose-order" value="1"></div>
+          <div class="btn-row"><button class="btn btn-p" onclick="saveOSEPlan()">บันทึกแผน OSE</button></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">แผน OSE ทั้งหมด <span class="pill p-amber" id="ose-plan-count">0</span></div>
+        <div id="ose-planned-list"><div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center">ยังไม่มีแผน</div></div>
+      </div>
+    </div>
+
+    <!-- ③ SLIT บันทึก -->
+    <div class="page" id="page-slit">
+      <div class="pg-hd"><div class="pg-title">บันทึกผลสลิท + น้ำหนัก</div>
+        <div class="pg-sub">เลือก OSE → กรอกน้ำหนัก 3 ค่าต่อลูก → ระบบคำนวณ AX อัตโนมัติ</div></div>
+      <div class="g2" id="slit-layout">
+        <div>
+          <div class="sec-lbl">เลือกใบงาน OSE</div>
+          <div id="slit-ose-list"><div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center;background:var(--panel);border-radius:var(--r)">ยังไม่มีแผน OSE</div></div>
+        </div>
+        <div id="slit-right" style="display:none">
+          <div class="card" id="slit-ose-info-card">
+            <div id="slit-ose-info"></div>
+            <div class="divider"></div>
+            <div class="sec-lbl">กรอกน้ำหนักต่อลูก MCID</div>
+            <div id="slit-mcid-forms"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ④ AX CALC (Duke) -->
+    <div class="page" id="page-ax">
+      <div class="pg-hd"><div class="pg-title">คำนวณ AX — พร้อม Key เข้าระบบ</div>
+        <div class="pg-sub">Duke (AP) — เห็นน้ำหนักแยกตามหน้าสลิท พร้อม Serial AX ครบทุกบรรทัด</div></div>
+      <div id="ax-content"><div style="color:var(--ink3);font-size:12px;padding:40px;text-align:center">รอสุภาพบันทึกน้ำหนัก (หน้าสลิท) ก่อนครับ</div></div>
+    </div>
+
+    <!-- ⑤ OFM วางแผน -->
+    <div class="page" id="page-ofm-plan">
+      <div class="pg-hd"><div class="pg-title">วางแผน OFM/ORW</div>
+        <div class="pg-sub">เลือก JOB → กำหนดเครื่อง + เวลา + Cap → จำนวนตามแผน auto-คำนวณ</div></div>
+      <div class="g2">
+        <div class="card">
+          <div class="card-title">เพิ่มแผนงาน</div>
+          <div class="ff"><label>วันที่</label><input class="fi" type="date" id="ofm-date"></div>
+          <div class="ff"><label>เลือก JOB No.</label>
+            <select class="fi sel" id="ofm-job" onchange="onOFMJobChange()"><option value="">-- เลือก --</option></select></div>
+          <div id="ofm-job-detail" style="display:none;background:var(--panel);border-radius:var(--rs);padding:8px 11px;margin-bottom:9px;font-size:11px;line-height:1.6;color:var(--ink3)"></div>
+          <div class="g2">
+            <div class="ff"><label>เครื่องจักร</label>
+              <select class="fi sel" id="ofm-machine">
+                <option>RF_04</option><option>RF_05</option><option>RF_06</option><option>RF_07</option><option>RF_08</option>
+                <option>TA_A03</option><option>TA_A04</option><option>TA_A05</option><option>TA_A06</option>
+                <option>CH_A02</option><option>CH_A03</option><option>CH_A05</option><option>CH_A06</option>
+                <option>LO_R01+PA_M01</option><option>LO_R04</option><option>LO_R08+PA_M08</option>
+                <option>ข้อต่อ-เกลียว</option><option>ข้อต่อ-ชุบ</option><option>ดันตะเข็บ</option>
+              </select></div>
+            <div class="ff"><label>ช่วงเวลา</label><input class="fi" id="ofm-time" placeholder="08.00-17.00"></div>
+            <div class="ff"><label>Cap</label><input class="fi" type="number" id="ofm-cap" oninput="calcOFM()"></div>
+            <div class="ff"><label>หน่วย</label>
+              <select class="fi sel" id="ofm-unit" onchange="calcOFM()">
+                <option>เส้น/นาที</option><option>เมตร/นาที</option><option>ชิ้น/นาที</option><option>นาที/ลูก</option>
+              </select></div>
+            <div class="ff"><label>ชั่วโมงทำงาน</label><input class="fi" type="number" id="ofm-hours" step="0.5" oninput="calcOFM()"></div>
+            <div class="ff"><label>ตามแผน (auto)</label><input class="fi auto" id="ofm-plan-qty" readonly></div>
+          </div>
+          <div class="btn-row"><button class="btn btn-p" onclick="addOFMPlan()">+ เพิ่มแผน</button></div>
+        </div>
+        <div class="card">
+          <div class="card-title">แผนวันนี้ <span class="pill p-purple" id="ofm-plan-count">0</span></div>
+          <div id="ofm-plan-list"><div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center">ยังไม่มีแผน</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ⑥ OFM/PROD บันทึก -->
+    <div class="page" id="page-prod">
+      <div class="pg-hd"><div class="pg-title">บันทึกผลผลิต</div>
+        <div class="pg-sub">เลือกงาน → กรอกผลจริง + พารามิเตอร์ + ของเสีย</div></div>
+      <div class="g2">
+        <div>
+          <div class="sec-lbl">งานที่ต้องกรอก</div>
+          <div id="prod-plan-list"><div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center;background:var(--panel);border-radius:var(--r)">ยังไม่มีแผนงาน</div></div>
+        </div>
+        <div id="prod-form-wrap" style="display:none">
+          <div class="card">
+            <div id="prod-job-header" style="margin-bottom:11px"></div>
+            <div class="ff"><label>จำนวนที่ทำได้จริง</label>
+              <input class="fi fi-big" type="number" id="prod-actual" oninput="onProdChange()"></div>
+            <div class="g2">
+              <div class="ff"><label>สถานะ</label>
+                <select class="fi sel" id="prod-status">
+                  <option>เดินงานตามปกติ</option><option>SET UP</option><option>PM</option><option>แพ็คแบบเหมา</option>
+                </select></div>
+              <div class="ff"><label>ชั่วโมงเดินจริง</label><input class="fi" type="number" id="prod-hours" step="0.5"></div>
+              <div class="ff"><label>Breakdown (นาที)</label><input class="fi" type="number" id="prod-bd" placeholder="0"></div>
+              <div class="ff"><label>สาเหตุ</label><input class="fi" id="prod-bdr" placeholder="ถ้ามี"></div>
+            </div>
+            <div class="divider"></div>
+            <div class="sec-lbl">พารามิเตอร์ (Supervisor กรอก)</div>
+            <div class="g2">
+              <div class="ff"><label>ความเร็วจริง</label><input class="fi" id="prod-speed" placeholder="เช่น 50 เมตร/นาที"></div>
+              <div class="ff"><label>ค่าไฟที่ใช้ (หน่วย)</label><input class="fi" id="prod-elec" placeholder="หน่วยไฟฟ้า"></div>
+            </div>
+            <div class="divider"></div>
+            <div class="sec-lbl">ของดี / ของเสีย</div>
+            <div class="g3">
+              <div class="ff"><label>Grade A (เส้น)</label><input class="fi" type="number" id="prod-ga" placeholder="0" oninput="calcProdGrade()"></div>
+              <div class="ff"><label>Grade B (เส้น)</label><input class="fi" type="number" id="prod-gb" placeholder="0" oninput="calcProdGrade()"></div>
+              <div class="ff"><label>Grade C (เส้น)</label><input class="fi" type="number" id="prod-gc" placeholder="0" oninput="calcProdGrade()"></div>
+            </div>
+            <div id="prod-grade-msg" style="display:none;margin-bottom:8px"></div>
+            <div class="ff"><label>หมายเหตุ</label><input class="fi" id="prod-note" placeholder="หมายเหตุ"></div>
+            <button class="btn btn-p btn-full" onclick="saveProd()">บันทึกผลผลิต</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ⑦ QA FM-08 -->
+    <div class="page" id="page-qa">
+      <div class="pg-hd"><div class="pg-title">รายงานของเสีย FM-QA-08</div>
+        <div class="pg-sub">QA — บันทึกเมื่อพบของเสีย พร้อม 4M และรูปภาพ</div></div>
+      <div class="stats">
+        <div class="stat"><div class="sn s-red" id="qa-total">0</div><div class="sl">records รวม</div></div>
+        <div class="stat"><div class="sn s-green" id="qa-a">0</div><div class="sl">Grade A</div></div>
+        <div class="stat"><div class="sn s-amber" id="qa-b">0</div><div class="sl">Grade B</div></div>
+        <div class="stat"><div class="sn s-red" id="qa-c">0</div><div class="sl">Grade C</div></div>
+      </div>
+      <div class="g2">
+        <div class="card">
+          <div class="card-title">บันทึกของเสียใหม่</div>
+          <div class="ff"><label>JOB No.</label>
+            <select class="fi sel" id="qa-job"><option value="">-- เลือก JOB --</option></select></div>
+          <div class="ff"><label>วันที่พบ</label><input class="fi" type="date" id="qa-date"></div>
+          <div class="sec-lbl">ลักษณะของเสีย</div>
+          <div class="def-type-grid" id="def-grid"></div>
+          <div id="qa-sel-type" style="display:none;margin:6px 0;padding:7px 10px;border-radius:var(--rs);font-size:12px;font-weight:500"></div>
+          <div class="ff" style="margin-top:8px"><label>จำนวน (เส้น/ชิ้น)</label><input class="fi" type="number" id="qa-qty"></div>
+          <div class="divider"></div>
+          <div class="sec-lbl">4M</div>
+          <div class="g2">
+            <div class="ff"><label>MAN</label><input class="fi" id="qa-man" placeholder="สาเหตุจากคน"></div>
+            <div class="ff"><label>Machine</label><input class="fi" id="qa-machine" placeholder="สาเหตุจากเครื่อง"></div>
+            <div class="ff"><label>Method</label><input class="fi" id="qa-method" placeholder="วิธีการ"></div>
+            <div class="ff"><label>Material</label><input class="fi" id="qa-material" placeholder="วัตถุดิบ"></div>
+          </div>
+          <div class="ff"><label>รูปภาพ</label><input class="fi" type="file" accept="image/*" style="padding:5px"></div>
+          <div class="btn-row"><button class="btn btn-p" onclick="saveQA()">บันทึกของเสีย</button></div>
+        </div>
+        <div class="card">
+          <div class="card-title">รายการของเสีย</div>
+          <div id="qa-list"><div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center">ยังไม่มีข้อมูล</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ⑧ DASHBOARD -->
+    <div class="page" id="page-dash">
+      <div class="pg-hd"><div class="pg-title">รายงานภาพรวม</div>
+        <div class="pg-sub">แข · เนตร — ดูสรุปการผลิต ของเสีย และ OSE/OFM</div></div>
+      <div class="stats" id="dash-stats"></div>
+      <div class="g2">
+        <div class="card">
+          <div class="card-title">สรุป OFM/ORW วันนี้</div>
+          <div id="dash-ofm-table"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">ของเสียล่าสุด</div>
+          <div id="dash-defect-list"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">OSE — สถานะใบงานสลิท</div>
+        <div id="dash-ose-table"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ─── DATA ─────────────────────────────────────────────────────────
+const DEFECT_TYPES = [
+  {code:'A-',g:'A',lbl:'พิเศษ 16 บาท'},{code:'A1',g:'A',lbl:'สั้น 5980-5999mm'},
+  {code:'A2',g:'A',lbl:'ผิวด่างดำ'},{code:'A5',g:'A',lbl:'ซิงค์ไม่พ่น'},
+  {code:'B1',g:'B',lbl:'สั้น 5900-5979mm'},{code:'B3',g:'B',lbl:'ท่อแตก ≤10cm'},
+  {code:'B4',g:'B',lbl:'ท่อบุบ 1/3'},{code:'B5',g:'B',lbl:'ท่องอ 18-20mm'},
+  {code:'B7',g:'B',lbl:'เกลียวเสีย'},{code:'B8',g:'B',lbl:'ซิงค์ไม่พ่น ตะเข็บดำ'},
+  {code:'B9',g:'B',lbl:'รอยต่อม้วน'},{code:'B10',g:'B',lbl:'รอยไสท่อ'},
+  {code:'C3',g:'C',lbl:'ท่อแตก >10cm'},{code:'C4',g:'C',lbl:'ท่อบุบแบน'},
+  {code:'C5',g:'C',lbl:'ท่องอ >20mm'},{code:'C9',g:'C',lbl:'DAIWA รอยต่อม้วน'},
+  {code:'C10',g:'C',lbl:'รอยไสไม่เรียบ'},
+];
+
+// ─── AZURE AD + GRAPH CONFIG ─────────────────────────────────────
+// ⚠️  ใส่ Client ID หลังทำ App Registration ที่ portal.azure.com
+const AZURE_CONFIG = {
+  clientId: 'YOUR_CLIENT_ID_HERE',           // ← เปลี่ยนหลัง App Registration
+  tenantId: '2c7e3ab4-6d2f-491e-87cc-8be0a96f1a68',
+  redirectUri: window.location.origin + window.location.pathname,
+};
+const SP_SITE_PATH = 'zigainnovation.sharepoint.com:/sites/msteams_1fdd76:';
+const SP_LISTS = { L4: 'Mcoil_Inventory', L6: 'OSE_Production', L7: 'DailyPlan_OFM', L8: 'Defect_FMQA08' };
+
+let msalInstance = null;
+let graphToken = null;
+let spSiteId = null;
+
+function initMSAL() {
+  if (AZURE_CONFIG.clientId === 'YOUR_CLIENT_ID_HERE') {
+    console.warn('⚠️ MSAL: ยังไม่ได้ตั้ง Client ID — ใช้ mock login');
+    return false;
+  }
+  msalInstance = new msal.PublicClientApplication({
+    auth: {
+      clientId: AZURE_CONFIG.clientId,
+      authority: `https://login.microsoftonline.com/${AZURE_CONFIG.tenantId}`,
+      redirectUri: AZURE_CONFIG.redirectUri,
+    },
+    cache: { cacheLocation: 'sessionStorage' },
+  });
+  return true;
+}
+
+async function msalLogin() {
+  if (!msalInstance) return null;
+  try {
+    const resp = await msalInstance.loginPopup({ scopes: ['User.Read','Sites.ReadWrite.All'] });
+    graphToken = resp.accessToken;
+    return resp.account;
+  } catch(e) { console.error('MSAL login failed:', e); return null; }
+}
+
+async function graphGet(path, extraHeaders = {}) {
+  if (!graphToken) return null;
+  const resp = await fetch(`https://graph.microsoft.com/v1.0${path}`, {
+    headers: { Authorization: `Bearer ${graphToken}`, 'Content-Type': 'application/json', ...extraHeaders },
+  });
+  if (!resp.ok) { console.error('Graph GET error:', resp.status, path); return null; }
+  return resp.json();
+}
+
+async function graphPost(path, body) {
+  if (!graphToken) return null;
+  const resp = await fetch(`https://graph.microsoft.com/v1.0${path}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${graphToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!resp.ok) { console.error('Graph POST error:', resp.status); return null; }
+  return resp.json();
+}
+
+async function graphPatch(path, body) {
+  if (!graphToken) return null;
+  const resp = await fetch(`https://graph.microsoft.com/v1.0${path}`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${graphToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return resp.ok;
+}
+
+async function getSiteId() {
+  if (spSiteId) return spSiteId;
+  const site = await graphGet(`/sites/${SP_SITE_PATH}`);
+  spSiteId = site?.id ?? null;
+  return spSiteId;
+}
+
+async function getListId(listName) {
+  const siteId = await getSiteId();
+  if (!siteId) return null;
+  const r = await graphGet(`/sites/${siteId}/lists?$filter=displayName eq '${listName}'`);
+  return r?.value?.[0]?.id ?? null;
+}
+
+async function spGetItems(listName, filter = '', top = 500) {
+  const siteId = await getSiteId();
+  const listId = await getListId(listName);
+  if (!siteId || !listId) return [];
+  const q = filter ? `&$filter=${encodeURIComponent(filter)}` : '';
+  const r = await graphGet(
+    `/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=${top}${q}`,
+    { 'Prefer': 'HonorNonIndexedQueriesWarningMayFailRandomly' }
+  );
+  return r?.value?.map(i => i.fields) ?? [];
+}
+
+async function spAddItem(listName, fields) {
+  const siteId = await getSiteId();
+  const listId = await getListId(listName);
+  if (!siteId || !listId) return null;
+  return graphPost(`/sites/${siteId}/lists/${listId}/items`, { fields });
+}
+
+async function spPatchItem(listName, itemId, fields) {
+  const siteId = await getSiteId();
+  const listId = await getListId(listName);
+  if (!siteId || !listId) return false;
+  return graphPatch(`/sites/${siteId}/lists/${listId}/items/${itemId}/fields`, fields);
+}
+
+// ─── EMPLOYEES ────────────────────────────────────────────────────
+const EMPLOYEES = [{"id":"ZZ41050601","name":"นาย ศุภกิจ งามจิตรเจริญ","position":"Chief Executive Officer - CEO","dept":"บริหาร","role":"mgmt"},{"id":"ZZ44030101","name":"นางสาว เมทินี งามจิตรเจริญ","position":"Chief Innovation Officer-CIO","dept":"บริหาร","role":"mgmt"},{"id":"ZZ53060701","name":"นางสาว ธนิดา เกรียงพานิช","position":"Managing Director – Factory Division","dept":"บริหาร","role":"mgmt"},{"id":"ZZ55020101","name":"นางสาว วราลักษณ์ งามจิตรเจริญ","position":"Chief Marketing Officer-CMO","dept":"บริหาร","role":"mgmt"},{"id":"ZZ65101702","name":"นางสาว ศิริพิมพ์ เชื้อเจ็ดตน","position":"IT Support Officer","dept":"แผนก IT & Bitcoin","role":"mgmt"},{"id":"ZZ66080101","name":"นาย สมคิด อังกุโร","position":"IT & Bitcoin Manager","dept":"แผนก IT & Bitcoin","role":"mgmt"},{"id":"ZZ58090101","name":"นาย จตุรณ เพ็งเอี่ยม","position":"เจ้าหน้าที่วางแผนผลิต-AP","dept":"แผนกPlanning Resource","role":"ap"},{"id":"ZZ61010305","name":"นางสาว สุวิภา ปานประชาติ","position":"เจ้าหน้าที่วางแผนผลิต-AP","dept":"แผนกPlanning Resource","role":"as"},{"id":"ZZ65070101","name":"นางสาว บุณยานุช อุปสุข","position":"QMR และจป.วิชาชีพ","dept":"แผนกQMRและจป.วิชาชีพ","role":"mgmt"},{"id":"ZZ68081201","name":"นางสาว ณัฏฐากุญช์ กอบแก้ว","position":"เจ้าหน้าที่คลัง-สลิทและวัสดุสิ้นเปลือง","dept":"แผนกคลังสลิทและวัสดุสิ้นเปลือง","role":"ir"},{"id":"ZZ68111701","name":"นาย ทวีศักดิ์ วรรณาลัย","position":"เจ้าหน้าที่คลัง-สลิทและวัสดุสิ้นเปลือง","dept":"แผนกคลังสลิทและวัสดุสิ้นเปลือง","role":"ir"},{"id":"ZZ62041703","name":"นาย กิตติพงษ์ โสภณกิตติพัฒน์","position":"เจ้าหน้าที่คลังจัดส่ง","dept":"แผนกคลังสินค้าและจัดส่ง","role":"mgmt"},{"id":"ZZ66020102","name":"นางสาว จีระนันท์ มีคำ","position":"เจ้าหน้าที่ธุรการคลังจัดส่ง","dept":"แผนกคลังสินค้าและจัดส่ง","role":"mgmt"},{"id":"ZZ66062201","name":"นางสาว พีชญา สมประสงค์","position":"เจ้าหน้าที่เช็คเกอร์","dept":"แผนกคลังสินค้าและจัดส่ง","role":"mgmt"},{"id":"ZZ66082501","name":"นาย สิทธานนท์ นันทวงศ์สาร","position":"เจ้าหน้าที่คลังจัดส่ง","dept":"แผนกคลังสินค้าและจัดส่ง","role":"mgmt"},{"id":"ZZ68010201","name":"นาย อิทธิพล วิไลรัตน์","position":"เจ้าหน้าที่คลังจัดส่ง","dept":"แผนกคลังสินค้าและจัดส่ง","role":"mgmt"},{"id":"ZZ59020401","name":"นางสาว ณิชาดา อ๊อตจังหรีด","position":"หัวหน้าแผนกบัญชี","dept":"แผนกบัญชีและการเงิน","role":"mgmt"},{"id":"ZZ63021702","name":"นางสาว บุษกร เพชรคง","position":"เจ้าหน้าที่บัญชีเจ้าหนี้","dept":"แผนกบัญชีและการเงิน","role":"mgmt"},{"id":"ZZ66050801","name":"นางสาว ไพลิน มีชัยโย","position":"ผู้ช่วยผู้จัดการฝ่ายบัญชี","dept":"แผนกบัญชีและการเงิน","role":"mgmt"},{"id":"ZZ66053001","name":"นาย อดิศักดิ์ วงศ์ก้อม","position":"เจ้าหน้าที่ประกันคุณภาพ","dept":"แผนกประกันคุณภาพ","role":"qa"},{"id":"ZZ68021401","name":"นาย อภินันท์ บุญสม","position":"เจ้าหน้าที่ประกันคุณภาพ","dept":"แผนกประกันคุณภาพ","role":"qa"},{"id":"ZZ68022001","name":"นางสาว วรรณรดา สุวรรณกาญจน์","position":"QA Supervisor","dept":"แผนกประกันคุณภาพ","role":"qa"},{"id":"ZZ69032301","name":"นางสาว สุกานดา งามสวย","position":"เจ้าหน้าที่ประกันคุณภาพ","dept":"แผนกประกันคุณภาพ","role":"qa"},{"id":"ZZ55061101","name":"นาย สุรเชษฐ์ สุดศิลา","position":"หัวหน้าควบคุมเครื่องรีดต่อคอยล์","dept":"แผนกผลิต - เครื่องรีด ทีม1","role":"ofm"},{"id":"ZZ57102101","name":"นาย สงวน สุดแก้ว","position":"หัวหน้าทีมผลิต-เครื่องรีด","dept":"แผนกผลิต - เครื่องรีด ทีม1","role":"ofm"},{"id":"ZZ58110201","name":"นาย อุเทน กองสิงห์","position":"เจ้าหน้าที่คุมเครื่องรีดต่อคอยล์","dept":"แผนกผลิต - เครื่องรีด ทีม1","role":"ofm"},{"id":"ZZ60062401","name":"นาย ภูษิต บัวชุม","position":"หัวหน้าควบคุมเครื่องรีดต่อคอยล์","dept":"แผนกผลิต - เครื่องรีด ทีม1","role":"ofm"},{"id":"ZZ67082101","name":"นาย สงบ การบรรจง","position":"เจ้าหน้าที่ควบคุมเครื่องรีดต่อคอลย์","dept":"แผนกผลิต - เครื่องรีด ทีม1","role":"ofm"},{"id":"ZZ58010801","name":"นาย ภูมินทร์ มั่นศักดิ์","position":"หัวหน้าควบคุมเครื่องรีดต่อคอยล์","dept":"แผนกผลิต - เครื่องรีด ทีม2","role":"ofm"},{"id":"ZZ63021701","name":"นาย วิชัย ด่านมะณี","position":"เจ้าหน้าที่ผลิต-เกลียว","dept":"แผนกผลิต - ตัด ลบคม ทำเกลียว","role":"ofm"},{"id":"ZZ66021403","name":"นาย วิทัต วุฒิวิมล","position":"เจ้าหน้าที่ผลิต-ข้อต่อ","dept":"แผนกผลิต - ตัด ลบคม ทำเกลียว","role":"ofm"},{"id":"ZZ67062101","name":"นาย นาราภัทร สายจันดี","position":"เจ้าหน้าที่ผลิต-ลบคม","dept":"แผนกผลิต - ตัด ลบคม ทำเกลียว","role":"ofm"},{"id":"ZZ68020302","name":"นาย ศิวะกรณ์ สุขเจริญ","position":"พนักงานคุมเครื่องลบคมทำเกลียว","dept":"แผนกผลิต - ตัด ลบคม ทำเกลียว","role":"ofm"},{"id":"ZZ68070201","name":"นาย กิตติพร เกษประเสริฐ","position":"พนักงานคุมเครื่องลบคมทำเกลียว","dept":"แผนกผลิต - ตัด ลบคม ทำเกลียว","role":"ofm"},{"id":"ZZ57060801","name":"นาย รุ่งโรจน์ วามะลุน","position":"เจ้าหน้าที่ผลิต-ท่อโค้งและข้อต่อ","dept":"แผนกผลิต - ท่อโค้ง","role":"ofm"},{"id":"ZZ55062101","name":"นาย ธัณพิสิฐ น้อมนุช","position":"หัวหน้าคุมเครื่อง-แพ็คกิ้ง","dept":"แผนกผลิต - แพ็คกิ้ง","role":"ofm"},{"id":"ZZ66050201","name":"นาย เอกภพ ภู่ศรีพงษ์","position":"เจ้าหน้าที่ผลิต-สลิทเตอร์","dept":"แผนกสลิทเหล็ก","role":"slit"},{"id":"ZZ68010801","name":"นาย สุภาพ เม่นแก้ว","position":"พนักงานผลิต-สลิทเตอร์","dept":"แผนกสลิทเหล็ก","role":"slit"},{"id":"ZZ69010601","name":"นาย สามารถ ดาสม","position":"เจ้าหน้าที่ผลิต-สลิทเตอร์","dept":"แผนกสลิทเหล็ก","role":"slit"},{"id":"ZZ41050602","name":"นางสาว ฐปนี ตรีมุทธาพงศ์","position":"Financial Controller","dept":"ฝ่ายบัญชีและการเงิน (AFM)","role":"mgmt"},{"id":"ZZ69020201","name":"นาย ทิพยเนตร เจี้ยงรักษา","position":"Production Supervisor","dept":"ส่วนผลิตและควบคุมอุปทานการผลิต","role":"supervisor"},{"id":"ZZ69020202","name":"นาย มนตรี รักเสมอวงค์","position":"รองหัวหน้าแผนกผลิต","dept":"ส่วนผลิตและควบคุมอุปทานการผลิต","role":"supervisor"}];
+
+const ROLES = [{"id":"mgmt","icon":"👑","title":"ผู้บริหาร / บัญชี","sub":"ดูภาพรวม รายงาน","tabs":["dash","ose-plan"]},{"id":"ap","icon":"📊","title":"จนท. AP","sub":"Duke — สั่งสลิท / AX Calc","tabs":["ose-plan","ax","dash"]},{"id":"as","icon":"📅","title":"จนท. AS","sub":"แป๋ม — วางแผน OFM / ลำดับงาน","tabs":["ose-plan","ofm-plan","dash"]},{"id":"ir","icon":"🏭","title":"จนท. คลัง IR","sub":"จอย — รับเหล็กม้วน / เลือก MCID","tabs":["packing","ose-plan"]},{"id":"slit","icon":"⚙️","title":"จนท. Slitter","sub":"สุภาพ / เอกภพ / สามารถ — บันทึกสลิท","tabs":["slit","packing"]},{"id":"ofm","icon":"🔧","title":"พนักงานผลิต","sub":"เครื่องรีด / ลบคม / เกลียว / แพ็ค","tabs":["prod"]},{"id":"qa","icon":"🔍","title":"จนท. QA","sub":"บันทึกของเสีย FM-QA-08","tabs":["qa","dash"]},{"id":"supervisor","icon":"👷","title":"Production Supervisor","sub":"ตรวจสอบพารามิเตอร์","tabs":["prod","dash"]}];
+
+const TABS_CONFIG = [
+  {id:'packing',label:'รับเหล็ก'},
+  {id:'ose-plan',label:'วางแผน OSE'},
+  {id:'slit',label:'สลิท+น้ำหนัก'},
+  {id:'ax',label:'AX Calc'},
+  {id:'ofm-plan',label:'วางแผน OFM'},
+  {id:'prod',label:'บันทึกผลิต'},
+  {id:'qa',label:'FM-08 ของเสีย'},
+  {id:'dash',label:'รายงาน'},
+];
+
+// ─── STATE ────────────────────────────────────────────────────────
+const S = {
+  user:null, selectedRole:null,
+  mcids:[],          // packing list
+  axJobs:[],         // from AX export
+  osePlans:[],       // planned OSE with MCID selection
+  ofmPlans:[],       // OFM daily plan
+  slitData:{},       // Serial → {before,after,scrap,done}
+  prodData:{},       // planId → actual result
+  defects:[],
+  selectedOSE:null,  // for slit page
+  selectedOFMPlan:null,
+  selectedDefType:null,
+};
+
+// ─── LOGIN ────────────────────────────────────────────────────────
+const roleGrid = document.getElementById('role-grid');
+ROLES.forEach(r=>{
+  const el=document.createElement('div');
+  el.className='role-btn';
+  el.innerHTML=`<div class="rb-icon">${r.icon}</div><div class="rb-title">${r.title}</div><div class="rb-sub">${r.sub}</div>`;
+  el.onclick=()=>selectRole(r);
+  roleGrid.appendChild(el);
+});
+
+function selectRole(r){
+  S.selectedRole=r;
+  document.getElementById('login-step1').style.display='none';
+  document.getElementById('login-step2').style.display='block';
+  document.getElementById('login-sub').textContent=`${r.icon} ${r.title} — เลือกชื่อหรือพิมพ์รหัสพนักงาน`;
+  filterEmps();
+}
+function backToRoles(){
+  S.selectedRole=null;
+  document.getElementById('login-step1').style.display='block';
+  document.getElementById('login-step2').style.display='none';
+  document.getElementById('login-sub').textContent='เลือกประเภทงานของคุณ';
+  const el=document.getElementById('emp-list');if(el)el.innerHTML='';
+  document.getElementById('emp-err').style.display='none';
+}
+function filterEmps(){
+  const role=S.selectedRole?.id;
+  const list=document.getElementById('emp-list');
+  if(!list)return;
+  const emps=EMPLOYEES.filter(e=>e.role===role);
+  list.innerHTML=emps.length
+    ? emps.map(e=>`
+        <div class="emp-item" onclick="selectEmp('${e.id}')">
+          <div>
+            <div class="emp-name">${e.name}</div>
+            <div class="emp-pos">${e.position} · <span style="color:var(--teal);font-size:10px">${e.email}</span></div>
+            <div style="font-size:10px;color:var(--ink4);margin-top:2px">${e.responsibility||''}</div>
+          </div>
+        </div>`).join('')
+    : '<div style="padding:16px;text-align:center;font-size:12px;color:var(--ink3)">ไม่มีพนักงานในกลุ่มนี้</div>';
+}
+function selectEmp(id){
+  const emp=EMPLOYEES.find(e=>e.id===id);
+  if(!emp)return;
+  S.user={...emp, roleConfig:S.selectedRole};
+  document.getElementById('login-overlay').style.display='none';
+  buildNav();
+  initDefGrid();
+  setToday();
+  navigate(S.selectedRole.tabs[0]);
+}
+function doLogin(){
+  // legacy — not used
+}
+function logout(){
+  S.user=null; S.selectedRole=null;
+  document.getElementById('login-overlay').style.display='flex';
+  document.getElementById('login-step1').style.display='block';
+  document.getElementById('login-step2').style.display='none';
+  document.getElementById('login-sub').textContent='เลือกประเภทงานของคุณ';
+  const el=document.getElementById('emp-list');if(el)el.innerHTML='';
+  document.getElementById('emp-err').style.display='none';
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('nav-tabs').innerHTML='';
+  document.getElementById('nav-user-btn').innerHTML='';
+}
+function buildNav(){
+  const tabs=S.selectedRole.tabs;
+  document.getElementById('nav-tabs').innerHTML=TABS_CONFIG
+    .filter(t=>tabs.includes(t.id))
+    .map(t=>`<div class="nav-tab" id="tab-${t.id}" onclick="navigate('${t.id}')">${t.label}</div>`)
+    .join('');
+  document.getElementById('nav-user-btn').innerHTML=`${S.user.name} <span style="opacity:.4;font-size:10px">ออก</span>`;
+}
+function navigate(id){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+  const page=document.getElementById('page-'+id);
+  if(page) page.classList.add('active');
+  const tab=document.getElementById('tab-'+id);
+  if(tab) tab.classList.add('active');
+  if(id==='packing') renderPackingList();
+  if(id==='ose-plan'){renderOSEPending();renderOSEPlanned();}
+  if(id==='slit') renderSlitOSEList();
+  if(id==='ax') renderAX();
+  if(id==='ofm-plan'){buildOFMJobSelect();renderOFMPlanList();}
+  if(id==='prod') renderProdList();
+  if(id==='qa'){renderQAJobSelect();renderQAList();updateQAStats();}
+  if(id==='dash') renderDash();
+}
+function setToday(){
+  const t=new Date().toISOString().slice(0,10);
+  ['ose-start','ofm-date','qa-date'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=t;});
+}
+
+// ─── PACKING LIST ─────────────────────────────────────────────────
+function handleDrop(e,type){e.preventDefault();const f=e.dataTransfer.files[0];if(f){if(type==='pk')parsePacking(f);else parseAX(f);}}
+function parsePacking(file){
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const wb=XLSX.read(e.target.result,{type:'array'});
+    const data=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1});
+    const parsed=data.slice(1).filter(r=>r[3]).map(r=>{
+      const name=String(r[1]||'');
+      const thMatch=name.match(/th\s*([\d.]+)\s*mm/i);
+      const thick=thMatch?parseFloat(thMatch[1]):0;
+      return {item:String(r[0]||''),name:name.slice(0,60),batch:String(r[2]||''),serial:String(r[3]||''),wt_g:Number(r[4]||0),wt_kg:Number(r[4]||0)/1000,thick,used:false};
+    });
+    S._pendingMCIDs=parsed;
+    const types=new Set(parsed.map(p=>p.item)).size;
+    const kg=(parsed.reduce((s,p)=>s+p.wt_kg,0)).toFixed(1);
+    document.getElementById('pk-summary').textContent=`✓ พบ ${parsed.length} MCID · ${types} ประเภท · ${kg} kg`;
+    document.getElementById('pk-result').style.display='block';
+  };
+  reader.readAsArrayBuffer(file);
+}
+function applyPacking(){
+  if(!S._pendingMCIDs) return;
+  S.mcids=[...S._pendingMCIDs];
+  renderPackingList();
+  updatePackingStats();
+  alert(`✓ รับเข้าคลัง ${S.mcids.length} MCID เรียบร้อย`);
+}
+function renderPackingList(){
+  updatePackingStats();
+  const el=document.getElementById('pk-mcid-list');
+  const cnt=document.getElementById('pk-list-count');
+  cnt.textContent=S.mcids.length;
+  if(!S.mcids.length){el.innerHTML='<div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center">ยังไม่มีข้อมูล</div>';return;}
+  // group by item
+  const byItem={};
+  S.mcids.forEach(c=>{if(!byItem[c.item])byItem[c.item]=[];byItem[c.item].push(c);});
+  el.innerHTML=Object.entries(byItem).map(([item,coils])=>`
+    <div style="margin-bottom:10px">
+      <div class="sec-lbl">${item} — ${coils[0].name.slice(0,50)} (${coils.length} ลูก)</div>
+      <div class="mcid-list" style="max-height:120px">
+        ${coils.map(c=>`<div class="mcid-item ${c.used?'used':''}">
+          <div class="mcid-srl">${c.serial}</div>
+          <div class="mcid-dtl">${c.thick}mm</div>
+          <div style="margin-left:auto;font-family:var(--mono);font-size:11px">${c.wt_kg.toFixed(3)} kg</div>
+          ${c.used?'<span class="pill p-amber">ใช้แล้ว</span>':'<span class="pill p-ok">ว่าง</span>'}
+        </div>`).join('')}
+      </div>
+    </div>`).join('');
+}
+function updatePackingStats(){
+  document.getElementById('pk-total').textContent=S.mcids.length;
+  document.getElementById('pk-types').textContent=new Set(S.mcids.map(c=>c.item)).size;
+  document.getElementById('pk-kg').textContent=(S.mcids.reduce((s,c)=>s+c.wt_kg,0)).toFixed(0);
+  document.getElementById('pk-used').textContent=S.mcids.filter(c=>c.used).length;
+}
+
+// ─── AX IMPORT ────────────────────────────────────────────────────
+function parseAX(file){
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const wb=XLSX.read(e.target.result,{type:'array'});
+    const data=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1});
+    const active=['Scheduled','Started','Released','Created'];
+    const parsed=data.slice(1).filter(r=>active.includes(String(r[3]||''))).map(r=>{
+      const prod=String(r[0]||'');
+      const name=String(r[2]||'');
+      let thick=''; const m=name.match(/-([\d.]+)(?:\(K\d+\))?$/); if(m)thick=m[1];
+      return {prod,item:String(r[1]||''),name:name.slice(0,80),status:String(r[3]||''),qty:Number(r[4]||0),type:prod.startsWith('OSE')?'OSE':prod.startsWith('OFM')?'OFM':'ORW',thick};
+    });
+    S._pendingAX=parsed;
+    const ose=parsed.filter(j=>j.type==='OSE').length;
+    const ofm=parsed.filter(j=>j.type==='OFM').length;
+    const orw=parsed.filter(j=>j.type==='ORW').length;
+    document.getElementById('ax-summary').textContent=`✓ พบ ${parsed.length} JOB active — OSE:${ose} OFM:${ofm} ORW:${orw}`;
+    document.getElementById('ax-result').style.display='block';
+  };
+  reader.readAsArrayBuffer(file);
+}
+function applyAX(){
+  if(!S._pendingAX) return;
+  S.axJobs=[...S._pendingAX];
+  renderOSEPending();buildOFMJobSelect();
+  alert(`✓ นำเข้า ${S.axJobs.length} JOB เรียบร้อย`);
+}
+
+// ─── OSE PLAN ─────────────────────────────────────────────────────
+let selOSEId=null, selMCIDs=[];
+function renderOSEPending(){
+  const el=document.getElementById('ose-pending-list');
+  const oses=S.axJobs.filter(j=>j.type==='OSE');
+  if(!oses.length){el.innerHTML='<div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center">ยังไม่มี OSE — Import AX ก่อน</div>';return;}
+  el.innerHTML=oses.map(o=>`
+    <div class="ose-row ${selOSEId===o.prod?'active':''}" onclick="selectOSE('${o.prod}')">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div class="ose-no">${o.prod}</div>
+        <span class="pill ${o.status==='Started'?'p-amber':o.status==='Released'?'p-teal':'p-blue'}">${o.status}</span>
+      </div>
+      <div class="ose-sub">${o.name}</div>
+      <div style="margin-top:5px;display:flex;gap:5px;flex-wrap:wrap">
+        ${o.thick?`<span class="pill p-gray">${o.thick}mm</span>`:''}
+        <span class="pill p-gray">QTY:${o.qty.toLocaleString()}</span>
+      </div>
+    </div>`).join('');
+}
+function selectOSE(prod){
+  selOSEId=prod; selMCIDs=[];
+  const job=S.axJobs.find(j=>j.prod===prod);
+  document.getElementById('ose-plan-form-card').style.display='block';
+  document.getElementById('ose-plan-form-title').textContent=`ตั้งค่า ${prod}`;
+  document.getElementById('ose-plan-spec').innerHTML=`
+    <strong>${prod}</strong><br>${job.name}<br>
+    ${job.thick?`ความหนา: <strong>${job.thick} mm</strong> · `:''}QTY: ${job.qty.toLocaleString()}`;
+  // filter MCID by thickness
+  const avail=S.mcids.filter(c=>!c.used&&(!job.thick||Math.abs(c.thick-parseFloat(job.thick))<0.01));
+  renderOSEMCIDSel(avail);
+  renderOSEPending();
+  calcOSEDays();
+}
+function renderOSEMCIDSel(list){
+  const el=document.getElementById('ose-mcid-sel');
+  el.innerHTML=list.map(c=>`
+    <div class="mcid-item ${selMCIDs.includes(c.serial)?'sel':''}" onclick="toggleOSEMCID('${c.serial}')">
+      <div class="mchk">${selMCIDs.includes(c.serial)?'✓':''}</div>
+      <div><div class="mcid-srl">${c.serial}</div><div class="mcid-dtl">${c.thick}mm · ${c.wt_kg.toFixed(3)}kg</div></div>
+    </div>`).join('')||'<div style="color:var(--ink3);font-size:11px;padding:10px">ไม่มี MCID ที่ตรง spec</div>';
+}
+function toggleOSEMCID(serial){
+  const job=S.axJobs.find(j=>j.prod===selOSEId);
+  const avail=S.mcids.filter(c=>!c.used&&(!job?.thick||Math.abs(c.thick-parseFloat(job.thick))<0.01));
+  const idx=selMCIDs.indexOf(serial);
+  if(idx>=0)selMCIDs.splice(idx,1); else selMCIDs.push(serial);
+  renderOSEMCIDSel(avail);
+  const n=selMCIDs.length;
+  const sumEl=document.getElementById('ose-mcid-summary');
+  const wt=S.mcids.filter(c=>selMCIDs.includes(c.serial)).reduce((s,c)=>s+c.wt_kg,0);
+  if(n>0){sumEl.style.display='block';sumEl.textContent=`เลือก ${n} ลูก · ${wt.toFixed(3)} kg รวม`;}
+  else sumEl.style.display='none';
+  calcOSEDays();
+}
+function calcOSEDays(){
+  const cap=parseFloat(document.getElementById('ose-cap').value)||50;
+  const n=selMCIDs.length;
+  if(n===0){document.getElementById('ose-estimate').value='';return;}
+  const totalMin=n*cap;
+  const days=Math.ceil(totalMin/(60*8));
+  const hrs=(totalMin/60).toFixed(1);
+  document.getElementById('ose-estimate').value=`${n} ลูก × ${cap} นาที/ลูก = ${hrs} ชม. ≈ ${days} วัน`;
+}
+function saveOSEPlan(){
+  if(!selOSEId||selMCIDs.length===0){alert('กรุณาเลือก OSE และ MCID ก่อน');return;}
+  const job=S.axJobs.find(j=>j.prod===selOSEId);
+  const mcids=S.mcids.filter(c=>selMCIDs.includes(c.serial));
+  S.osePlans.push({oseNo:selOSEId,job:{...job},mcids:mcids.map(c=>({...c})),
+    cap:parseFloat(document.getElementById('ose-cap').value)||50,
+    startDate:document.getElementById('ose-start').value,
+    order:parseInt(document.getElementById('ose-order').value)||1,
+    estimate:document.getElementById('ose-estimate').value,
+    slitDone:false});
+  // mark used
+  mcids.forEach(c=>{const mc=S.mcids.find(x=>x.serial===c.serial);if(mc)mc.used=true;});
+  selOSEId=null; selMCIDs=[];
+  document.getElementById('ose-plan-form-card').style.display='none';
+  renderOSEPending(); renderOSEPlanned(); updatePackingStats();
+  alert('✓ บันทึกแผน OSE แล้ว');
+}
+function renderOSEPlanned(){
+  const el=document.getElementById('ose-planned-list');
+  document.getElementById('ose-plan-count').textContent=S.osePlans.length;
+  el.innerHTML=S.osePlans.map((p,i)=>`
+    <div class="ose-row">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="pill p-gray">#${p.order}</span>
+        <div class="ose-no">${p.oseNo}</div>
+        <span class="pill ${p.slitDone?'p-ok':'p-amber'}">${p.slitDone?'สลิทแล้ว':'รอสลิท'}</span>
+      </div>
+      <div class="ose-sub">${p.job.name}</div>
+      <div style="margin-top:5px;display:flex;gap:5px;flex-wrap:wrap">
+        <span class="pill p-blue">${p.mcids.length} ลูก</span>
+        ${p.startDate?`<span class="pill p-blue">เริ่ม ${p.startDate}</span>`:''}
+        <span class="pill p-gray">${p.estimate}</span>
+      </div>
+    </div>`).join('')||'<div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center">ยังไม่มีแผน</div>';
+}
+
+// ─── SLIT บันทึก ──────────────────────────────────────────────────
+function renderSlitOSEList(){
+  const el=document.getElementById('slit-ose-list');
+  if(!S.osePlans.length){el.innerHTML='<div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center;background:var(--panel);border-radius:var(--r)">ยังไม่มีแผน OSE</div>';return;}
+  el.innerHTML=S.osePlans.map((p,i)=>{
+    const done=p.mcids.filter(c=>S.slitData[c.serial]?.done).length;
+    return `<div class="ose-row ${S.selectedOSE===p.oseNo?'active':''}" onclick="selectSlitOSE('${p.oseNo}')">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div class="ose-no">${p.oseNo}</div>
+        <span class="pill ${done===p.mcids.length&&done>0?'p-ok':done>0?'p-blue':'p-amber'}">${done}/${p.mcids.length} ลูก</span>
+      </div>
+      <div class="ose-sub">${p.job.name}</div>
+    </div>`;}).join('');
+}
+function selectSlitOSE(oseNo){
+  S.selectedOSE=oseNo;
+  const plan=S.osePlans.find(p=>p.oseNo===oseNo);
+  document.getElementById('slit-right').style.display='block';
+  const info=document.getElementById('slit-ose-info');
+  info.innerHTML=`<div class="ose-no">${plan.oseNo}</div>
+    <div class="ose-sub">${plan.job.name}</div>
+    <div style="margin-top:6px;display:flex;gap:5px;flex-wrap:wrap">
+      ${plan.job.thick?`<span class="pill p-gray">${plan.job.thick}mm</span>`:''}
+      <span class="pill p-amber">${plan.mcids.length} ลูก</span>
+    </div>
+    <div class="divider"></div>`;
+  // parse formula
+  const formula=parseSlitFormula(plan.job.name);
+  if(formula.parts.length){
+    info.innerHTML+=`<div class="sec-lbl" style="margin-top:6px">สูตรสลิท</div>
+    <div style="font-size:11px;line-height:1.8;font-family:var(--mono);background:var(--panel);border-radius:var(--rs);padding:8px 10px;">
+      ${formula.parts.map(p=>`${p.width}mm × ${p.count} แถบ`).join('<br>')}
+      <br>ขอบข้าง: ${formula.scrap.toFixed(1)}mm × 2<br>
+      รวม: ${formula.total.toFixed(1)} mm
+    </div>`;
+  }
+  renderSlitMCIDForms(plan,formula);
+  renderSlitOSEList();
+}
+function parseSlitFormula(name){
+  // parse "144.50 x5, 126.20 x1, จับข้าง 3.5*3.4 -2.80(K450)"
+  const parts=[];
+  const partReg=/([\d.]+)\s*[xX×]\s*(\d+)/g;
+  let m;
+  while((m=partReg.exec(name))!==null){
+    const w=parseFloat(m[1]); const c=parseInt(m[2]);
+    if(w>10) parts.push({width:w,count:c}); // skip scrap values
+  }
+  // scrap: จับข้าง X*Y → use X × 2
+  let scrap=0;
+  const scrapM=name.match(/จับข้าง\s*([\d.]+)/);
+  if(scrapM) scrap=parseFloat(scrapM[1]);
+  const total=parts.reduce((s,p)=>s+p.width*p.count,0)+scrap*2;
+  return {parts,scrap,total};
+}
+function renderSlitMCIDForms(plan,formula){
+  const el=document.getElementById('slit-mcid-forms');
+  el.innerHTML=plan.mcids.map((c,idx)=>{
+    const d=S.slitData[c.serial]||{};
+    return `<div class="wt-form ${d.done?'wt-done':''}">
+      <div class="wt-serial">${idx+1}. ${c.serial} · ${c.wt_kg.toFixed(3)} kg (จากคลัง)</div>
+      ${d.done?`
+        <div style="font-size:11px;line-height:1.8;color:var(--green)">
+          ก่อนแกะ: ${d.before} kg · หลังแกะ: ${d.after} kg · ขอบข้าง: ${d.scrap} kg<br>
+          Net = ${(parseFloat(d.after)-parseFloat(d.scrap)).toFixed(3)} kg
+        </div>`:`
+        <div class="g3" style="margin-top:6px">
+          <div class="ff"><label>นน.ก่อนแกะ (kg)</label><input class="fi" type="number" step="0.001" id="sl-before-${c.serial}" placeholder="0.000"></div>
+          <div class="ff"><label>นน.หลังแกะ (kg)</label><input class="fi" type="number" step="0.001" id="sl-after-${c.serial}" placeholder="0.000"></div>
+          <div class="ff"><label>นน.ขอบข้าง (kg)</label><input class="fi" type="number" step="0.001" id="sl-scrap-${c.serial}" placeholder="0.000"></div>
+        </div>
+        <button class="btn btn-amber" style="width:100%;margin-top:5px" onclick="saveSlitWeight('${c.serial}','${plan.oseNo}')">บันทึกน้ำหนัก</button>`}
+    </div>`;}).join('');
+}
+function saveSlitWeight(serial,oseNo){
+  const before=parseFloat(document.getElementById(`sl-before-${serial}`)?.value)||0;
+  const after=parseFloat(document.getElementById(`sl-after-${serial}`)?.value)||0;
+  const scrap=parseFloat(document.getElementById(`sl-scrap-${serial}`)?.value)||0;
+  if(!before||!after){alert('กรุณากรอกน้ำหนักให้ครบ');return;}
+  S.slitData[serial]={before,after,scrap,net:after-scrap,done:true,oseNo};
+  const plan=S.osePlans.find(p=>p.oseNo===oseNo);
+  const formula=parseSlitFormula(plan.job.name);
+  renderSlitMCIDForms(plan,formula);
+  renderSlitOSEList();
+  // check if all done
+  if(plan.mcids.every(c=>S.slitData[c.serial]?.done)){plan.slitDone=true;}
+  renderAX();
+}
+
+// ─── AX CALC ──────────────────────────────────────────────────────
+function renderAX(){
+  const el=document.getElementById('ax-content');
+  const readyPlans=S.osePlans.filter(p=>p.mcids.some(c=>S.slitData[c.serial]?.done));
+  if(!readyPlans.length){el.innerHTML='<div style="color:var(--ink3);font-size:12px;padding:40px;text-align:center">รอสุภาพบันทึกน้ำหนัก (หน้าสลิท) ก่อนครับ</div>';return;}
+  el.innerHTML=readyPlans.map(plan=>{
+    const formula=parseSlitFormula(plan.job.name);
+    const doneMCIDs=plan.mcids.filter(c=>S.slitData[c.serial]?.done);
+    if(!doneMCIDs.length||!formula.parts.length) return '';
+    // sum net weight per face
+    const totalNet=doneMCIDs.reduce((s,c)=>s+S.slitData[c.serial].net,0);
+    const totalScrap=doneMCIDs.reduce((s,c)=>{
+      const d=S.slitData[c.serial];
+      return s+((d.after-d.scrap)*formula.scrap*2/formula.total);
+    },0);
+    const totalBefore=doneMCIDs.reduce((s,c)=>s+S.slitData[c.serial].before,0);
+    const totalAfter=doneMCIDs.reduce((s,c)=>s+S.slitData[c.serial].after,0);
+    const totalPeel=totalBefore-totalAfter;
+    // serial numbering
+    let bandCounter=1;
+    const rows=[];
+    formula.parts.forEach(part=>{
+      const totalBands=part.count*doneMCIDs.length;
+      const pct=part.width*part.count/formula.total;
+      const kg=totalNet*pct;
+      const from=String(bandCounter).padStart(3,'0');
+      const to=String(bandCounter+totalBands-1).padStart(3,'0');
+      rows.push({serial:`${plan.oseNo}-${from}-${to}`,desc:`หน้า ${part.width}mm × ${part.count} แถบ × ${doneMCIDs.length} ลูก`,bands:totalBands,kg:kg.toFixed(3),type:'face'});
+      bandCounter+=totalBands;
+    });
+    // scrap
+    rows.push({serial:`${plan.oseNo}-ขอบข้าง`,desc:`จับข้าง ${formula.scrap.toFixed(1)}mm × 2 × ${doneMCIDs.length} ลูก`,bands:'—',kg:(totalNet*formula.scrap*2/formula.total).toFixed(3),type:'scrap'});
+    rows.push({serial:`${plan.oseNo}-เปลือก`,desc:`นน.เปลือก (ก่อนแกะ − หลังแกะ)`,bands:'—',kg:totalPeel.toFixed(3),type:'peel'});
+    return `<div class="ax-table-wrap" style="margin-bottom:14px">
+      <div class="ax-hd">📊 ${plan.oseNo} · ${doneMCIDs.length}/${plan.mcids.length} ลูก · Net รวม ${totalNet.toFixed(3)} kg</div>
+      <div style="padding:2px 0">
+        <table class="ax-t">
+          <thead><tr><th>Serial AX</th><th>รายการ</th><th>จำนวนแถบ</th><th>น้ำหนัก (kg)</th></tr></thead>
+          <tbody>
+            ${rows.map(r=>`<tr>
+              <td>${r.serial}</td>
+              <td style="font-size:11px;font-family:var(--sans)">${r.desc}</td>
+              <td>${r.bands}</td>
+              <td style="${r.type==='face'?'color:var(--green);font-weight:600':'color:var(--ink3)'}">${r.kg}</td>
+            </tr>`).join('')}
+            <tr class="ax-total">
+              <td colspan="3">รวมทั้งหมด</td>
+              <td>${(rows.reduce((s,r)=>s+parseFloat(r.kg),0)).toFixed(3)} kg</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div style="padding:10px 13px;display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-s" style="font-size:11px">Export Excel</button>
+        <button class="btn btn-p" style="font-size:11px" onclick="alert('✓ ยืนยัน Key เข้า AX เรียบร้อย')">✓ ยืนยัน Key AX</button>
+      </div>
+    </div>`;}).join('');
+}
+
+// ─── OFM PLAN ─────────────────────────────────────────────────────
+function buildOFMJobSelect(){
+  const sel=document.getElementById('ofm-job');
+  const jobs=S.axJobs.filter(j=>j.type!=='OSE');
+  sel.innerHTML='<option value="">-- เลือก --</option>'+
+    jobs.map(j=>`<option value="${j.prod}">[${j.type}] ${j.prod} — ${j.name.slice(0,40)}</option>`).join('');
+}
+function onOFMJobChange(){
+  const v=document.getElementById('ofm-job').value;
+  const job=S.axJobs.find(j=>j.prod===v);
+  const det=document.getElementById('ofm-job-detail');
+  if(job){det.style.display='block';det.innerHTML=`${job.prod} · ${job.status}<br>${job.name}<br>QTY: ${job.qty.toLocaleString()}`;}
+  else det.style.display='none';
+  calcOFM();
+}
+function calcOFM(){
+  const cap=parseFloat(document.getElementById('ofm-cap').value)||0;
+  const hrs=parseFloat(document.getElementById('ofm-hours').value)||0;
+  const unit=document.getElementById('ofm-unit').value;
+  let qty=0;
+  if(unit==='นาที/ลูก') qty=cap>0?Math.floor(hrs*60/cap):0;
+  else qty=Math.floor(cap*hrs*60);
+  document.getElementById('ofm-plan-qty').value=qty>0?qty.toLocaleString():'';
+}
+function addOFMPlan(){
+  const jobProd=document.getElementById('ofm-job').value;
+  if(!jobProd){alert('เลือก JOB ก่อน');return;}
+  const job=S.axJobs.find(j=>j.prod===jobProd);
+  S.ofmPlans.push({id:Date.now(),job:{...job},date:document.getElementById('ofm-date').value,
+    machine:document.getElementById('ofm-machine').value,time:document.getElementById('ofm-time').value,
+    cap:parseFloat(document.getElementById('ofm-cap').value)||0,unit:document.getElementById('ofm-unit').value,
+    hours:parseFloat(document.getElementById('ofm-hours').value)||0,
+    planQty:document.getElementById('ofm-plan-qty').value,actual:null});
+  renderOFMPlanList();renderProdList();
+  document.getElementById('ofm-job').value='';document.getElementById('ofm-job-detail').style.display='none';
+  ['ofm-cap','ofm-hours','ofm-plan-qty','ofm-time'].forEach(id=>document.getElementById(id).value='');
+}
+function renderOFMPlanList(){
+  const el=document.getElementById('ofm-plan-list');
+  document.getElementById('ofm-plan-count').textContent=S.ofmPlans.length;
+  el.innerHTML=S.ofmPlans.map(p=>`
+    <div class="ose-row" style="border-left:3px solid var(--purple)">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div class="ose-no" style="font-size:12px">${p.job.prod}</div>
+        ${p.actual?'<span class="pill p-ok">บันทึกแล้ว</span>':'<span class="pill p-amber">รอกรอก</span>'}
+      </div>
+      <div class="ose-sub">${p.machine} · ${p.time||''} · ตามแผน: ${p.planQty||'-'}</div>
+    </div>`).join('')||'<div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center">ยังไม่มีแผน</div>';
+}
+
+// ─── PROD บันทึก ──────────────────────────────────────────────────
+function renderProdList(){
+  const el=document.getElementById('prod-plan-list');
+  if(!S.ofmPlans.length){el.innerHTML='<div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center;background:var(--panel);border-radius:var(--r)">ยังไม่มีแผน OFM</div>';return;}
+  el.innerHTML=S.ofmPlans.map(p=>`
+    <div class="ose-row ${S.selectedOFMPlan===p.id?'active':''}" style="border-left:3px solid var(--purple);cursor:pointer" onclick="selectProd(${p.id})">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div class="ose-no" style="font-size:12px">${p.job.prod}</div>
+        ${p.actual?'<span class="pill p-ok">✓</span>':'<span class="pill p-amber">รอ</span>'}
+      </div>
+      <div class="ose-sub">${p.machine} · ${p.time||''}</div>
+      <div style="font-size:11px;color:var(--ink3);margin-top:3px">${p.job.name.slice(0,50)}</div>
+    </div>`).join('');
+}
+function selectProd(id){
+  S.selectedOFMPlan=id;
+  const p=S.ofmPlans.find(x=>x.id===id);
+  document.getElementById('prod-form-wrap').style.display='block';
+  document.getElementById('prod-job-header').innerHTML=`
+    <div style="background:var(--purple-bg);border:1px solid var(--purple-bd);border-radius:var(--rs);padding:9px 12px">
+      <div style="font-family:var(--mono);font-size:14px;color:var(--purple)">${p.job.prod}</div>
+      <div style="font-size:11px;color:var(--ink3);margin-top:2px">${p.job.name.slice(0,60)}</div>
+      <div style="font-size:11px;margin-top:3px">${p.machine} · ตามแผน: <strong>${p.planQty||'-'}</strong></div>
+    </div>`;
+  if(p.actual){
+    const a=p.actual;
+    document.getElementById('prod-actual').value=a.actual||'';
+    document.getElementById('prod-status').value=a.status||'เดินงานตามปกติ';
+    document.getElementById('prod-hours').value=a.hours||'';
+    document.getElementById('prod-bd').value=a.bd||'';
+    document.getElementById('prod-bdr').value=a.bdr||'';
+    document.getElementById('prod-speed').value=a.speed||'';
+    document.getElementById('prod-elec').value=a.elec||'';
+    document.getElementById('prod-ga').value=a.ga||'';
+    document.getElementById('prod-gb').value=a.gb||'';
+    document.getElementById('prod-gc').value=a.gc||'';
+    document.getElementById('prod-note').value=a.note||'';
+  } else {
+    ['prod-actual','prod-hours','prod-bd','prod-bdr','prod-speed','prod-elec','prod-ga','prod-gb','prod-gc','prod-note'].forEach(x=>{const el=document.getElementById(x);if(el)el.value='';});
+    document.getElementById('prod-grade-msg').style.display='none';
+  }
+  renderProdList();
+}
+function onProdChange(){calcProdGrade();}
+function calcProdGrade(){
+  const total=parseInt(document.getElementById('prod-actual').value)||0;
+  const ga=parseInt(document.getElementById('prod-ga').value)||0;
+  const gb=parseInt(document.getElementById('prod-gb').value)||0;
+  const gc=parseInt(document.getElementById('prod-gc').value)||0;
+  const sum=ga+gb+gc;const el=document.getElementById('prod-grade-msg');
+  if(total>0||sum>0){
+    el.style.display='block';
+    if(sum===total&&total>0){el.className='alert a-ok';el.textContent=`✓ A+B+C = ${sum} ตรงกัน`;}
+    else if(sum>total){el.className='alert a-err';el.textContent=`A+B+C = ${sum} > จำนวนจริง ${total}`;}
+    else{el.className='alert a-warn';el.textContent=`A+B+C = ${sum} ≠ ${total}`;}
+  } else el.style.display='none';
+}
+function saveProd(){
+  const p=S.ofmPlans.find(x=>x.id===S.selectedOFMPlan);
+  if(!p){alert('เลือกงานก่อน');return;}
+  const actual=parseInt(document.getElementById('prod-actual').value)||0;
+  if(!actual){alert('กรุณากรอกจำนวนจริง');return;}
+  p.actual={actual,status:document.getElementById('prod-status').value,
+    hours:document.getElementById('prod-hours').value,bd:document.getElementById('prod-bd').value,
+    bdr:document.getElementById('prod-bdr').value,speed:document.getElementById('prod-speed').value,
+    elec:document.getElementById('prod-elec').value,ga:document.getElementById('prod-ga').value,
+    gb:document.getElementById('prod-gb').value,gc:document.getElementById('prod-gc').value,
+    note:document.getElementById('prod-note').value};
+  renderProdList();renderDash();
+  document.getElementById('prod-form-wrap').style.display='none';
+  S.selectedOFMPlan=null;
+  alert(`✓ บันทึก ${p.job.prod} เรียบร้อย`);
+}
+
+// ─── QA FM-08 ─────────────────────────────────────────────────────
+function initDefGrid(){
+  const el=document.getElementById('def-grid');
+  el.innerHTML=DEFECT_TYPES.map(d=>`
+    <div class="dt dt-${d.g.toLowerCase()}" id="dt-${d.code}" onclick="selDefType('${d.code}')">
+      <span class="dt-code">${d.code}</span>${d.lbl}
+    </div>`).join('');
+}
+function selDefType(code){
+  document.querySelectorAll('.dt').forEach(d=>d.classList.remove('sel'));
+  document.getElementById('dt-'+code)?.classList.add('sel');
+  S.selectedDefType=DEFECT_TYPES.find(d=>d.code===code);
+  const el=document.getElementById('qa-sel-type');
+  if(S.selectedDefType){
+    el.style.display='block';
+    el.className=`alert a-${S.selectedDefType.g==='A'?'ok':S.selectedDefType.g==='B'?'warn':'err'}`;
+    el.textContent=`เลือก: ${code} — ${S.selectedDefType.lbl} (Grade ${S.selectedDefType.g})`;
+  }
+}
+function renderQAJobSelect(){
+  const sel=document.getElementById('qa-job');
+  const jobs=[...S.axJobs,...S.osePlans.map(p=>({prod:p.oseNo,name:p.job.name}))];
+  sel.innerHTML='<option value="">-- เลือก JOB --</option>'+
+    jobs.map(j=>`<option value="${j.prod}">${j.prod} — ${(j.name||'').slice(0,40)}</option>`).join('');
+}
+function saveQA(){
+  const job=document.getElementById('qa-job').value;
+  if(!job){alert('เลือก JOB');return;}
+  if(!S.selectedDefType){alert('เลือกลักษณะของเสีย');return;}
+  const qty=parseInt(document.getElementById('qa-qty').value)||0;
+  if(!qty){alert('กรอกจำนวน');return;}
+  S.defects.push({job,date:document.getElementById('qa-date').value,type:S.selectedDefType,qty,
+    man:document.getElementById('qa-man').value,machine:document.getElementById('qa-machine').value,
+    method:document.getElementById('qa-method').value,material:document.getElementById('qa-material').value,
+    by:S.user?.name,savedAt:new Date().toLocaleString('th-TH')});
+  renderQAList();updateQAStats();
+  ['qa-job','qa-qty','qa-man','qa-machine','qa-method','qa-material'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  document.querySelectorAll('.dt').forEach(d=>d.classList.remove('sel'));
+  document.getElementById('qa-sel-type').style.display='none';
+  S.selectedDefType=null;
+  alert('✓ บันทึกของเสียแล้ว');
+}
+function updateQAStats(){
+  document.getElementById('qa-total').textContent=S.defects.length;
+  document.getElementById('qa-a').textContent=S.defects.filter(d=>d.type.g==='A').length;
+  document.getElementById('qa-b').textContent=S.defects.filter(d=>d.type.g==='B').length;
+  document.getElementById('qa-c').textContent=S.defects.filter(d=>d.type.g==='C').length;
+}
+function renderQAList(){
+  const el=document.getElementById('qa-list');
+  el.innerHTML=[...S.defects].reverse().slice(0,15).map(d=>`
+    <div style="border-left:3px solid ${d.type.g==='A'?'var(--green)':d.type.g==='B'?'var(--amber)':'var(--red)'};padding:8px 10px;margin-bottom:5px;background:var(--panel);border-radius:0 var(--rs) var(--rs) 0">
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:3px">
+        <span class="mono" style="font-size:12px">${d.job}</span>
+        <span class="pill ${d.type.g==='A'?'p-ok':d.type.g==='B'?'p-amber':'p-red'}">Grade ${d.type.g}</span>
+        <span class="pill p-gray">${d.qty} เส้น</span>
+      </div>
+      <div style="font-size:11px;color:var(--ink3)">${d.type.code} — ${d.type.lbl}</div>
+      <div style="font-size:10px;color:var(--ink4);margin-top:2px">${d.date} · ${d.by}</div>
+    </div>`).join('')||'<div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center">ยังไม่มีข้อมูล</div>';
+}
+
+// ─── DASHBOARD ────────────────────────────────────────────────────
+function renderDash(){
+  const plans=S.ofmPlans;
+  const withActual=plans.filter(p=>p.actual);
+  const hit=withActual.filter(p=>{const pn=parseInt((p.planQty||'0').replace(/,/g,''));return pn>0&&(p.actual?.actual||0)>=pn;}).length;
+  document.getElementById('dash-stats').innerHTML=`
+    <div class="stat"><div class="sn s-blue">${S.mcids.length}</div><div class="sl">MCID ในคลัง</div></div>
+    <div class="stat"><div class="sn s-amber">${S.osePlans.length}</div><div class="sl">OSE plans</div></div>
+    <div class="stat"><div class="sn s-purple">${plans.length}</div><div class="sl">OFM plans</div></div>
+    <div class="stat"><div class="sn s-green">${hit}</div><div class="sl">เข้าเป้า</div></div>
+    <div class="stat"><div class="sn s-red">${S.defects.length}</div><div class="sl">ของเสีย</div></div>`;
+  // OFM table
+  const ofmEl=document.getElementById('dash-ofm-table');
+  ofmEl.innerHTML=withActual.length?`<div class="tbl-wrap"><table class="ft"><thead><tr><th>JOB</th><th>เครื่อง</th><th>แผน</th><th>จริง</th><th>เข้าเป้า</th></tr></thead><tbody>
+    ${withActual.map(p=>{const pn=parseInt((p.planQty||'0').replace(/,/g,''));const ok=pn>0&&(p.actual?.actual||0)>=pn;
+      return `<tr><td class="mono" style="font-size:11px">${p.job.prod}</td><td style="font-size:11px">${p.machine}</td><td class="mono">${p.planQty||'-'}</td>
+      <td class="mono" style="color:var(--green);font-weight:600">${(p.actual?.actual||0).toLocaleString()}</td>
+      <td>${ok?'<span class="pill p-ok">✓</span>':'<span class="pill p-red">✗</span>'}</td></tr>`;}).join('')}
+    </tbody></table></div>`:'<div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center">ยังไม่มีข้อมูล</div>';
+  // defect
+  const defEl=document.getElementById('dash-defect-list');
+  defEl.innerHTML=S.defects.slice(-5).reverse().map(d=>`
+    <div class="dash-row">
+      <div><div class="mono" style="font-size:11px">${d.job}</div><div style="font-size:10px;color:var(--ink3)">${d.type.code} — ${d.type.lbl}</div></div>
+      <div style="text-align:right"><span class="pill ${d.type.g==='A'?'p-ok':d.type.g==='B'?'p-amber':'p-red'}">${d.qty} เส้น</span></div>
+    </div>`).join('')||'<div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center">ยังไม่มีของเสีย</div>';
+  // OSE
+  const oseEl=document.getElementById('dash-ose-table');
+  oseEl.innerHTML=S.osePlans.length?`<div class="tbl-wrap"><table class="ft"><thead><tr><th>OSE</th><th>ลูก MCID</th><th>เริ่ม</th><th>ประมาณการ</th><th>สถานะ</th></tr></thead><tbody>
+    ${S.osePlans.map(p=>{const done=p.mcids.filter(c=>S.slitData[c.serial]?.done).length;
+      return `<tr><td class="mono">${p.oseNo}</td><td>${done}/${p.mcids.length}</td><td>${p.startDate||'-'}</td>
+      <td style="font-size:11px;color:var(--ink3)">${p.estimate}</td>
+      <td>${p.slitDone?'<span class="pill p-ok">เสร็จ</span>':done>0?'<span class="pill p-blue">กำลังทำ</span>':'<span class="pill p-amber">รอ</span>'}</td></tr>`;}).join('')}
+    </tbody></table></div>`:'<div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center">ยังไม่มีแผน OSE</div>';
+}
+</script>
+</body>
+</html>
