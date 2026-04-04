@@ -704,11 +704,16 @@ async function getListId(listName) {
 async function spGetFields(listName){
   const siteId = await getSiteId();
   const listId = await getListId(listName);
-  if(!siteId||!listId) return;
-  const r = await graphGet(`/sites/${siteId}/lists/${listId}/fields?$select=displayName,internalName,fieldType&$top=100`);
+  if(!siteId||!listId){console.error('spGetFields: no site/list');return;}
+  const r = await graphGet(`/sites/${siteId}/lists/${listId}/fields?$select=displayName,internalName&$top=100`);
   if(r?.value){
-    console.table(r.value.filter(f=>!f.internalName.startsWith('_')&&f.internalName!=='ContentType')
-      .map(f=>({display:f.displayName, internal:f.internalName, type:f.fieldType})));
+    const fields = r.value.filter(f=>
+      !f.internalName.startsWith('_') &&
+      !['ContentType','Edit','DocIcon','LinkTitleNoMenu','LinkTitle','ItemChildCount','FolderChildCount','AppAuthor','AppEditor'].includes(f.internalName)
+    ).map(f=>({display:f.displayName, internal:f.internalName}));
+    console.table(fields);
+    console.log('Copy this mapping:', JSON.stringify(fields));
+    return fields;
   }
 }
 
