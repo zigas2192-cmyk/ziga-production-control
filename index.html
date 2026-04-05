@@ -558,6 +558,46 @@ table.ax-t .ax-total{background:var(--green-lt);color:var(--green);font-weight:6
   </div>
 </div>
 
+<!-- ── Edit OSE Modal ── -->
+<div id="edit-ose-modal" style="display:none;position:fixed;inset:0;background:rgba(26,25,22,.7);z-index:999;align-items:center;justify-content:center;padding:16px">
+  <div style="background:var(--card);border-radius:14px;width:100%;max-width:480px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+    <div style="padding:16px 20px;border-bottom:1px solid var(--b);display:flex;align-items:center;justify-content:space-between">
+      <div style="font-weight:600;font-size:14px">✏️ กำหนดวัน / สถานะ OSE</div>
+      <button onclick="closeEditOSE()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--ink3)">×</button>
+    </div>
+    <div style="padding:16px 20px">
+      <div style="font-family:var(--mono);font-size:13px;font-weight:600;color:var(--blue);margin-bottom:4px" id="edit-ose-no"></div>
+      <div style="font-size:11px;color:var(--ink3);margin-bottom:14px;line-height:1.5" id="edit-ose-formula"></div>
+      <div class="ff" style="margin-bottom:10px">
+        <label style="font-size:11px;color:var(--ink3);margin-bottom:4px;display:block">OSEStatus</label>
+        <select id="edit-ose-status" style="width:100%;padding:8px 10px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-family:var(--sans);font-size:12px;outline:none"></select>
+      </div>
+      <div class="ff" style="margin-bottom:10px">
+        <label style="font-size:11px;color:var(--ink3);margin-bottom:4px;display:block">เครื่องจักร</label>
+        <select id="edit-ose-machine" style="width:100%;padding:8px 10px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-family:var(--sans);font-size:12px;outline:none"></select>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div>
+          <label style="font-size:11px;color:var(--ink3);margin-bottom:4px;display:block">วันเริ่ม</label>
+          <input type="date" id="edit-ose-start" style="width:100%;padding:8px 10px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-family:var(--sans);font-size:12px;outline:none">
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--ink3);margin-bottom:4px;display:block">วันจบ</label>
+          <input type="date" id="edit-ose-end" style="width:100%;padding:8px 10px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-family:var(--sans);font-size:12px;outline:none">
+        </div>
+      </div>
+      <div style="margin-bottom:14px">
+        <label style="font-size:11px;color:var(--ink3);margin-bottom:4px;display:block">Cap (นาที/ลูก)</label>
+        <input type="number" id="edit-ose-cap" placeholder="50" style="width:100%;padding:8px 10px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-family:var(--sans);font-size:12px;outline:none">
+      </div>
+      <div style="display:flex;gap:8px">
+        <button onclick="closeEditOSE()" style="flex:1;padding:10px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);cursor:pointer;font-size:13px">ยกเลิก</button>
+        <button onclick="saveEditOSE()" style="flex:2;padding:10px;border:none;border-radius:var(--rs);background:var(--blue);color:#fff;cursor:pointer;font-size:13px;font-weight:600">💾 บันทึก</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 // ─── DATA ─────────────────────────────────────────────────────────
 const DEFECT_TYPES = [
@@ -779,6 +819,30 @@ async function spPatchItem(listName, itemId, fields) {
 const EMPLOYEES = [{"id":"ZZ41050601","name":"นาย ศุภกิจ งามจิตรเจริญ","position":"Chief Executive Officer - CEO","dept":"บริหาร","role":"mgmt"},{"id":"ZZ44030101","name":"นางสาว เมทินี งามจิตรเจริญ","position":"Chief Innovation Officer-CIO","dept":"บริหาร","role":"mgmt","email":"maetinee@ziga.co.th"},{"id":"ZZ53060701","name":"นางสาว ธนิดา เกรียงพานิช","position":"Managing Director – Factory Division","dept":"บริหาร","role":"mgmt","email":"tanida@ziga.co.th"},{"id":"ZZ55020101","name":"นางสาว วราลักษณ์ งามจิตรเจริญ","position":"Chief Marketing Officer-CMO","dept":"บริหาร","role":"mgmt"},{"id":"ZZ65101702","name":"นางสาว ศิริพิมพ์ เชื้อเจ็ดตน","position":"IT Support Officer","dept":"แผนก IT & Bitcoin","role":"mgmt"},{"id":"ZZ66080101","name":"นาย สมคิด อังกุโร","position":"IT & Bitcoin Manager","dept":"แผนก IT & Bitcoin","role":"mgmt"},{"id":"ZZ58090101","name":"นาย จตุรณ เพ็งเอี่ยม","position":"เจ้าหน้าที่วางแผนผลิต-AP","dept":"แผนกPlanning Resource","role":"ap","email":"jaturon@ziga.co.th"},{"id":"ZZ61010305","name":"นางสาว สุวิภา ปานประชาติ","position":"เจ้าหน้าที่วางแผนผลิต-AP","dept":"แผนกPlanning Resource","role":"as","email":"suwipha@ziga.co.th"},{"id":"ZZ65070101","name":"นางสาว บุณยานุช อุปสุข","position":"QMR และจป.วิชาชีพ","dept":"แผนกQMRและจป.วิชาชีพ","role":"mgmt"},{"id":"ZZ68081201","name":"นางสาว ณัฏฐากุญช์ กอบแก้ว","position":"เจ้าหน้าที่คลัง-สลิทและวัสดุสิ้นเปลือง","dept":"แผนกคลังสลิทและวัสดุสิ้นเปลือง","role":"ir","email":"nutthakul@ziga.co.th"},{"id":"ZZ68111701","name":"นาย ทวีศักดิ์ วรรณาลัย","position":"เจ้าหน้าที่คลัง-สลิทและวัสดุสิ้นเปลือง","dept":"แผนกคลังสลิทและวัสดุสิ้นเปลือง","role":"ir","email":"nutthakul@ziga.co.th"},{"id":"ZZ62041703","name":"นาย กิตติพงษ์ โสภณกิตติพัฒน์","position":"เจ้าหน้าที่คลังจัดส่ง","dept":"แผนกคลังสินค้าและจัดส่ง","role":"mgmt"},{"id":"ZZ66020102","name":"นางสาว จีระนันท์ มีคำ","position":"เจ้าหน้าที่ธุรการคลังจัดส่ง","dept":"แผนกคลังสินค้าและจัดส่ง","role":"mgmt"},{"id":"ZZ66062201","name":"นางสาว พีชญา สมประสงค์","position":"เจ้าหน้าที่เช็คเกอร์","dept":"แผนกคลังสินค้าและจัดส่ง","role":"mgmt"},{"id":"ZZ66082501","name":"นาย สิทธานนท์ นันทวงศ์สาร","position":"เจ้าหน้าที่คลังจัดส่ง","dept":"แผนกคลังสินค้าและจัดส่ง","role":"mgmt"},{"id":"ZZ68010201","name":"นาย อิทธิพล วิไลรัตน์","position":"เจ้าหน้าที่คลังจัดส่ง","dept":"แผนกคลังสินค้าและจัดส่ง","role":"mgmt"},{"id":"ZZ59020401","name":"นางสาว ณิชาดา อ๊อตจังหรีด","position":"หัวหน้าแผนกบัญชี","dept":"แผนกบัญชีและการเงิน","role":"mgmt"},{"id":"ZZ63021702","name":"นางสาว บุษกร เพชรคง","position":"เจ้าหน้าที่บัญชีเจ้าหนี้","dept":"แผนกบัญชีและการเงิน","role":"mgmt"},{"id":"ZZ66050801","name":"นางสาว ไพลิน มีชัยโย","position":"ผู้ช่วยผู้จัดการฝ่ายบัญชี","dept":"แผนกบัญชีและการเงิน","role":"mgmt"},{"id":"ZZ66053001","name":"นาย อดิศักดิ์ วงศ์ก้อม","position":"เจ้าหน้าที่ประกันคุณภาพ","dept":"แผนกประกันคุณภาพ","role":"qa"},{"id":"ZZ68021401","name":"นาย อภินันท์ บุญสม","position":"เจ้าหน้าที่ประกันคุณภาพ","dept":"แผนกประกันคุณภาพ","role":"qa"},{"id":"ZZ68022001","name":"นางสาว วรรณรดา สุวรรณกาญจน์","position":"QA Supervisor","dept":"แผนกประกันคุณภาพ","role":"qa"},{"id":"ZZ69032301","name":"นางสาว สุกานดา งามสวย","position":"เจ้าหน้าที่ประกันคุณภาพ","dept":"แผนกประกันคุณภาพ","role":"qa"},{"id":"ZZ55061101","name":"นาย สุรเชษฐ์ สุดศิลา","position":"หัวหน้าควบคุมเครื่องรีดต่อคอยล์","dept":"แผนกผลิต - เครื่องรีด ทีม1","role":"ofm"},{"id":"ZZ57102101","name":"นาย สงวน สุดแก้ว","position":"หัวหน้าทีมผลิต-เครื่องรีด","dept":"แผนกผลิต - เครื่องรีด ทีม1","role":"ofm"},{"id":"ZZ58110201","name":"นาย อุเทน กองสิงห์","position":"เจ้าหน้าที่คุมเครื่องรีดต่อคอยล์","dept":"แผนกผลิต - เครื่องรีด ทีม1","role":"ofm"},{"id":"ZZ60062401","name":"นาย ภูษิต บัวชุม","position":"หัวหน้าควบคุมเครื่องรีดต่อคอยล์","dept":"แผนกผลิต - เครื่องรีด ทีม1","role":"ofm"},{"id":"ZZ67082101","name":"นาย สงบ การบรรจง","position":"เจ้าหน้าที่ควบคุมเครื่องรีดต่อคอลย์","dept":"แผนกผลิต - เครื่องรีด ทีม1","role":"ofm"},{"id":"ZZ58010801","name":"นาย ภูมินทร์ มั่นศักดิ์","position":"หัวหน้าควบคุมเครื่องรีดต่อคอยล์","dept":"แผนกผลิต - เครื่องรีด ทีม2","role":"ofm"},{"id":"ZZ63021701","name":"นาย วิชัย ด่านมะณี","position":"เจ้าหน้าที่ผลิต-เกลียว","dept":"แผนกผลิต - ตัด ลบคม ทำเกลียว","role":"ofm"},{"id":"ZZ66021403","name":"นาย วิทัต วุฒิวิมล","position":"เจ้าหน้าที่ผลิต-ข้อต่อ","dept":"แผนกผลิต - ตัด ลบคม ทำเกลียว","role":"ofm"},{"id":"ZZ67062101","name":"นาย นาราภัทร สายจันดี","position":"เจ้าหน้าที่ผลิต-ลบคม","dept":"แผนกผลิต - ตัด ลบคม ทำเกลียว","role":"ofm"},{"id":"ZZ68020302","name":"นาย ศิวะกรณ์ สุขเจริญ","position":"พนักงานคุมเครื่องลบคมทำเกลียว","dept":"แผนกผลิต - ตัด ลบคม ทำเกลียว","role":"ofm"},{"id":"ZZ68070201","name":"นาย กิตติพร เกษประเสริฐ","position":"พนักงานคุมเครื่องลบคมทำเกลียว","dept":"แผนกผลิต - ตัด ลบคม ทำเกลียว","role":"ofm"},{"id":"ZZ57060801","name":"นาย รุ่งโรจน์ วามะลุน","position":"เจ้าหน้าที่ผลิต-ท่อโค้งและข้อต่อ","dept":"แผนกผลิต - ท่อโค้ง","role":"ofm"},{"id":"ZZ55062101","name":"นาย ธัณพิสิฐ น้อมนุช","position":"หัวหน้าคุมเครื่อง-แพ็คกิ้ง","dept":"แผนกผลิต - แพ็คกิ้ง","role":"ofm"},{"id":"ZZ66050201","name":"นาย เอกภพ ภู่ศรีพงษ์","position":"เจ้าหน้าที่ผลิต-สลิทเตอร์","dept":"แผนกสลิทเหล็ก","role":"slit","email":"suparp@ziga.co.th"},{"id":"ZZ68010801","name":"นาย สุภาพ เม่นแก้ว","position":"พนักงานผลิต-สลิทเตอร์","dept":"แผนกสลิทเหล็ก","role":"slit","email":"suparp@ziga.co.th"},{"id":"ZZ69010601","name":"นาย สามารถ ดาสม","position":"เจ้าหน้าที่ผลิต-สลิทเตอร์","dept":"แผนกสลิทเหล็ก","role":"slit"},{"id":"ZZ41050602","name":"นางสาว ฐปนี ตรีมุทธาพงศ์","position":"Financial Controller","dept":"ฝ่ายบัญชีและการเงิน (AFM)","role":"mgmt","email":"tapanee@ziga.co.th"},{"id":"ZZ69020201","name":"นาย ทิพยเนตร เจี้ยงรักษา","position":"Production Supervisor","dept":"ส่วนผลิตและควบคุมอุปทานการผลิต","role":"supervisor"},{"id":"ZZ69020202","name":"นาย มนตรี รักเสมอวงค์","position":"รองหัวหน้าแผนกผลิต","dept":"ส่วนผลิตและควบคุมอุปทานการผลิต","role":"supervisor"}];
 
 const ROLES = [{"id":"mgmt","icon":"👑","title":"ผู้บริหาร / บัญชี","sub":"ดูภาพรวมทุก module","tabs":["dash","ose-plan","packing","ofm-plan","prod","qa","ax","slit"]},{"id":"ap","icon":"📊","title":"จนท. AP","sub":"Duke — สั่งสลิท / AX Calc","tabs":["ose-plan","ax","dash"]},{"id":"as","icon":"📅","title":"จนท. AS","sub":"แป๋ม — วางแผน OFM / ลำดับงาน","tabs":["ose-plan","ofm-plan","dash"]},{"id":"ir","icon":"🏭","title":"จนท. คลัง IR","sub":"จอย — รับเหล็กม้วน / เลือก MCID","tabs":["packing","ose-plan"]},{"id":"slit","icon":"⚙️","title":"จนท. Slitter","sub":"สุภาพ / เอกภพ / สามารถ — บันทึกสลิท","tabs":["slit","packing"]},{"id":"ofm","icon":"🔧","title":"พนักงานผลิต","sub":"เครื่องรีด / ลบคม / เกลียว / แพ็ค","tabs":["prod"]},{"id":"qa","icon":"🔍","title":"จนท. QA","sub":"บันทึกของเสีย FM-QA-08","tabs":["qa","dash"]},{"id":"supervisor","icon":"👷","title":"Production Supervisor","sub":"ตรวจสอบพารามิเตอร์","tabs":["prod","dash"]}];
+
+const OSE_STATUS = [
+  '0.Schedule-ใบงานรอ Mcoilเข้า',
+  '0.Schedule-ใบงานต้องตัดสลิทใหม่',
+  '0.Released-ใบงานมีวัตถุดิบ มีสลิทแล้วรอลำดับแผน',
+  '1.Start-งานกำหนดวันแล้ว',
+  'Pick-หยิบวัตถุดิบ',
+  '2กำลังผลิต',
+  '3.Report as finished-รับผลผลิตเข้าคลัง',
+  '4.End-เสร็จสิ้น',
+  '5.Cancle-ยกเลิก',
+];
+const OSE_STATUS_COLOR = {
+  '0.Schedule-ใบงานรอ Mcoilเข้า':          'p-gray',
+  '0.Schedule-ใบงานต้องตัดสลิทใหม่':        'p-amber',
+  '0.Released-ใบงานมีวัตถุดิบ มีสลิทแล้วรอลำดับแผน': 'p-blue',
+  '1.Start-งานกำหนดวันแล้ว':               'p-teal',
+  'Pick-หยิบวัตถุดิบ':                      'p-purple',
+  '2กำลังผลิต':                             'p-amber',
+  '3.Report as finished-รับผลผลิตเข้าคลัง': 'p-ok',
+  '4.End-เสร็จสิ้น':                        'p-ok',
+  '5.Cancle-ยกเลิก':                        'p-red',
+};
+const MACHINES = ['SL_01','SL_02'];
 
 const TABS_CONFIG = [
   {id:'packing',label:'รับเหล็ก'},
@@ -1272,22 +1336,103 @@ async function applyAX(){
 
 // ─── OSE PLAN ─────────────────────────────────────────────────────
 let selOSEId=null, selMCIDs=[];
+let editOSEId=null;
+
+function openEditOSE(prod){
+  editOSEId=prod;
+  const job=S.axJobs.find(j=>(j.prod||j.Title)===prod)||{};
+  // Populate modal
+  document.getElementById('edit-ose-no').textContent=prod;
+  document.getElementById('edit-ose-formula').textContent=job.name||'';
+  const stSel=document.getElementById('edit-ose-status');
+  stSel.innerHTML=OSE_STATUS.map(s=>`<option value="${s}" ${(job.oseStatus||job.status)===s?'selected':''}>${s}</option>`).join('');
+  const macSel=document.getElementById('edit-ose-machine');
+  macSel.innerHTML='<option value="">-- เลือกเครื่อง --</option>'+MACHINES.map(m=>`<option value="${m}" ${job.machine===m?'selected':''}>${m}</option>`).join('');
+  document.getElementById('edit-ose-start').value=job.startDate?job.startDate.slice(0,10):'';
+  document.getElementById('edit-ose-end').value=job.endDate?job.endDate.slice(0,10):'';
+  document.getElementById('edit-ose-cap').value=job.capMinPerCoil||'';
+  document.getElementById('edit-ose-modal').style.display='flex';
+}
+function closeEditOSE(){
+  document.getElementById('edit-ose-modal').style.display='none';
+  editOSEId=null;
+}
+async function saveEditOSE(){
+  if(!editOSEId) return;
+  const status  = document.getElementById('edit-ose-status').value;
+  const machine = document.getElementById('edit-ose-machine').value;
+  const start   = document.getElementById('edit-ose-start').value;
+  const end     = document.getElementById('edit-ose-end').value;
+  const cap     = document.getElementById('edit-ose-cap').value;
+
+  // Update local state
+  const job=S.axJobs.find(j=>(j.prod||j.Title)===editOSEId);
+  if(job){
+    job.oseStatus=status; job.machine=machine;
+    job.startDate=start; job.endDate=end;
+    job.capMinPerCoil=cap;
+  }
+
+  // PATCH L6 if we have spId
+  if(graphToken && job?.spId){
+    const fields={
+      field_10: status   ||undefined,
+      field_6:  machine  ||undefined,
+      field_7:  start    ? new Date(start).toISOString() : undefined,
+      field_8:  end      ? new Date(end).toISOString()   : undefined,
+      field_9:  cap      ? Number(cap)                   : undefined,
+    };
+    Object.keys(fields).forEach(k=>{if(fields[k]===undefined)delete fields[k];});
+    const ok=await spPatchItem(SP_LISTS.L6, job.spId, fields);
+    if(ok) console.log('✅ L6 PATCH OK:', editOSEId);
+    else console.error('❌ L6 PATCH failed:', editOSEId);
+  } else if(graphToken && !job?.spId){
+    // Try find by Title
+    console.warn('No spId for', editOSEId, '— reload L6 to get IDs');
+  }
+
+  closeEditOSE();
+  renderOSEPending();
+  alert(`✅ อัปเดต ${editOSEId} → ${status}`);
+}
 function renderOSEPending(){
   const el=document.getElementById('ose-pending-list');
-  const oses=S.axJobs.filter(j=>j.type==='OSE');
-  if(!oses.length){el.innerHTML='<div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center">ยังไม่มี OSE — Import AX ก่อน</div>';return;}
-  el.innerHTML=oses.map(o=>`
+  const role=S.user?.role||'';
+  // Filter by role:
+  // AS sees all OSE to set status/date
+  // IR sees only OSE with status = Pick-หยิบวัตถุดิบ
+  let oses=S.axJobs.filter(j=>j.jobType==='OSE'||j.type==='OSE');
+  if(role==='ir') oses=oses.filter(o=>(o.oseStatus||o.status)==='Pick-หยิบวัตถุดิบ');
+
+  if(!oses.length){
+    el.innerHTML=`<div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center">
+      ${role==='ir'?'ไม่มี OSE ที่รอหยิบวัตถุดิบ — AS ต้องกำหนดสถานะ "Pick-หยิบวัตถุดิบ" ก่อน':'ยังไม่มี OSE — Import AX ก่อน'}
+    </div>`;
+    return;
+  }
+
+  el.innerHTML=oses.map(o=>{
+    const st=o.oseStatus||o.status||'';
+    const stColor=OSE_STATUS_COLOR[st]||'p-gray';
+    const isAS=(role==='as'||role==='mgmt'||role==='ap');
+    const isIR=(role==='ir');
+    return `
     <div class="ose-row ${selOSEId===o.prod?'active':''}" onclick="selectOSE('${o.prod}')">
-      <div style="display:flex;align-items:center;justify-content:space-between">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap">
         <div class="ose-no">${o.prod}</div>
-        <span class="pill ${o.status==='Started'?'p-amber':o.status==='Released'?'p-teal':'p-blue'}">${o.status}</span>
+        <span class="pill ${stColor}" style="font-size:9px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${st}">${st||'ไม่ระบุ'}</span>
       </div>
-      <div class="ose-sub">${o.name}</div>
-      <div style="margin-top:5px;display:flex;gap:5px;flex-wrap:wrap">
+      <div class="ose-sub" style="margin:3px 0">${o.name||o.prod}</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">
         ${o.thick?`<span class="pill p-gray">${o.thick}mm</span>`:''}
-        <span class="pill p-gray">QTY:${o.qty.toLocaleString()}</span>
+        ${o.qty?`<span class="pill p-gray">QTY:${Number(o.qty).toLocaleString()}</span>`:''}
+        ${o.machine?`<span class="pill p-blue">${o.machine}</span>`:''}
+        ${o.startDate?`<span class="pill p-teal" style="font-size:9px">${o.startDate.slice(0,10)}</span>`:''}
       </div>
-    </div>`).join('');
+      ${isAS?`<div style="margin-top:6px"><button class="btn btn-sm" style="padding:3px 8px;font-size:10px;background:var(--purple-bg);border:1px solid var(--purple-bd);color:var(--purple);border-radius:4px;cursor:pointer" onclick="event.stopPropagation();openEditOSE('${o.prod}')">✏️ กำหนดวัน/สถานะ</button></div>`:''}
+      ${isIR&&st==='Pick-หยิบวัตถุดิบ'?`<div style="margin-top:6px"><button class="btn btn-sm" style="padding:3px 8px;font-size:10px;background:var(--teal-bg);border:1px solid var(--teal-bd);color:var(--teal);border-radius:4px;cursor:pointer" onclick="event.stopPropagation();selectOSE('${o.prod}')">🏭 เลือก MCID</button></div>`:''}
+    </div>`;
+  }).join('');
 }
 function selectOSE(prod){
   selOSEId=prod; selMCIDs=[];
