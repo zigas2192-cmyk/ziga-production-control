@@ -583,59 +583,85 @@ table.ax-t .ax-total{background:var(--green-lt);color:var(--green);font-weight:6
     <div class="page" id="page-master-plan">
       <div class="pg-hd">
         <div class="pg-title">📅 Master Plan — แผนการผลิต</div>
-        <div class="pg-sub">จับคู่ OSE↔OFM · คำนวณ Cap · Monthly view · Work Queue 5 slot</div>
+        <div class="pg-sub">AS กำหนดเครื่องจักร + วันเริ่ม/จบ · ฝ่ายบริหารดูภาพรวมทุกใบงาน · เฉพาะ status 0–3</div>
       </div>
 
       <!-- Sub-tabs -->
-      <div style="display:flex;gap:8px;margin-bottom:16px;border-bottom:1px solid var(--b);padding-bottom:8px">
-        <button class="mp-tab active" onclick="switchMPTab('queue',this)">🎯 Work Queue</button>
-        <button class="mp-tab" onclick="switchMPTab('monthly',this)">📆 Monthly Plan</button>
-        <button class="mp-tab" onclick="switchMPTab('mapping',this)">🔗 OSE↔OFM Map</button>
-      </div>
-
-      <!-- Work Queue Tab -->
-      <div id="mp-queue" class="mp-content">
-        <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
-          <div style="font-size:12px;font-weight:500;color:var(--ink2)">แสดง 5 งานถัดไป</div>
-          <select id="mp-machine-filter" onchange="renderWorkQueue()" style="padding:5px 8px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:12px;outline:none">
-            <option value="">ทุกเครื่อง</option>
-            <option value="SL_01">SL_01</option>
-            <option value="SL_02">SL_02</option>
-          </select>
-          <button onclick="loadL6FromSP().then(renderWorkQueue)" style="padding:5px 10px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:11px;cursor:pointer">🔄 Refresh</button>
+      <div style="display:flex;gap:8px;margin-bottom:14px;border-bottom:1px solid var(--b);padding-bottom:8px;flex-wrap:wrap;align-items:center">
+        <button class="mp-tab active" onclick="switchMPTab('schedule',this)">🏭 ตารางเครื่องจักร</button>
+        <button class="mp-tab" onclick="switchMPTab('unassigned',this)">📋 ลงเครื่อง</button>
+        <button class="mp-tab" onclick="switchMPTab('mapping',this)">🔗 OSE↔OFM</button>
+        <button class="mp-tab" onclick="switchMPTab('monthly',this)">📆 Monthly</button>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+          <button onclick="loadL6FromSP().then(()=>{initMasterPlan();showToast('✅ Load L6: '+S.axJobs.length+' jobs');})"
+            style="padding:6px 14px;border:1px solid var(--blue-bd);border-radius:var(--rs);background:var(--blue-bg);color:var(--blue);font-size:13px;cursor:pointer;font-family:var(--sans);font-weight:500">🔄 Load L6</button>
+          <span id="mp-summary-badge" style="font-size:12px;color:var(--ink3)"></span>
         </div>
-        <div id="mp-queue-list"></div>
       </div>
 
-      <!-- Monthly Plan Tab -->
-      <div id="mp-monthly" class="mp-content" style="display:none">
-        <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
-          <select id="mp-month-sel" style="padding:6px 10px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:12px;outline:none">
-            <option value="4">เมษายน 2026</option>
-            <option value="5">พฤษภาคม 2026</option>
-            <option value="6">มิถุนายน 2026</option>
-          </select>
-          <select id="mp-shift-sel" style="padding:6px 10px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:12px;outline:none">
-            <option value="">-- เลือก Shift --</option>
-          </select>
-          <input type="number" id="mp-workdays" value="22" min="1" max="31" placeholder="วันทำงาน"
-            style="width:90px;padding:6px 8px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:12px;outline:none">
-          <button onclick="calcMonthlyPlan()" style="padding:6px 14px;background:var(--blue);color:#fff;border:none;border-radius:var(--rs);font-size:12px;cursor:pointer;font-family:var(--sans)">🧮 คำนวณ</button>
+      <!-- ① ตารางเครื่องจักร -->
+      <div id="mp-schedule" class="mp-content">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+          <input id="mp-sch-search" placeholder="🔍 ค้นหาใบงาน..." oninput="renderMachineSchedule()"
+            style="padding:6px 12px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:13px;outline:none;width:180px;color:#111">
+          <label style="font-size:13px;color:var(--ink2);display:flex;align-items:center;gap:5px;cursor:pointer">
+            <input type="checkbox" id="mp-show-empty" onchange="renderMachineSchedule()"> แสดงเครื่องว่าง
+          </label>
         </div>
-        <div id="mp-monthly-result"></div>
+        <div id="mp-machine-groups"></div>
       </div>
 
-      <!-- OSE↔OFM Mapping Tab -->
+      <!-- ② ลงเครื่องจักร -->
+      <div id="mp-unassigned" class="mp-content" style="display:none">
+        <div style="font-size:13px;color:var(--ink3);margin-bottom:10px">
+          AS — เลือกเครื่อง + วันเริ่ม + วันจบ ต่อใบงาน แล้วกด 💾 บันทึกลง L6
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+          <input id="mp-ua-search" placeholder="🔍 ค้นหา..." oninput="renderUnassigned()"
+            style="padding:6px 12px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:13px;outline:none;width:180px;color:#111">
+          <select id="mp-ua-type" onchange="renderUnassigned()"
+            style="padding:6px 10px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:13px;outline:none;color:#111">
+            <option value="">ทุกประเภท</option>
+            <option value="OSE">OSE — สลิท</option>
+            <option value="OFM">OFM — ผลิต</option>
+            <option value="ORW">ORW — ข้อต่อ</option>
+          </select>
+          <label style="font-size:13px;color:var(--ink2);display:flex;align-items:center;gap:5px;cursor:pointer">
+            <input type="checkbox" id="mp-ua-unassigned-only" onchange="renderUnassigned()"> เฉพาะที่ยังไม่ลงเครื่อง
+          </label>
+          <span id="mp-ua-count" style="font-size:12px;color:var(--ink3)"></span>
+        </div>
+        <div id="mp-unassigned-list"></div>
+      </div>
+
+      <!-- ③ OSE↔OFM Mapping -->
       <div id="mp-mapping" class="mp-content" style="display:none">
-        <div style="font-size:11px;color:var(--ink3);margin-bottom:12px">Duke (AP) จับคู่ OSE กับ OFM ที่สลิทเพื่อ — บันทึกลง L6</div>
-        <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+        <div style="font-size:13px;color:var(--ink3);margin-bottom:10px">Duke (AP) — จับคู่ OSE กับ OFM · บันทึกลง L6</div>
+        <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
           <input id="mp-map-search" placeholder="🔍 ค้นหา OSE..." oninput="renderOSEMapping()"
-            style="padding:6px 10px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:12px;outline:none;width:200px">
-          <select id="mp-map-status" onchange="renderOSEMapping()" style="padding:6px 10px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:12px;outline:none">
+            style="padding:6px 12px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:13px;outline:none;width:180px;color:#111">
+          <select id="mp-map-status" onchange="renderOSEMapping()"
+            style="padding:6px 10px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:13px;outline:none;color:#111">
             <option value="">ทุกสถานะ</option>
           </select>
         </div>
         <div id="mp-mapping-list"></div>
+      </div>
+
+      <!-- ④ Monthly Plan -->
+      <div id="mp-monthly" class="mp-content" style="display:none">
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+          <select id="mp-month-sel" style="padding:6px 10px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:13px;outline:none">
+            <option value="4">เมษายน 2026</option><option value="5">พฤษภาคม 2026</option><option value="6">มิถุนายน 2026</option>
+          </select>
+          <select id="mp-shift-sel" style="padding:6px 10px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:13px;outline:none">
+            <option value="">-- เลือก Shift --</option>
+          </select>
+          <input type="number" id="mp-workdays" value="22" min="1" max="31"
+            style="width:90px;padding:6px 8px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:13px;outline:none">
+          <button onclick="calcMonthlyPlan()" style="padding:6px 16px;background:var(--blue);color:#fff;border:none;border-radius:var(--rs);font-size:13px;cursor:pointer;font-family:var(--sans)">🧮 คำนวณ</button>
+        </div>
+        <div id="mp-monthly-result"></div>
       </div>
     </div>
 
@@ -1260,97 +1286,209 @@ async function loadL4FromSP(){
   }catch(e){hideProgress();console.error('loadL4 error:',e);}
 }
 
-// ── Master Plan Functions ────────────────────────────────────────
-function switchMPTab(tab, el){
+// ── Master Plan config ───────────────────────────────────────────
+const MACHINE_GROUPS=[
+  {key:'RF',label:'เครื่องรีด',icon:'🔧',color:'var(--blue)',
+   machines:['RF_04','RF_05','RF_06','RF_07','RF_08']},
+  {key:'SL',label:'สลิทเตอร์',icon:'🪙',color:'var(--green)',
+   machines:['SL_01','SL_02']},
+  {key:'CH',label:'ลบคม / ทำเกลียว',icon:'⚙️',color:'var(--purple)',
+   machines:['CH_A02','CH_A03','CH_A05','CH_A06','TA_A03','TA_A04','TA_A05','TA_A06']},
+  {key:'PA',label:'แพ็คกิ้ง / โลโก้',icon:'📦',color:'var(--amber)',
+   machines:['LO_R01+PA_M01','LO_R04','LO_R05+PA_M05','LO_R06+PA_M06','LO_R08+PA_M08','PA_EL01','PA_EL02']},
+  {key:'OT',label:'อื่นๆ / ข้อต่อ',icon:'🔩',color:'var(--teal)',
+   machines:['ข้อต่อ-เกลียว','ข้อต่อ-ชุบ','ดันตะเข็บ','CU_BL01']},
+];
+function isActive(j){const st=j.oseStatus||j.status||'';return !st.startsWith('4.End')&&!st.startsWith('5.Cancle');}
+function jobType(j){
+  const p=j.prod||'';
+  if(j.jobType) return j.jobType;
+  if(p.startsWith('OSE')) return 'OSE';
+  if(p.startsWith('OFM')) return 'OFM';
+  if(p.startsWith('ORW')) return 'ORW';
+  return 'Other';
+}
+
+// ── switchMPTab ──────────────────────────────────────────────────
+function switchMPTab(tab,el){
   document.querySelectorAll('.mp-tab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.mp-content').forEach(c=>c.style.display='none');
   el.classList.add('active');
   document.getElementById('mp-'+tab).style.display='block';
-  if(tab==='queue') renderWorkQueue();
-  if(tab==='monthly') initMonthlyPlan();
-  if(tab==='mapping') renderOSEMapping();
+  if(tab==='schedule')   renderMachineSchedule();
+  if(tab==='unassigned') renderUnassigned();
+  if(tab==='mapping')    renderOSEMapping();
+  if(tab==='monthly')    initMonthlyPlan();
 }
 
 function initMasterPlan(){
-  renderWorkQueue();
-  // Populate shift dropdown
+  const active=S.axJobs.filter(isActive);
+  const noMach=active.filter(j=>!j.machine).length;
+  const bd=document.getElementById('mp-summary-badge');
+  if(bd) bd.textContent=`ทั้งหมด ${active.length} ใบ · รอลงเครื่อง ${noMach} ใบ`;
   const sel=document.getElementById('mp-shift-sel');
-  if(sel && sel.options.length<=1){
-    SHIFTS.forEach(s=>{
-      const o=document.createElement('option');
-      o.value=s.hours; o.textContent=s.label+' ('+s.hours+'h)';
-      sel.appendChild(o);
-    });
-  }
-  // Populate status filter
+  if(sel&&sel.options.length<=1) SHIFTS.forEach(s=>{const o=document.createElement('option');o.value=s.hours;o.textContent=s.label+' ('+s.hours+'h)';sel.appendChild(o);});
   const stSel=document.getElementById('mp-map-status');
-  if(stSel && stSel.options.length<=1){
-    OSE_STATUS.forEach(s=>{
-      const o=document.createElement('option');
-      o.value=s; o.textContent=s;
-      stSel.appendChild(o);
-    });
-  }
+  if(stSel&&stSel.options.length<=1) OSE_STATUS.forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent=s;stSel.appendChild(o);});
+  renderMachineSchedule();
 }
 
-// ── Work Queue ───────────────────────────────────────────────────
-function renderWorkQueue(){
-  const el=document.getElementById('mp-queue-list');
+// ── ① ตารางเครื่องจักร ───────────────────────────────────────────
+function renderMachineSchedule(){
+  const el=document.getElementById('mp-machine-groups');
   if(!el) return;
-  const machFilter=document.getElementById('mp-machine-filter')?.value||'';
+  const q=(document.getElementById('mp-sch-search')?.value||'').toLowerCase();
+  const showEmpty=document.getElementById('mp-show-empty')?.checked||false;
+  let allJobs=S.axJobs.filter(j=>isActive(j)&&j.machine);
+  if(q) allJobs=allJobs.filter(j=>(j.prod||'').toLowerCase().includes(q)||(j.name||'').toLowerCase().includes(q)||(j.machine||'').toLowerCase().includes(q));
 
-  // Get OSE jobs sorted by priority then startDate, filter out done/cancelled
-  const doneStatus=['4.End-เสร็จสิ้น','5.Cancle-ยกเลิก'];
-  let jobs=S.axJobs.filter(j=>(j.jobType==='OSE'||j.type==='OSE')&&!doneStatus.includes(j.oseStatus||j.status||''));
-  if(machFilter) jobs=jobs.filter(j=>j.machine===machFilter);
+  const unassigned=S.axJobs.filter(j=>isActive(j)&&!j.machine).length;
+  let html='';
+  if(unassigned>0){
+    html+=`<div style="background:var(--amber-bg);border:1px solid var(--amber-bd);border-radius:var(--rs);padding:10px 14px;margin-bottom:14px;font-size:13px;color:var(--amber)">
+      ⚠️ มีใบงาน <strong>${unassigned} ใบ</strong> ยังไม่ได้ลงเครื่อง — ไปที่ tab <strong>📋 ลงเครื่อง</strong>
+    </div>`;
+  }
 
-  // Sort: priority ASC, then startDate ASC
-  jobs.sort((a,b)=>{
-    const pa=parseInt(a.priority)||999, pb=parseInt(b.priority)||999;
-    if(pa!==pb) return pa-pb;
-    const da=a.startDate||'9999', db=b.startDate||'9999';
-    return da.localeCompare(db);
+  let totalShown=0;
+  MACHINE_GROUPS.forEach(grp=>{
+    const machData=grp.machines.map(m=>({
+      machine:m,
+      jobs:allJobs.filter(j=>j.machine===m).sort((a,b)=>(a.startDate||'9999').localeCompare(b.startDate||'9999'))
+    })).filter(d=>showEmpty||d.jobs.length>0);
+    if(!machData.length) return;
+    const grpTotal=machData.reduce((s,d)=>s+d.jobs.length,0);
+    totalShown+=grpTotal;
+
+    html+=`<div style="margin-bottom:20px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:8px 12px;background:${grp.color}18;border-left:4px solid ${grp.color};border-radius:0 var(--rs) var(--rs) 0">
+        <span style="font-size:16px">${grp.icon}</span>
+        <span style="font-size:14px;font-weight:700;color:${grp.color}">${grp.label}</span>
+        <span class="pill" style="background:${grp.color}22;border-color:${grp.color}55;color:${grp.color}">${grpTotal} ใบ</span>
+      </div>
+      ${machData.map(d=>`
+        <div style="margin-bottom:12px;margin-left:14px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+            <span style="font-family:var(--mono);font-size:13px;font-weight:700;color:${grp.color};min-width:110px">${d.machine}</span>
+            <span style="font-size:12px;color:var(--ink3)">${d.jobs.length} ใบงาน</span>
+            ${!d.jobs.length?'<span class="pill p-gray">ว่าง</span>':''}
+          </div>
+          ${d.jobs.length?`<div class="tbl-wrap"><table class="ft" style="min-width:680px">
+            <thead><tr>
+              <th style="width:130px">หมายเลขงาน</th>
+              <th>ชื่องาน</th>
+              <th style="width:60px">ความหนา</th>
+              <th style="width:80px">จำนวน</th>
+              <th style="width:100px">วันที่เริ่ม</th>
+              <th style="width:100px">วันที่จบ</th>
+              <th style="width:140px">สถานะ</th>
+            </tr></thead>
+            <tbody>
+            ${d.jobs.map(j=>{
+              const st=j.oseStatus||j.status||'';
+              const stColor=OSE_STATUS_COLOR[st]||'p-gray';
+              const jt=jobType(j);
+              const tc=jt==='OSE'?'#1a7a1a':jt==='OFM'?'#1259A5':jt==='ORW'?'#433FA8':'#333';
+              return `<tr>
+                <td><div style="font-family:var(--mono);font-size:13px;font-weight:700;color:${tc}">${j.prod}</div><span style="font-size:11px;color:#666">${jt}</span></td>
+                <td style="font-size:13px;color:#111;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${j.name||''}">${j.name||'—'}</td>
+                <td style="font-size:13px;text-align:center;color:#111">${j.thick?j.thick+'mm':'—'}</td>
+                <td style="font-family:var(--mono);font-size:13px;text-align:right;color:#111">${j.qty?Number(j.qty).toLocaleString():'—'}</td>
+                <td style="font-size:13px;color:${j.startDate?'#111':'var(--amber)'}">${j.startDate?j.startDate.slice(0,10):'ยังไม่กำหนด'}</td>
+                <td style="font-size:13px;color:#111">${j.endDate?j.endDate.slice(0,10):'—'}</td>
+                <td><span class="pill ${stColor}" style="font-size:11px;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block">${st||'ไม่ระบุ'}</span></td>
+              </tr>`;
+            }).join('')}
+            </tbody>
+          </table></div>`
+          :`<div style="font-size:13px;color:#888;padding:7px 12px;background:var(--panel);border-radius:var(--rs)">— ไม่มีงาน —</div>`}
+        </div>`).join('')}
+    </div>`;
   });
 
-  const slot=jobs.slice(0,5);
-  if(!slot.length){
-    el.innerHTML='<div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center">ไม่มีงานในคิว — นำเข้า AX และกำหนดสถานะก่อน</div>';
-    return;
-  }
-
-  el.innerHTML=slot.map((j,i)=>{
-    const st=j.oseStatus||j.status||'';
-    const stColor=OSE_STATUS_COLOR[st]||'p-gray';
-    const startStr=j.startDate?j.startDate.slice(0,10):'ยังไม่กำหนด';
-    const mcids=S.mcids.filter(m=>m.oseNo===j.prod||m.oseNo===j.prod);
-    const mcidCount=S.mcids.filter(m=>m.status==='จ่ายแล้ว'&&m.oseNo===j.prod).length;
-    return `
-    <div class="queue-card" style="border-left:3px solid ${i===0?'var(--green)':i===1?'var(--blue)':'var(--b2)'}">
-      <div class="queue-rank">${j.priority||i+1}</div>
-      <div class="queue-body">
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
-          <span class="queue-ose">${j.prod}</span>
-          <span class="pill ${stColor}" style="font-size:9px">${st||'ไม่ระบุ'}</span>
-          ${j.machine?`<span class="pill p-blue" style="font-size:9px">${j.machine}</span>`:''}
-        </div>
-        <div class="queue-formula">${j.name||''}</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;align-items:center">
-          ${j.thick?`<span class="pill p-gray" style="font-size:9px">${j.thick}mm</span>`:''}
-          ${j.qty?`<span class="pill p-gray" style="font-size:9px">QTY:${Number(j.qty).toLocaleString()}</span>`:''}
-          <span class="pill p-teal" style="font-size:9px">📅 ${startStr}</span>
-          ${mcidCount?`<span class="pill p-ok" style="font-size:9px">🪙 ${mcidCount} ลูก</span>`:''}
-          ${j.ofmRef?`<span class="pill p-purple" style="font-size:9px">OFM: ${j.ofmRef.slice(0,20)}</span>`:''}
-        </div>
-      </div>
-      ${i===0?`<span class="pill p-ok" style="font-size:10px">▶ กำลังดำเนินการ</span>`:''}
-    </div>`;
-  }).join('');
+  if(!totalShown&&!unassigned) html='<div style="color:#888;font-size:14px;padding:30px;text-align:center">ไม่มีใบงาน — กด 🔄 Load L6 ก่อน</div>';
+  el.innerHTML=html;
 }
+
+// ── ② ลงเครื่องจักร ─────────────────────────────────────────────
+function renderUnassigned(){
+  const el=document.getElementById('mp-unassigned-list');
+  const cnt=document.getElementById('mp-ua-count');
+  if(!el) return;
+  const q=(document.getElementById('mp-ua-search')?.value||'').toLowerCase();
+  const typeF=document.getElementById('mp-ua-type')?.value||'';
+  const unOnly=document.getElementById('mp-ua-unassigned-only')?.checked||false;
+
+  let jobs=S.axJobs.filter(isActive);
+  if(unOnly) jobs=jobs.filter(j=>!j.machine);
+  if(q) jobs=jobs.filter(j=>(j.prod||'').toLowerCase().includes(q)||(j.name||'').toLowerCase().includes(q));
+  if(typeF) jobs=jobs.filter(j=>jobType(j)===typeF);
+  jobs.sort((a,b)=>(a.machine?1:0)-(b.machine?1:0)||(a.prod||'').localeCompare(b.prod||''));
+  if(cnt) cnt.textContent=`${jobs.length} ใบ · ยังไม่ลงเครื่อง: ${jobs.filter(j=>!j.machine).length}`;
+
+  if(!jobs.length){el.innerHTML='<div style="color:#888;font-size:14px;padding:30px;text-align:center">ไม่มีใบงาน</div>';return;}
+
+  const machOpts='<option value="">— ยังไม่กำหนด —</option>'+
+    MACHINE_GROUPS.map(g=>`<optgroup label="${g.icon} ${g.label}">`+
+      g.machines.map(m=>`<option value="${m}">${m}</option>`).join('')+
+    '</optgroup>').join('');
+
+  const iStyle='padding:5px 7px;border:1px solid var(--b2);border-radius:4px;background:#fff;font-size:13px;outline:none;color:#111;width:100%';
+
+  el.innerHTML=`<div class="tbl-wrap"><table class="ft" style="min-width:860px">
+    <thead><tr>
+      <th style="width:130px">หมายเลขงาน</th>
+      <th>ชื่องาน</th>
+      <th style="width:60px">ความหนา</th>
+      <th style="width:80px">จำนวน</th>
+      <th style="width:175px">เครื่องจักร</th>
+      <th style="width:115px">วันที่เริ่ม</th>
+      <th style="width:115px">วันที่จบ</th>
+      <th style="width:58px">บันทึก</th>
+    </tr></thead>
+    <tbody>
+    ${jobs.map(j=>{
+      const jt=jobType(j);
+      const tc=jt==='OSE'?'#1a7a1a':jt==='OFM'?'#1259A5':jt==='ORW'?'#433FA8':'#333';
+      const hasM=!!j.machine;
+      const opts=hasM?machOpts.replace(`value="${j.machine}"`,`value="${j.machine}" selected`):machOpts;
+      return `<tr style="${!hasM?'background:var(--amber-bg)':''}">
+        <td><div style="font-family:var(--mono);font-size:13px;font-weight:700;color:${tc}">${j.prod}</div><span style="font-size:11px;color:#666">${jt}</span></td>
+        <td style="font-size:13px;color:#111;max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${j.name||''}">${j.name||'—'}</td>
+        <td style="font-size:13px;text-align:center;color:#111">${j.thick?j.thick+'mm':'—'}</td>
+        <td style="font-family:var(--mono);font-size:13px;text-align:right;color:#111">${j.qty?Number(j.qty).toLocaleString():'—'}</td>
+        <td><select style="${iStyle}" onchange="updateJobMachine('${j.prod}',this.value)">${opts}</select></td>
+        <td><input type="date" value="${j.startDate?j.startDate.slice(0,10):''}" style="${iStyle}" onchange="updateOSEDate('${j.prod}',this.value)"></td>
+        <td><input type="date" value="${j.endDate?j.endDate.slice(0,10):''}" style="${iStyle}" onchange="updateJobEndDate('${j.prod}',this.value)"></td>
+        <td><button onclick="saveJobSchedule('${j.prod}')" style="padding:6px 10px;background:var(--blue);color:#fff;border:none;border-radius:4px;font-size:13px;cursor:pointer;width:100%">💾</button></td>
+      </tr>`;
+    }).join('')}
+    </tbody>
+  </table></div>`;
+}
+
+function updateJobMachine(prod,val){const j=S.axJobs.find(j=>j.prod===prod);if(j)j.machine=val;}
+function updateJobEndDate(prod,val){const j=S.axJobs.find(j=>j.prod===prod);if(j)j.endDate=val;}
+async function saveJobSchedule(prod){
+  const j=S.axJobs.find(j=>j.prod===prod);
+  if(!j) return;
+  if(!graphToken){showToast('⚠️ login ก่อน');return;}
+  if(!j.spId){showToast('⚠️ ไม่พบ spId — Load L6 ก่อน');return;}
+  const fields={};
+  if(j.machine)   fields.field_6=j.machine;
+  if(j.startDate) fields.field_7=new Date(j.startDate).toISOString();
+  if(j.endDate)   fields.field_8=new Date(j.endDate).toISOString();
+  const ok=await spPatchItem(SP_LISTS.L6,j.spId,fields);
+  if(ok){showToast(`✅ บันทึก ${prod} → ${j.machine||'?'}`);renderMachineSchedule();}
+  else showToast(`❌ บันทึกไม่สำเร็จ: ${prod}`);
+}
+
+function renderWorkQueue(){renderMachineSchedule();}
 
 // ── Monthly Plan Calculator ──────────────────────────────────────
 function initMonthlyPlan(){
   const sel=document.getElementById('mp-shift-sel');
-  if(sel && !sel.value && SHIFTS.length) sel.value=SHIFTS[2].hours; // default 8h
+  if(sel&&!sel.value&&SHIFTS.length) sel.value=SHIFTS[2].hours;
 }
 
 function calcMonthlyPlan(){
@@ -1358,36 +1496,22 @@ function calcMonthlyPlan(){
   const workDays=parseInt(document.getElementById('mp-workdays')?.value)||22;
   const el=document.getElementById('mp-monthly-result');
   if(!el) return;
-
-  // Get pending OSE jobs (not done)
   const doneStatus=['4.End-เสร็จสิ้น','5.Cancle-ยกเลิก'];
   const jobs=S.axJobs
     .filter(j=>(j.jobType==='OSE'||j.type==='OSE')&&!doneStatus.includes(j.oseStatus||j.status||''))
     .sort((a,b)=>(parseInt(a.priority)||999)-(parseInt(b.priority)||999));
-
-  if(!jobs.length){
-    el.innerHTML='<div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center">ไม่มีงาน OSE ที่รอดำเนินการ</div>';
-    return;
-  }
-
-  // Total capacity per month
-  const totalCoilsPerDay = Object.values(CAP_TABLE).reduce((s,v)=>s+v.h8,0)/Object.keys(CAP_TABLE).length;
-  let dayUsed=0, results=[];
-
+  if(!jobs.length){el.innerHTML='<div style="color:#888;font-size:14px;padding:20px;text-align:center">ไม่มีงาน OSE ที่รอดำเนินการ</div>';return;}
+  let dayUsed=0,results=[];
   jobs.forEach(j=>{
-    const coils=j.qtyCoils||j.qty||0;
-    const thick=j.thick||2.8;
-    const capPerDay=getCapPerHour(thick, shiftH);
-    const daysNeeded=coils>0?Math.ceil(coils/capPerDay):1;
-    const startDay=dayUsed+1;
-    const endDay=Math.min(dayUsed+daysNeeded, workDays);
+    const coils=j.qtyCoils||j.qty||0,thick=j.thick||2.8;
+    const capPerDay=getCapPerHour(thick,shiftH),daysNeeded=coils>0?Math.ceil(coils/capPerDay):1;
+    const startDay=dayUsed+1,endDay=Math.min(dayUsed+daysNeeded,workDays);
     dayUsed+=daysNeeded;
-    results.push({job:j, coils, daysNeeded, startDay, endDay, fits:endDay<=workDays});
+    results.push({job:j,coils,daysNeeded,startDay,endDay,fits:endDay<=workDays});
   });
-
   const shiftLabel=SHIFTS.find(s=>s.hours===shiftH)?.label||shiftH+'h';
   el.innerHTML=`
-  <div style="background:var(--panel);border-radius:var(--rs);padding:10px 14px;margin-bottom:12px;font-size:12px;display:flex;gap:16px;flex-wrap:wrap">
+  <div style="background:var(--panel);border-radius:var(--rs);padding:11px 14px;margin-bottom:12px;font-size:13px;display:flex;gap:16px;flex-wrap:wrap;color:#111">
     <span>Shift: <strong>${shiftLabel}</strong></span>
     <span>วันทำงาน: <strong>${workDays} วัน</strong></span>
     <span>งาน OSE: <strong>${jobs.length} ใบ</strong></span>
@@ -1395,23 +1519,18 @@ function calcMonthlyPlan(){
     ${dayUsed>workDays?`<span style="color:var(--red)">⚠️ เกิน ${dayUsed-workDays} วัน</span>`:'<span style="color:var(--green)">✓ พอดี</span>'}
   </div>
   <div class="tbl-wrap"><table class="ft">
-    <thead><tr>
-      <th>#</th><th>OSE No.</th><th>ความหนา</th><th>QtyCoils</th>
-      <th>Cap/วัน</th><th>วันที่ใช้</th><th>วันเริ่ม</th><th>วันจบ</th><th>สถานะ</th>
-    </tr></thead>
-    <tbody>
-      ${results.map((r,i)=>`
-      <tr style="${!r.fits?'background:var(--red-bg)':''}">
-        <td class="mono">${r.job.priority||i+1}</td>
-        <td class="mono" style="color:var(--blue)">${r.job.prod}</td>
-        <td>${r.job.thick||'-'}mm</td>
-        <td class="mono">${r.coils>0?r.coils:'-'}</td>
-        <td class="mono">${getCapPerHour(r.job.thick,shiftH).toFixed(1)}</td>
-        <td class="mono" style="color:${r.daysNeeded>5?'var(--amber)':'inherit'}">${r.daysNeeded}</td>
-        <td class="mono">วันที่ ${r.startDay}</td>
-        <td class="mono" style="color:${!r.fits?'var(--red)':'inherit'}">วันที่ ${r.endDay}${!r.fits?' ⚠️':''}</td>
-        <td><span class="pill ${OSE_STATUS_COLOR[r.job.oseStatus||r.job.status||'']||'p-gray'}" style="font-size:9px">${(r.job.oseStatus||r.job.status||'').slice(0,20)}</span></td>
-      </tr>`).join('')}
+    <thead><tr><th>#</th><th>OSE No.</th><th>ความหนา</th><th>จำนวนลูก</th><th>Cap/วัน</th><th>วันที่ใช้</th><th>วันเริ่ม</th><th>วันจบ</th><th>สถานะ</th></tr></thead>
+    <tbody>${results.map((r,i)=>`<tr style="${!r.fits?'background:var(--red-bg)':''}">
+      <td>${r.job.priority||i+1}</td>
+      <td style="font-family:var(--mono);font-weight:700;color:#1259A5">${r.job.prod}</td>
+      <td>${r.job.thick||'—'}mm</td>
+      <td>${r.coils>0?r.coils:'—'}</td>
+      <td>${getCapPerHour(r.job.thick,shiftH).toFixed(1)}</td>
+      <td style="color:${r.daysNeeded>5?'var(--amber)':'#111'}">${r.daysNeeded}</td>
+      <td>วันที่ ${r.startDay}</td>
+      <td style="color:${!r.fits?'var(--red)':'#111'}">วันที่ ${r.endDay}${!r.fits?' ⚠️':''}</td>
+      <td><span class="pill ${OSE_STATUS_COLOR[r.job.oseStatus||r.job.status||'']||'p-gray'}">${(r.job.oseStatus||r.job.status||'').slice(0,22)}</span></td>
+    </tr>`).join('')}
     </tbody>
   </table></div>`;
 }
@@ -1421,51 +1540,47 @@ function renderOSEMapping(){
   const el=document.getElementById('mp-mapping-list');
   if(!el) return;
   const q=(document.getElementById('mp-map-search')?.value||'').toLowerCase();
-  const stFilter=document.getElementById('mp-map-status')?.value||'';
-
-  let jobs=S.axJobs.filter(j=>j.jobType==='OSE'||j.type==='OSE');
-  if(q) jobs=jobs.filter(j=>(j.prod||'').toLowerCase().includes(q)||(j.name||'').toLowerCase().includes(q));
-  if(stFilter) jobs=jobs.filter(j=>(j.oseStatus||j.status||'')===stFilter);
-  jobs.sort((a,b)=>(parseInt(a.priority)||999)-(parseInt(b.priority)||999));
-
-  if(!jobs.length){el.innerHTML='<div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center">ไม่มี OSE</div>';return;}
-
-  // Get OFM jobs for dropdown
-  const ofmJobs=S.axJobs.filter(j=>j.jobType==='OFM'||j.type==='OFM');
-
+  const stF=document.getElementById('mp-map-status')?.value||'';
+  let oseJobs=S.axJobs.filter(j=>jobType(j)==='OSE');
+  if(q) oseJobs=oseJobs.filter(j=>(j.prod||'').toLowerCase().includes(q)||(j.name||'').toLowerCase().includes(q));
+  if(stF) oseJobs=oseJobs.filter(j=>(j.oseStatus||j.status||'')===stF);
+  oseJobs.sort((a,b)=>(parseInt(a.priority)||999)-(parseInt(b.priority)||999));
+  const ofmJobs=S.axJobs.filter(j=>jobType(j)==='OFM').sort((a,b)=>(b.prod||'').localeCompare(a.prod||''));
+  if(!oseJobs.length){el.innerHTML='<div style="color:#888;font-size:14px;padding:20px;text-align:center">ไม่มี OSE — กด Load L6 ก่อน</div>';return;}
+  const baseOpts='<option value="">— ยังไม่จับคู่ —</option>'+
+    ofmJobs.map(o=>`<option value="${o.prod}">${o.prod} — ${(o.name||'').slice(0,52)}</option>`).join('');
+  const iStyle='padding:4px 6px;border:1px solid var(--b2);border-radius:4px;background:#fff;font-size:13px;outline:none;color:#111';
   el.innerHTML=`
-  <div class="map-row" style="background:var(--panel);font-size:10px;color:var(--ink3);font-weight:500">
-    <div>OSE No. / ลำดับ</div><div>SlitFormula</div><div>OFM ที่จับคู่</div><div>Action</div>
+  <div style="font-size:12px;color:#555;margin-bottom:8px">OSE <strong style="color:#111">${oseJobs.length}</strong> ใบ · OFM <strong style="color:#111">${ofmJobs.length}</strong> ใบ
+    ${stF?`<span style="background:var(--blue-bg);color:var(--blue);border-radius:4px;padding:2px 8px;font-size:11px;margin-left:6px">กรอง: ${stF.slice(0,30)}</span>`:''}
   </div>
-  <div style="background:var(--card);border:1px solid var(--b);border-radius:var(--r);overflow:hidden">
-  ${jobs.map(j=>`
-    <div class="map-row">
-      <div>
-        <div class="mono" style="font-size:12px;color:var(--blue)">${j.prod}</div>
-        <div style="display:flex;gap:4px;margin-top:3px">
-          <input type="number" placeholder="#" value="${j.priority||''}"
-            style="width:40px;padding:3px 5px;border:1px solid var(--b2);border-radius:4px;background:var(--panel);font-size:11px;outline:none"
-            onchange="updateOSEPriority('${j.prod}',this.value)">
-          <input type="date" value="${j.startDate?j.startDate.slice(0,10):''}"
-            style="width:115px;padding:3px 5px;border:1px solid var(--b2);border-radius:4px;background:var(--panel);font-size:10px;outline:none"
-            onchange="updateOSEDate('${j.prod}',this.value)">
-        </div>
-      </div>
-      <div style="font-size:10px;color:var(--ink3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%">${j.name||''}</div>
-      <div>
-        <input list="ofm-list-${j.prod.replace(/[^a-z0-9]/gi,'')}" value="${j.item||''}" placeholder="พิมพ์ OFM No..."
-          style="width:100%;padding:5px 8px;border:1px solid var(--b2);border-radius:4px;background:var(--panel);font-size:11px;outline:none"
-          onchange="updateOSEOFMRef('${j.prod}',this.value)">
-        <datalist id="ofm-list-${j.prod.replace(/[^a-z0-9]/gi,'')}">
-          ${ofmJobs.map(o=>`<option value="${o.prod}">${o.prod} — ${(o.name||'').slice(0,40)}</option>`).join('')}
-        </datalist>
-      </div>
-      <div>
-        <button onclick="saveOSEMappingRow('${j.prod}')"
-          style="padding:5px 10px;background:var(--blue);color:#fff;border:none;border-radius:4px;font-size:11px;cursor:pointer;font-family:var(--sans)">💾</button>
-      </div>
-    </div>`).join('')}
-  </div>`;
+  <div class="tbl-wrap"><table class="ft" style="min-width:800px">
+    <thead><tr>
+      <th style="width:130px">OSE No.</th>
+      <th style="width:44px">#</th>
+      <th style="width:110px">วันเริ่ม</th>
+      <th>ชื่องาน / SlitFormula</th>
+      <th style="width:310px">OFM ที่จับคู่ (เลขที่ — ชื่องาน)</th>
+      <th style="width:58px">บันทึก</th>
+    </tr></thead>
+    <tbody>
+    ${oseJobs.map(j=>{
+      const st=j.oseStatus||j.status||'';
+      const stColor=OSE_STATUS_COLOR[st]||'p-gray';
+      const cur=j.item||'';
+      const opts=cur?baseOpts.replace(`value="${cur}"`,`value="${cur}" selected`):baseOpts;
+      return `<tr>
+        <td><div style="font-family:var(--mono);font-size:13px;font-weight:700;color:#1a7a1a">${j.prod}</div>
+          <span class="pill ${stColor}" style="font-size:10px;margin-top:3px;display:inline-block;max-width:118px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${st||'ไม่ระบุ'}</span></td>
+        <td><input type="number" placeholder="#" value="${j.priority||''}" style="width:40px;${iStyle}" onchange="updateOSEPriority('${j.prod}',this.value)"></td>
+        <td><input type="date" value="${j.startDate?j.startDate.slice(0,10):''}" style="width:106px;${iStyle}" onchange="updateOSEDate('${j.prod}',this.value)"></td>
+        <td style="font-size:13px;color:#222;max-width:270px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${j.name||''}">${j.name||'—'}</td>
+        <td><select style="width:100%;${iStyle};padding:5px 7px" onchange="updateOSEOFMRef('${j.prod}',this.value)">${opts}</select></td>
+        <td><button onclick="saveOSEMappingRow('${j.prod}')" style="padding:6px 8px;background:var(--blue);color:#fff;border:none;border-radius:4px;font-size:13px;cursor:pointer;width:100%">💾</button></td>
+      </tr>`;
+    }).join('')}
+    </tbody>
+  </table></div>`;
 }
 
 async function updateOSEPriority(prod, val){
