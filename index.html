@@ -1159,15 +1159,29 @@ async function loadL6FromSP(){
     const items=await spGetItems(SP_LISTS.L6,'',500);
     if(!items.length){hideProgress();return;}
     S.axJobs=items.map(f=>({
-      prod:      f.Title||'',
-      item:      f.field_1||'',
-      name:      f.field_2||'',
-      thick:     parseFloat(f.field_3)||0,
-      status:    f.field_10||'',
-      qty:       parseFloat(f.field_12)||0,
-      jobType:   f.JobType||'',
-      spId:      f.id||'',
-      used:      false,
+      prod:         f.Title||'',
+      item:         f.field_1||'',
+      name:         f.field_2||'',
+      thick:        parseFloat(f.field_3)||0,
+      width:        parseFloat(f.field_4)||0,
+      qtyCoils:     parseFloat(f.field_5)||0,
+      machine:      f.field_6||'',
+      startDate:    f.field_7||'',
+      endDate:      f.field_8||'',
+      capMinPerCoil:parseFloat(f.field_9)||0,
+      oseStatus:    f.field_10||'',
+      status:       f.field_10||'',
+      priority:     parseFloat(f.field_11)||0,
+      qty:          parseFloat(f.field_12)||0,
+      qtyActual:    parseFloat(f.field_13)||0,
+      gradeA:       parseFloat(f.field_14)||0,
+      gradeB:       parseFloat(f.field_15)||0,
+      gradeC:       parseFloat(f.field_16)||0,
+      remarks:      f.field_17||'',
+      gradeAminus:  parseFloat(f.GradeAminus)||0,
+      jobType:      f.JobType||'',
+      spId:         f.id||'',
+      used:         false,
     }));
     hideProgress();
     renderOSEPending();buildOFMJobSelect();
