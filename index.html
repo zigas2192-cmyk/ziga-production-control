@@ -2640,19 +2640,47 @@ async function saveOSEPlan(){
       else   showToast(`⚠️ L6 PATCH ไม่สำเร็จ`);
     }
     // PATCH L4: mark MCIDs as จ่ายแล้ว
+    // ถ้า MCID ไม่มี spId → ค้นหาจาก SP โดยใช้ Title (serial number)
     showProgress('กำลัง PATCH L4...',0,mcids.length);
-    let l4ok=0;
+    let l4ok=0, l4skip=0;
+
+    // กลุ่มที่ไม่มี spId — ต้องหาก่อน
+    const noSpId=mcids.filter(c=>!c.spId);
+    if(noSpId.length>0){
+      showProgress(`กำลังค้นหา spId ของ ${noSpId.length} รายการ...`,0,mcids.length);
+      for(const c of noSpId){
+        try{
+          const items=await spGetItems(SP_LISTS.L4,`Title eq '${c.serial}'`,1);
+          if(items.length>0){
+            c.spId=items[0].id||'';
+            // อัปเดต S.mcids ด้วย
+            const mc=S.mcids.find(x=>x.serial===c.serial);
+            if(mc) mc.spId=c.spId;
+          }
+        }catch(e){ console.warn('lookup spId failed:',c.serial,e); }
+      }
+    }
+
     for(let i=0;i<mcids.length;i++){
       const c=mcids[i];
       showProgress(`${c.serial} (${i+1}/${mcids.length})`,i+1,mcids.length);
       if(c.spId){
-        const ok=await spPatchItem(SP_LISTS.L4,c.spId,{field_11:selOSEId,field_12:'จ่ายแล้ว'});
+        const ok=await spPatchItem(SP_LISTS.L4,c.spId,{
+          field_11: selOSEId,
+          field_12: 'จ่ายแล้ว',
+        });
         if(ok) l4ok++;
+        else{ console.error('PATCH failed:',c.serial); l4skip++; }
+      } else {
+        console.warn('No spId for',c.serial,'— ข้ามไป');
+        l4skip++;
       }
     }
     hideProgress();
     if(btn){btn.disabled=false;btn.textContent='🏭 Pick-หยิบวัตถุดิบ';}
-    showToast(`✅ หยิบแล้ว ${l4ok}/${mcids.length} ลูก · ${selOSEId}`);
+    const skipMsg=l4skip>0?` · ⚠️ ข้าม ${l4skip} รายการ (ไม่พบใน SP)`:'';
+    showToast(`✅ หยิบแล้ว ${l4ok}/${mcids.length} ลูก · ${selOSEId}${skipMsg}`);
+    saveState();
   } else {
     showToast(`✅ บันทึก (local) — ${mcids.length} ลูก`);
   }
