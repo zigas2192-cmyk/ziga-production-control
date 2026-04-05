@@ -455,6 +455,13 @@ table.ax-t .ax-total{background:var(--green-lt);color:var(--green);font-weight:6
         <div class="pg-title">⚙️ สลิท+น้ำหนัก</div>
         <div class="pg-sub">สุภาพ — เลือก OSE → กรอกน้ำหนัก 3 ค่าต่อลูก</div>
       </div>
+      <!-- toolbar -->
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+        <button onclick="loadL4FromSP().then(()=>{renderSlitOSEList();showToast('✅ Load L4 แล้ว');})"
+          style="padding:7px 14px;border:1px solid var(--blue-bd);border-radius:var(--rs);background:var(--blue-bg);color:var(--blue);font-size:13px;cursor:pointer;font-family:var(--sans)">🔄 Load L4</button>
+        <button onclick="loadL6FromSP().then(()=>{renderSlitOSEList();showToast('✅ Load L6 แล้ว');})"
+          style="padding:7px 14px;border:1px solid var(--blue-bd);border-radius:var(--rs);background:var(--blue-bg);color:var(--blue);font-size:13px;cursor:pointer;font-family:var(--sans)">🔄 Load L6</button>
+      </div>
       <!-- OSE list (mobile single column) -->
       <div style="margin-bottom:12px">
         <div style="font-size:13px;font-weight:600;color:#444;margin-bottom:8px">เลือกใบงาน OSE</div>
@@ -3011,17 +3018,29 @@ function renderSlitOSEList(){
   }).join('');
 }
 
-function selectSlitOSE(oseNo){
+async function selectSlitOSE(oseNo){
   S.selectedOSE=oseNo;
   let plan=S.osePlans.find(p=>p.oseNo===oseNo);
-  // fallback: สร้าง plan จาก axJobs + mcids
+
+  // หา mcids จาก S.mcids (รวมทุก status ที่ผูก oseNo นี้)
+  let mcids=S.mcids.filter(c=>c.oseNo===oseNo);
+
+  // ถ้าไม่มี mcids → ลอง load L4 ก่อน
+  if(!mcids.length && graphToken){
+    showToast('🔄 กำลังโหลด MCID จาก L4...');
+    await loadL4FromSP();
+    mcids=S.mcids.filter(c=>c.oseNo===oseNo);
+  }
+
   if(!plan){
-    const job=S.axJobs.find(j=>j.prod===oseNo);
-    if(!job) return;
-    const mcids=S.mcids.filter(c=>c.oseNo===oseNo&&c.status==='ใช้แล้ว');
+    const job=S.axJobs.find(j=>j.prod===oseNo)||{prod:oseNo,name:oseNo};
     plan={oseNo,job,mcids,slitDone:false};
     S.osePlans.push(plan);
+  } else {
+    // อัป mcids จาก S.mcids ล่าสุด
+    plan.mcids=mcids.length?mcids:plan.mcids;
   }
+
   const right=document.getElementById('slit-right');
   right.style.display='block';
   setTimeout(()=>right.scrollIntoView({behavior:'smooth',block:'start'}),100);
@@ -3041,6 +3060,9 @@ function selectSlitOSE(oseNo){
       ${formula.parts.map(p=>`${p.width}mm × ${p.count} แถบ`).join('<br>')}
       <br>ขอบข้าง: ${formula.scrap.toFixed(1)}mm × 2
       <br>รวม: ${formula.total.toFixed(1)} mm
+    </div>`:''}
+    ${!plan.mcids.length?`<div style="color:var(--amber);font-size:13px;padding:10px;background:var(--amber-bg);border-radius:var(--rs)">
+      ⚠️ ไม่พบ MCID ใน local — กด Load L4 ก่อน
     </div>`:''}`;
 
   renderSlitMCIDForms(plan,formula);
