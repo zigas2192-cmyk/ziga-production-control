@@ -581,6 +581,7 @@ const AZURE_CONFIG = {
 };
 const SP_SITE_PATH = 'zigainnovation.sharepoint.com:/sites/msteams_1fdd76:';
 const SP_LISTS = { L4: 'PrdCtrl_M4_Mcoil_Inventory', L6: 'PrdCtrl_M6_OSE_Production', L7: 'ProdCtrl_L7_DailyPlan_OFM', L8: 'ProdCtrl_L8_Defect_FMQA08' };
+const SP_LIST_IDS = { L6: '166c31c7-0d07-4058-b38f-216fcc929058' }; // cached
 
 let msalInstance = null;
 let graphToken = null;
@@ -857,8 +858,11 @@ function selectEmp(id){
   initDefGrid();
   setToday();
   navigate(S.selectedRole.tabs[0]);
-  // Auto-load L4 from SharePoint after login
-  if(graphToken) setTimeout(()=>loadL4FromSP(),800);
+  // Auto-load L4 + L6 from SharePoint after login
+  if(graphToken){
+    setTimeout(()=>loadL4FromSP(),800);
+    setTimeout(()=>loadL6FromSP(),1200);
+  }
 }
 function doLogin(){
   // legacy — not used
@@ -894,7 +898,7 @@ function navigate(id){
   const tab=document.getElementById('tab-'+id);
   if(tab) tab.classList.add('active');
   if(id==='packing'){renderPackingList();if(graphToken&&!S.mcids.length)loadL4FromSP();}
-  if(id==='ose-plan'){renderOSEPending();renderOSEPlanned();}
+  if(id==='ose-plan'){renderOSEPending();renderOSEPlanned();if(graphToken&&!S.axJobs.length)loadL6FromSP();}
   if(id==='slit') renderSlitOSEList();
   if(id==='ax') renderAX();
   if(id==='ofm-plan'){buildOFMJobSelect();renderOFMPlanList();}
@@ -1049,6 +1053,30 @@ async function loadL4FromSP(){
   }catch(e){hideProgress();console.error('loadL4 error:',e);}
 }
 
+// ── Load L6 from SharePoint ─────────────────────────────────────
+async function loadL6FromSP(){
+  if(!graphToken) return;
+  try{
+    showProgress('กำลังโหลด OSE/OFM จาก SharePoint L6...',0,1);
+    const items=await spGetItems(SP_LISTS.L6,'',500);
+    if(!items.length){hideProgress();return;}
+    S.axJobs=items.map(f=>({
+      prod:      f.Title||'',
+      item:      f.field_1||'',
+      name:      f.field_2||'',
+      thick:     parseFloat(f.field_3)||0,
+      status:    f.field_10||'',
+      qty:       parseFloat(f.field_12)||0,
+      jobType:   f.JobType||'',
+      spId:      f.id||'',
+      used:      false,
+    }));
+    hideProgress();
+    renderOSEPending();buildOFMJobSelect();
+    console.log(`✅ Loaded ${S.axJobs.length} jobs from L6`);
+  }catch(e){hideProgress();console.error('loadL6 error:',e);}
+}
+
 // ── Progress helper ──────────────────────────────────────────────
 function showProgress(msg,cur,total){
   let el=document.getElementById('sp-progress');
@@ -1161,30 +1189,85 @@ function parseAX(file){
   const reader=new FileReader();
   reader.onload=e=>{
     const wb=XLSX.read(e.target.result,{type:'array'});
-    const data=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1});
-    const active=['Scheduled','Started','Released','Created'];
-    const parsed=data.slice(1).filter(r=>active.includes(String(r[3]||''))).map(r=>{
-      const prod=String(r[0]||'');
-      const name=String(r[2]||'');
-      let thick=''; const m=name.match(/-([\d.]+)(?:\(K\d+\))?$/); if(m)thick=m[1];
-      return {prod,item:String(r[1]||''),name:name.slice(0,80),status:String(r[3]||''),qty:Number(r[4]||0),type:prod.startsWith('OSE')?'OSE':prod.startsWith('OFM')?'OFM':'ORW',thick};
+    const ws=wb.Sheets[wb.SheetNames[0]];
+    const data=XLSX.utils.sheet_to_json(ws,{header:1});
+    if(!data.length){return;}
+    // Detect header row — find index of columns
+    const hdr=data[0].map(h=>String(h||'').trim());
+    const ci=(name)=>hdr.findIndex(h=>h.toLowerCase()===name.toLowerCase());
+    const iProd=ci('Production'), iItem=ci('Item number'), iName=ci('Name');
+    const iStat=ci('Status'), iQty=ci('Quantity'), iJob=ci('JobType'), iDate=ci('Created date and time');
+
+    const parsed=data.slice(1).filter(r=>r[iProd]).map(r=>{
+      const prod   = String(r[iProd]||'').trim();
+      const item   = String(r[iItem]||'').trim();
+      const name   = String(r[iName]||'').trim();
+      const status = String(r[iStat]||'').trim();
+      const qty    = Number(r[iQty]||0);
+      const jobType= iJob>=0 ? String(r[iJob]||'').trim()
+                     : prod.startsWith('OSE')?'OSE':prod.startsWith('OFM')?'OFM':prod.startsWith('ORW')?'ORW':'Memo';
+      const createdAt= iDate>=0 ? String(r[iDate]||'') : '';
+      // Parse thickness from item number (e.g. NASLF00280F001 → 2.80) or name
+      let thick=0;
+      const mItem=item.match(/(\d{4,5})(?:F\d+)?$/);
+      if(mItem){const t=parseInt(mItem[1]);thick=t>100?t/100:t/10;}
+      if(!thick){const mName=name.match(/-([\d.]+)(?:\(K\d+\))?/);if(mName)thick=parseFloat(mName[1]);}
+      return {prod,item,name:name.slice(0,200),status,qty,jobType,thick,createdAt,used:false};
     });
+
     S._pendingAX=parsed;
-    const ose=parsed.filter(j=>j.type==='OSE').length;
-    const ofm=parsed.filter(j=>j.type==='OFM').length;
-    const orw=parsed.filter(j=>j.type==='ORW').length;
-    document.getElementById('ax-summary').textContent=`✓ พบ ${parsed.length} JOB active — OSE:${ose} OFM:${ofm} ORW:${orw}`;
+    const byType={};
+    parsed.forEach(j=>{byType[j.jobType]=(byType[j.jobType]||0)+1;});
+    const summary=Object.entries(byType).map(([k,v])=>`${k}:${v}`).join(' · ');
+    document.getElementById('ax-summary').textContent=`✓ พบ ${parsed.length} JOB — ${summary}`;
     document.getElementById('ax-result').style.display='block';
     const fn=document.getElementById('ax-file-name');
     if(fn)fn.textContent=file.name;
   };
   reader.readAsArrayBuffer(file);
 }
-function applyAX(){
+async function applyAX(){
   if(!S._pendingAX) return;
+  const btn=document.querySelector('#ax-result .btn');
+  if(btn){btn.disabled=true;btn.textContent='⏳ กำลังบันทึก...';}
+
+  // Always update local state
   S.axJobs=[...S._pendingAX];
   renderOSEPending();buildOFMJobSelect();
-  alert(`✓ นำเข้า ${S.axJobs.length} JOB เรียบร้อย`);
+
+  if(!graphToken){
+    if(btn){btn.disabled=false;btn.textContent='✓ นำเข้าระบบ';}
+    alert(`✓ นำเข้า ${S.axJobs.length} JOB (local เท่านั้น)`);
+    return;
+  }
+
+  // Write to L6
+  let saved=0, skipped=0, errors=0;
+  showProgress('กำลังบันทึกเข้า SharePoint L6...',0,S._pendingAX.length);
+
+  for(let i=0;i<S._pendingAX.length;i++){
+    const j=S._pendingAX[i];
+    showProgress(`${j.prod} (${i+1}/${S._pendingAX.length})`,i+1,S._pendingAX.length);
+    try{
+      const fields={
+        Title:      j.prod,
+        field_1:    j.item     ||undefined,
+        field_2:    j.name     ||undefined,
+        field_3:    j.thick    ? Number(j.thick)  : undefined,
+        field_10:   j.status   ||undefined,
+        field_12:   j.qty      ? Number(j.qty)    : undefined,
+        JobType:    j.jobType  ||undefined,
+      };
+      Object.keys(fields).forEach(k=>{if(fields[k]===undefined||fields[k]==='')delete fields[k];});
+      const result=await spAddItem(SP_LISTS.L6, fields);
+      if(result){j.spId=result.id;saved++;}
+      else skipped++;
+    }catch(err){console.error('L6 write error:',j.prod,err);errors++;}
+  }
+
+  hideProgress();
+  if(btn){btn.disabled=false;btn.textContent='✓ นำเข้าระบบ';}
+  alert(`✅ บันทึกเข้า L6 แล้ว\n✓ สำเร็จ: ${saved}\n⚠️ ข้าม: ${skipped}\n❌ Error: ${errors}`);
 }
 
 // ─── OSE PLAN ─────────────────────────────────────────────────────
