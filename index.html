@@ -1483,12 +1483,13 @@ function renderUnassigned(){
   const iStyle='padding:5px 7px;border:1px solid var(--b2);border-radius:4px;background:#fff;font-size:13px;outline:none;color:#111;width:100%';
   const stOpts=OSE_STATUS.map(s=>`<option value="${s}">${s}</option>`).join('');
 
-  el.innerHTML=`<div class="tbl-wrap"><table class="ft" style="min-width:1060px">
+  el.innerHTML=`<div class="tbl-wrap"><table class="ft" style="min-width:1160px">
     <thead><tr>
       <th style="width:130px">หมายเลขงาน</th>
       <th>ชื่องาน</th>
       <th style="width:60px">ความหนา</th>
       <th style="width:80px">จำนวน</th>
+      <th style="width:110px">OSE คู่</th>
       <th style="width:175px">เครื่องจักร</th>
       <th style="width:115px">วันที่เริ่ม</th>
       <th style="width:115px">วันที่จบ</th>
@@ -1503,11 +1504,34 @@ function renderUnassigned(){
       const opts=hasM?machOpts.replace(`value="${j.machine}"`,`value="${j.machine}" selected`):machOpts;
       const curSt=j.oseStatus||j.status||'';
       const stOptsSelected=curSt?stOpts.replace(`value="${curSt}"`,`value="${curSt}" selected`):stOpts;
+
+      // หา OSE คู่: ถ้าเป็น OFM → หา OSE ที่มี item === j.prod
+      //             ถ้าเป็น OSE → ดู j.item (OFM คู่)
+      let oseRef='<span style="color:#bbb">—</span>';
+      if(jt==='OFM'){
+        const paired=S.axJobs.filter(x=>jobType(x)==='OSE'&&x.item===j.prod);
+        oseRef=paired.length
+          ? paired.map(x=>{
+              const xst=x.oseStatus||x.status||'';
+              const xc=OSE_STATUS_COLOR[xst]||'p-gray';
+              return `<div style="margin-bottom:3px">
+                <div style="font-family:var(--mono);font-size:12px;font-weight:700;color:#1a7a1a">${x.prod}</div>
+                <span class="pill ${xc}" style="font-size:9px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block" title="${xst}">${xst.slice(0,18)||'ไม่ระบุ'}</span>
+              </div>`;
+            }).join('')
+          : '<span style="color:#bbb">—</span>';
+      } else if(jt==='OSE'){
+        oseRef=j.item
+          ? `<div style="font-family:var(--mono);font-size:12px;font-weight:700;color:#1259A5">${j.item}</div>`
+          : '<span style="color:#bbb">—</span>';
+      }
+
       return `<tr style="${!hasM?'background:var(--amber-bg)':''}">
         <td><div style="font-family:var(--mono);font-size:13px;font-weight:700;color:${tc}">${j.prod}</div><span style="font-size:11px;color:#666">${jt}</span></td>
         <td style="font-size:13px;color:#111;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${j.name||''}">${j.name||'—'}</td>
         <td style="font-size:13px;text-align:center;color:#111">${j.thick?j.thick+'mm':'—'}</td>
         <td style="font-family:var(--mono);font-size:13px;text-align:right;color:#111">${j.qty?Number(j.qty).toLocaleString():'—'}</td>
+        <td>${oseRef}</td>
         <td><select style="${iStyle}" onchange="updateJobMachine('${j.prod}',this.value)">${opts}</select></td>
         <td><input type="date" value="${j.startDate?j.startDate.slice(0,10):''}" style="${iStyle}" onchange="updateOSEDate('${j.prod}',this.value)"></td>
         <td><input type="date" value="${j.endDate?j.endDate.slice(0,10):''}" style="${iStyle}" onchange="updateJobEndDate('${j.prod}',this.value)"></td>
@@ -1609,19 +1633,28 @@ function exportMasterPlanXLSX(){
   if(!jobs.length){alert('ไม่มีข้อมูล — Load L6 ก่อน');return;}
 
   // Sheet 1: ทุกใบงาน
-  const allRows=jobs.map(j=>({
-    'หมายเลขงาน':  j.prod||'',
-    'ประเภท':       jobType(j),
-    'ชื่องาน':      j.name||'',
-    'ความหนา(mm)': j.thick||'',
-    'จำนวน':        j.qty||'',
-    'เครื่องจักร':  j.machine||'',
-    'วันที่เริ่ม':  j.startDate?j.startDate.slice(0,10):'',
-    'วันที่จบ':     j.endDate?j.endDate.slice(0,10):'',
-    'สถานะ':        j.oseStatus||j.status||'',
-    'OFM คู่':      j.item||'',
-    'หมายเหตุ':     j.remarks||'',
-  }));
+  const allRows=jobs.map(j=>{
+    const jt=jobType(j);
+    let oseRef='';
+    if(jt==='OFM'){
+      oseRef=S.axJobs.filter(x=>jobType(x)==='OSE'&&x.item===j.prod).map(x=>x.prod).join(', ');
+    } else if(jt==='OSE'){
+      oseRef=j.item||'';
+    }
+    return {
+      'หมายเลขงาน':  j.prod||'',
+      'ประเภท':       jt,
+      'ชื่องาน':      j.name||'',
+      'ความหนา(mm)': j.thick||'',
+      'จำนวน':        j.qty||'',
+      'OSE/OFM คู่':  oseRef,
+      'เครื่องจักร':  j.machine||'',
+      'วันที่เริ่ม':  j.startDate?j.startDate.slice(0,10):'',
+      'วันที่จบ':     j.endDate?j.endDate.slice(0,10):'',
+      'สถานะ':        j.oseStatus||j.status||'',
+      'หมายเหตุ':     j.remarks||'',
+    };
+  });
 
   // Sheet 2: จัดกลุ่มตามเครื่อง
   const machRows=[];
