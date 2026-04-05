@@ -1419,11 +1419,17 @@ async function detectL4Fields(){
   }catch(e){ console.warn('detectL4Fields error:',e); }
 }
 
-// wrapper สำหรับ PATCH L4 — field_12=MCIDStatus, field_11=OSENo (ยืนยันจาก Raw data)
+// wrapper สำหรับ PATCH L4
+// field_11=OSENo, MCIDStatus=Choice column (display name ใช้เป็น internal name ตอน write)
 async function patchL4MCID(spId, oseNo, statusVal){
   const fields={};
-  if(oseNo!==undefined)    fields.field_11=oseNo;      // OSENo
-  if(statusVal!==undefined)fields.field_12=statusVal;  // MCIDStatus Choice
+  if(oseNo!==undefined){
+    fields.field_11=oseNo;  // ลอง field_11 ก่อน
+  }
+  if(statusVal!==undefined){
+    // Choice column ต้องใช้ display name ตอน write ผ่าน Graph API
+    fields.MCIDStatus=statusVal;
+  }
   console.log(`🔧 PATCH L4 item ${spId} →`, JSON.stringify(fields));
   return spPatchItem(SP_LISTS.L4, spId, fields);
 }
@@ -1484,11 +1490,12 @@ async function applyPacking(){
         field_3:  c.batch   ? String(c.batch).trim()   : undefined,
         field_4:  c.thick>0 ? String(c.thick)          : undefined,
         field_5:  c.width>0 ? String(c.width)          : undefined,
-        field_6:  c.wt_kg>0 ? String(Math.round(c.wt_kg*1000)) : undefined, // kg → grams as text
+        field_6:  c.wt_kg>0 ? String(Math.round(c.wt_kg*1000)) : undefined,
         field_7:  c.factory ? String(c.factory).trim() : undefined,
         field_8:  c.coating ? String(c.coating).trim() : undefined,
         field_9:  c.pono    ? String(c.pono).trim()    : undefined,
-        field_12: '1.stockในคลัง',
+        // Choice column: ลองส่งทั้ง 2 ชื่อ — SP Graph API บางครั้งต้องใช้ display name
+        MCIDStatus: '1.stockในคลัง',
       };
       // Remove undefined
       Object.keys(fields).forEach(k=>{ if(fields[k]===undefined||fields[k]==='') delete fields[k]; });
