@@ -1509,15 +1509,15 @@ async function applyPacking(){
     try{
       const fields={
         Title:   String(c.serial||'').trim(),
-        field_1: c.item    ? String(c.item).trim()    : undefined,
-        field_2: c.name    ? String(c.name).trim()    : undefined,
-        field_3: c.batch   ? String(c.batch).trim()   : undefined,
-        field_4: c.thick>0 ? Number(c.thick)          : undefined,
-        field_5: c.width>0 ? Number(c.width)          : undefined,
-        field_6: c.wt_kg>0 ? Number(c.wt_kg)          : undefined,
-        field_7: c.factory ? String(c.factory).trim() : undefined,
-        field_8: c.coating ? String(c.coating).trim() : undefined,
-        field_9: c.pono    ? String(c.pono).trim()    : undefined,
+        field_1: c.item    ? String(c.item).trim()         : undefined,
+        field_2: c.name    ? String(c.name).trim()         : undefined,
+        field_3: c.batch   ? String(c.batch).trim()        : undefined,
+        field_4: c.thick>0 ? String(c.thick)               : undefined,
+        field_5: c.width>0 ? String(c.width)               : undefined,
+        field_6: c.wt_kg>0 ? String(Math.round(c.wt_kg))  : undefined,
+        field_7: c.factory ? String(c.factory).trim()      : undefined,
+        field_8: c.coating ? String(c.coating).trim()      : undefined,
+        field_9: c.pono    ? String(c.pono).trim()         : undefined,
       };
       Object.keys(fields).forEach(k=>{ if(fields[k]===undefined||fields[k]==='') delete fields[k]; });
       console.log('📝 spAddItem L4:', c.serial, JSON.stringify(fields));
