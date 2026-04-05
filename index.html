@@ -344,6 +344,9 @@ table.ax-t .ax-total{background:var(--green-lt);color:var(--green);font-weight:6
             <option value="ใช้แล้ว">ใช้แล้ว</option>
           </select>
           <button onclick="resetPkFilters()" style="padding:6px 10px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:11px;cursor:pointer;color:var(--ink3)">↺ ล้าง filter</button>
+          <button onclick="loadL4FromSP()" style="padding:6px 12px;border:1px solid var(--blue-bd);border-radius:var(--rs);background:var(--blue-bg);color:var(--blue);font-size:11px;cursor:pointer;font-family:var(--sans)">🔄 Load L4</button>
+          <button onclick="debugL4Fields()" title="Debug: ดู field internal names จาก SP" style="padding:6px 10px;border:1px solid #ddd;border-radius:var(--rs);background:#f5f5f5;color:#888;font-size:11px;cursor:pointer">🔍 Fields</button>
+          <button onclick="debugL4Sample()" title="Debug: ดู raw data 3 rows แรกจาก SP" style="padding:6px 10px;border:1px solid #ddd;border-radius:var(--rs);background:#f5f5f5;color:#888;font-size:11px;cursor:pointer">📋 Raw</button>
           <span id="pk-filter-count" style="font-size:11px;color:var(--ink3);margin-left:4px"></span>
         </div>
         <div id="pk-mcid-list"><div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center">ยังไม่มีข้อมูล</div></div>
@@ -449,20 +452,21 @@ table.ax-t .ax-total{background:var(--green-lt);color:var(--green);font-weight:6
 
     <!-- ③ SLIT บันทึก -->
     <div class="page" id="page-slit">
-      <div class="pg-hd"><div class="pg-title">บันทึกผลสลิท + น้ำหนัก</div>
-        <div class="pg-sub">เลือก OSE → กรอกน้ำหนัก 3 ค่าต่อลูก → ระบบคำนวณ AX อัตโนมัติ</div></div>
-      <div class="g2" id="slit-layout">
-        <div>
-          <div class="sec-lbl">เลือกใบงาน OSE</div>
-          <div id="slit-ose-list"><div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center;background:var(--panel);border-radius:var(--r)">ยังไม่มีแผน OSE</div></div>
-        </div>
-        <div id="slit-right" style="display:none">
-          <div class="card" id="slit-ose-info-card">
-            <div id="slit-ose-info"></div>
-            <div class="divider"></div>
-            <div class="sec-lbl">กรอกน้ำหนักต่อลูก MCID</div>
-            <div id="slit-mcid-forms"></div>
-          </div>
+      <div class="pg-hd">
+        <div class="pg-title">⚙️ สลิท+น้ำหนัก</div>
+        <div class="pg-sub">สุภาพ — เลือก OSE → กรอกน้ำหนัก 3 ค่าต่อลูก</div>
+      </div>
+      <!-- OSE list (mobile single column) -->
+      <div style="margin-bottom:12px">
+        <div style="font-size:13px;font-weight:600;color:#444;margin-bottom:8px">เลือกใบงาน OSE</div>
+        <div id="slit-ose-list"><div style="color:#888;font-size:13px;padding:20px;text-align:center">ยังไม่มีแผน OSE — Load L6 ก่อน</div></div>
+      </div>
+      <!-- Detail panel (appears below on mobile) -->
+      <div id="slit-right" style="display:none">
+        <div style="background:#fff;border:2px solid var(--amber-bd);border-radius:var(--r);padding:16px">
+          <div id="slit-ose-info"></div>
+          <div style="font-size:12px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">กรอกน้ำหนักต่อลูก MCID</div>
+          <div id="slit-mcid-forms"></div>
         </div>
       </div>
     </div>
@@ -984,7 +988,36 @@ async function spPatchItem(listName, itemId, fields) {
   const siteId = await getSiteId();
   const listId = await getListId(listName);
   if (!siteId || !listId) return false;
-  return graphPatch(`/sites/${siteId}/lists/${listId}/items/${itemId}/fields`, fields);
+  console.log(`🔧 PATCH ${listName} item ${itemId}:`, JSON.stringify(fields));
+  const result = await graphPatch(`/sites/${siteId}/lists/${listId}/items/${itemId}/fields`, fields);
+  if(!result) console.error(`❌ PATCH failed: ${listName} item ${itemId}`);
+  else console.log(`✅ PATCH OK: ${listName} item ${itemId}`);
+  return result;
+}
+
+// ── Debug: ดู field internal names จริงๆ ของ L4 ──────────────────
+async function debugL4Fields(){
+  if(!graphToken){showToast('⚠️ login ก่อน');return;}
+  showToast('🔍 กำลังดึง field names จาก L4...');
+  const fields=await spGetFields(SP_LISTS.L4);
+  if(fields){
+    const msg=fields.map(f=>`${f.display} → "${f.internal}"`).join('\n');
+    console.log('L4 Fields:\n'+msg);
+    alert('L4 Field Mapping (ดู Console สำหรับครบ):\n\n'+
+      fields.slice(0,15).map(f=>`${f.display} → "${f.internal}"`).join('\n'));
+  }
+}
+
+// ── Debug: ดู raw item ตัวอย่างจาก L4 ───────────────────────────
+async function debugL4Sample(){
+  if(!graphToken){showToast('⚠️ login ก่อน');return;}
+  const items=await spGetItems(SP_LISTS.L4,'',3);
+  if(items.length){
+    console.log('L4 sample item keys:', Object.keys(items[0]));
+    console.log('L4 sample item:', JSON.stringify(items[0],null,2));
+    const keys=Object.keys(items[0]).filter(k=>!['@odata.etag','id','contentType'].includes(k));
+    alert('L4 column keys (3 items):\n\n'+keys.join('\n'));
+  }
 }
 
 // ─── EMPLOYEES ────────────────────────────────────────────────────
@@ -2713,90 +2746,186 @@ function renderOSEPlanned(){
 // ─── SLIT บันทึก ──────────────────────────────────────────────────
 function renderSlitOSEList(){
   const el=document.getElementById('slit-ose-list');
-  if(!S.osePlans.length){el.innerHTML='<div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center;background:var(--panel);border-radius:var(--r)">ยังไม่มีแผน OSE</div>';return;}
-  el.innerHTML=S.osePlans.map((p,i)=>{
+  // แสดง OSE จาก S.axJobs ที่ status = Pick หรือ 2.กำลังผลิต
+  // หรือจาก S.osePlans (local plan)
+  let plans=S.osePlans;
+  // ถ้าไม่มี osePlans ให้ดึงจาก axJobs ที่ Pick แล้ว
+  if(!plans.length){
+    const pickJobs=S.axJobs.filter(j=>(j.jobType==='OSE'||(j.prod||'').startsWith('OSE'))&&
+      (j.oseStatus||j.status||'').includes('Pick'));
+    if(pickJobs.length){
+      plans=pickJobs.map(j=>({
+        oseNo:j.prod, job:j,
+        mcids:S.mcids.filter(c=>c.oseNo===j.prod&&c.status==='2.pickเข้าใบงานOSE'),
+        slitDone:false
+      }));
+    }
+  }
+  if(!plans.length){
+    el.innerHTML='<div style="color:#888;font-size:13px;padding:20px;text-align:center">ยังไม่มีแผน OSE — Load L6 ก่อน</div>';
+    return;
+  }
+  el.innerHTML=plans.map(p=>{
     const done=p.mcids.filter(c=>S.slitData[c.serial]?.done).length;
-    return `<div class="ose-row ${S.selectedOSE===p.oseNo?'active':''}" onclick="selectSlitOSE('${p.oseNo}')">
-      <div style="display:flex;align-items:center;justify-content:space-between">
-        <div class="ose-no">${p.oseNo}</div>
-        <span class="pill ${done===p.mcids.length&&done>0?'p-ok':done>0?'p-blue':'p-amber'}">${done}/${p.mcids.length} ลูก</span>
+    const total=p.mcids.length;
+    const allDone=done===total&&total>0;
+    const isActive=S.selectedOSE===p.oseNo;
+    return `<div class="ose-row ${isActive?'active':''}" onclick="selectSlitOSE('${p.oseNo}')"
+      style="cursor:pointer;margin-bottom:6px;${allDone?'opacity:.6':''}">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <div style="font-family:var(--mono);font-size:14px;font-weight:700;color:#1a7a1a">${p.oseNo}</div>
+        <span class="pill ${allDone?'p-ok':done>0?'p-blue':'p-amber'}">${done}/${total} ลูก${allDone?' ✓':''}</span>
       </div>
-      <div class="ose-sub">${p.job.name}</div>
-    </div>`;}).join('');
+      <div style="font-size:13px;color:#444;margin-top:3px">${p.job.name||p.job.prod||''}</div>
+    </div>`;
+  }).join('');
 }
+
 function selectSlitOSE(oseNo){
   S.selectedOSE=oseNo;
-  const plan=S.osePlans.find(p=>p.oseNo===oseNo);
-  document.getElementById('slit-right').style.display='block';
+  let plan=S.osePlans.find(p=>p.oseNo===oseNo);
+  // fallback: สร้าง plan จาก axJobs + mcids
+  if(!plan){
+    const job=S.axJobs.find(j=>j.prod===oseNo);
+    if(!job) return;
+    const mcids=S.mcids.filter(c=>c.oseNo===oseNo&&c.status==='2.pickเข้าใบงานOSE');
+    plan={oseNo,job,mcids,slitDone:false};
+    S.osePlans.push(plan);
+  }
+  const right=document.getElementById('slit-right');
+  right.style.display='block';
+  setTimeout(()=>right.scrollIntoView({behavior:'smooth',block:'start'}),100);
+
+  const formula=parseSlitFormula(plan.job.name||'');
   const info=document.getElementById('slit-ose-info');
-  info.innerHTML=`<div class="ose-no">${plan.oseNo}</div>
-    <div class="ose-sub">${plan.job.name}</div>
-    <div style="margin-top:6px;display:flex;gap:5px;flex-wrap:wrap">
+  const done=plan.mcids.filter(c=>S.slitData[c.serial]?.done).length;
+  info.innerHTML=`
+    <div style="font-family:var(--mono);font-size:16px;font-weight:700;color:#1a7a1a;margin-bottom:4px">${plan.oseNo}</div>
+    <div style="font-size:14px;color:#333;margin-bottom:8px">${plan.job.name||''}</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
       ${plan.job.thick?`<span class="pill p-gray">${plan.job.thick}mm</span>`:''}
       <span class="pill p-amber">${plan.mcids.length} ลูก</span>
+      ${done>0?`<span class="pill p-ok">✓ บันทึกแล้ว ${done} ลูก</span>`:''}
     </div>
-    <div class="divider"></div>`;
-  // parse formula
-  const formula=parseSlitFormula(plan.job.name);
-  if(formula.parts.length){
-    info.innerHTML+=`<div class="sec-lbl" style="margin-top:6px">สูตรสลิท</div>
-    <div style="font-size:11px;line-height:1.8;font-family:var(--mono);background:var(--panel);border-radius:var(--rs);padding:8px 10px;">
+    ${formula.parts.length?`<div style="font-size:13px;line-height:1.9;font-family:var(--mono);background:var(--panel);border-radius:var(--rs);padding:10px 14px;margin-bottom:12px">
       ${formula.parts.map(p=>`${p.width}mm × ${p.count} แถบ`).join('<br>')}
-      <br>ขอบข้าง: ${formula.scrap.toFixed(1)}mm × 2<br>
-      รวม: ${formula.total.toFixed(1)} mm
-    </div>`;
-  }
+      <br>ขอบข้าง: ${formula.scrap.toFixed(1)}mm × 2
+      <br>รวม: ${formula.total.toFixed(1)} mm
+    </div>`:''}`;
+
   renderSlitMCIDForms(plan,formula);
   renderSlitOSEList();
 }
-function parseSlitFormula(name){
-  // parse "144.50 x5, 126.20 x1, จับข้าง 3.5*3.4 -2.80(K450)"
-  const parts=[];
-  const partReg=/([\d.]+)\s*[xX×]\s*(\d+)/g;
-  let m;
-  while((m=partReg.exec(name))!==null){
-    const w=parseFloat(m[1]); const c=parseInt(m[2]);
-    if(w>10) parts.push({width:w,count:c}); // skip scrap values
-  }
-  // scrap: จับข้าง X*Y → use X × 2
-  let scrap=0;
-  const scrapM=name.match(/จับข้าง\s*([\d.]+)/);
-  if(scrapM) scrap=parseFloat(scrapM[1]);
-  const total=parts.reduce((s,p)=>s+p.width*p.count,0)+scrap*2;
-  return {parts,scrap,total};
-}
+
 function renderSlitMCIDForms(plan,formula){
   const el=document.getElementById('slit-mcid-forms');
+  if(!el) return;
   el.innerHTML=plan.mcids.map((c,idx)=>{
     const d=S.slitData[c.serial]||{};
-    return `<div class="wt-form ${d.done?'wt-done':''}">
-      <div class="wt-serial">${idx+1}. ${c.serial} · ${c.wt_kg.toFixed(3)} kg (จากคลัง)</div>
+    return `<div style="background:${d.done?'#f0faf0':'#fff'};border:${d.done?'2px solid #1a7a1a':'1px solid var(--b)'};border-radius:var(--r);padding:14px;margin-bottom:12px">
+      <div style="font-family:var(--mono);font-size:14px;font-weight:700;color:${d.done?'#1a7a1a':'#222'};margin-bottom:6px">
+        ${idx+1}. ${c.serial}
+        ${d.done?'<span class="pill p-ok" style="margin-left:6px;font-size:11px">✓ บันทึกแล้ว</span>':''}
+      </div>
+      <div style="font-size:12px;color:#666;margin-bottom:8px">น้ำหนักในคลัง: ${c.wt_kg.toFixed(3)} kg</div>
       ${d.done?`
-        <div style="font-size:11px;line-height:1.8;color:var(--green)">
-          ก่อนแกะ: ${d.before} kg · หลังแกะ: ${d.after} kg · ขอบข้าง: ${d.scrap} kg<br>
-          Net = ${(parseFloat(d.after)-parseFloat(d.scrap)).toFixed(3)} kg
-        </div>`:`
-        <div class="g3" style="margin-top:6px">
-          <div class="ff"><label>นน.ก่อนแกะ (kg)</label><input class="fi" type="number" step="0.001" id="sl-before-${c.serial}" placeholder="0.000"></div>
-          <div class="ff"><label>นน.หลังแกะ (kg)</label><input class="fi" type="number" step="0.001" id="sl-after-${c.serial}" placeholder="0.000"></div>
-          <div class="ff"><label>นน.ขอบข้าง (kg)</label><input class="fi" type="number" step="0.001" id="sl-scrap-${c.serial}" placeholder="0.000"></div>
+        <div style="font-size:14px;color:#1a7a1a;line-height:2">
+          ก่อนแกะ: <strong>${d.before}</strong> kg &nbsp;·&nbsp;
+          หลังแกะ: <strong>${d.after}</strong> kg &nbsp;·&nbsp;
+          ขอบข้าง: <strong>${d.scrap}</strong> kg<br>
+          Net = <strong>${(parseFloat(d.after)-parseFloat(d.scrap)).toFixed(3)}</strong> kg
         </div>
-        <button class="btn btn-amber" style="width:100%;margin-top:5px" onclick="saveSlitWeight('${c.serial}','${plan.oseNo}')">บันทึกน้ำหนัก</button>`}
-    </div>`;}).join('');
+        <button onclick="undoSlitWeight('${c.serial}','${plan.oseNo}')"
+          style="margin-top:10px;width:100%;padding:10px;background:var(--panel);border:1px solid var(--b2);border-radius:var(--rs);font-size:13px;cursor:pointer;color:#666">
+          ↩ แก้ไขน้ำหนัก
+        </button>`:`
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
+          <div><div style="font-size:12px;color:#555;margin-bottom:4px;font-weight:600">ก่อนแกะ (kg)</div>
+            <input type="number" step="0.001" id="sl-before-${c.serial}" placeholder="0.000"
+              style="width:100%;padding:10px 8px;border:1.5px solid var(--b2);border-radius:var(--rs);font-size:16px;outline:none;color:#111;text-align:right;font-family:var(--mono)"></div>
+          <div><div style="font-size:12px;color:#555;margin-bottom:4px;font-weight:600">หลังแกะ (kg)</div>
+            <input type="number" step="0.001" id="sl-after-${c.serial}" placeholder="0.000"
+              style="width:100%;padding:10px 8px;border:1.5px solid var(--b2);border-radius:var(--rs);font-size:16px;outline:none;color:#111;text-align:right;font-family:var(--mono)"></div>
+          <div><div style="font-size:12px;color:#555;margin-bottom:4px;font-weight:600">ขอบข้าง (kg)</div>
+            <input type="number" step="0.001" id="sl-scrap-${c.serial}" placeholder="0.000"
+              style="width:100%;padding:10px 8px;border:1.5px solid var(--b2);border-radius:var(--rs);font-size:16px;outline:none;color:#111;text-align:right;font-family:var(--mono)"></div>
+        </div>
+        <button onclick="saveSlitWeight('${c.serial}','${plan.oseNo}')"
+          style="width:100%;padding:16px;background:#7a4500;color:#fff;border:none;border-radius:var(--r);font-size:16px;font-weight:700;cursor:pointer;font-family:var(--sans)">
+          💾 บันทึกน้ำหนัก
+        </button>`}
+    </div>`;
+  }).join('')||'<div style="color:#888;font-size:13px;padding:20px;text-align:center">ไม่มี MCID ที่ pick แล้วในใบงานนี้</div>';
 }
-function saveSlitWeight(serial,oseNo){
+
+async function saveSlitWeight(serial,oseNo){
   const before=parseFloat(document.getElementById(`sl-before-${serial}`)?.value)||0;
-  const after=parseFloat(document.getElementById(`sl-after-${serial}`)?.value)||0;
-  const scrap=parseFloat(document.getElementById(`sl-scrap-${serial}`)?.value)||0;
-  if(!before||!after){alert('กรุณากรอกน้ำหนักให้ครบ');return;}
+  const after =parseFloat(document.getElementById(`sl-after-${serial}`)?.value)||0;
+  const scrap =parseFloat(document.getElementById(`sl-scrap-${serial}`)?.value)||0;
+  if(!before||!after){alert('กรุณากรอกน้ำหนักก่อนแกะและหลังแกะก่อน');return;}
+
+  // บันทึก local
   S.slitData[serial]={before,after,scrap,net:after-scrap,done:true,oseNo};
   const plan=S.osePlans.find(p=>p.oseNo===oseNo);
-  const formula=parseSlitFormula(plan.job.name);
+  const formula=parseSlitFormula(plan?.job?.name||'');
+  const allDone=plan&&plan.mcids.every(c=>S.slitData[c.serial]?.done);
+  if(allDone) plan.slitDone=true;
+
+  // PATCH SharePoint
+  if(graphToken){
+    // PATCH L4: MCIDStatus → 3.slitแล้ว
+    const mc=S.mcids.find(c=>c.serial===serial);
+    if(mc){
+      if(!mc.spId){
+        try{
+          const items=await spGetItems(SP_LISTS.L4,`Title eq '${serial}'`,1);
+          if(items.length) mc.spId=items[0].id||'';
+        }catch(e){}
+      }
+      if(mc.spId){
+        await spPatchItem(SP_LISTS.L4, mc.spId, {MCIDStatus:'3.slitแล้ว'});
+        mc.status='3.slitแล้ว';
+      }
+    }
+    // ถ้าสลิทครบทุกลูก → PATCH L6: status → 4.End-เสร็จสิ้น
+    if(allDone && plan){
+      const job=S.axJobs.find(j=>j.prod===oseNo);
+      if(job){
+        if(!job.spId){
+          try{
+            const items=await spGetItems(SP_LISTS.L6,`fields/Title eq '${oseNo}'`,1);
+            if(items.length) job.spId=items[0].id||'';
+          }catch(e){}
+        }
+        if(job.spId){
+          const ok=await spPatchItem(SP_LISTS.L6, job.spId, {field_10:'4.End-เสร็จสิ้น'});
+          if(ok){
+            job.oseStatus='4.End-เสร็จสิ้น';
+            job.status='4.End-เสร็จสิ้น';
+            showToast(`✅ ${oseNo} → 4.End-เสร็จสิ้น · สลิทครบ ${plan.mcids.length} ลูก`);
+          }
+        }
+      }
+    } else {
+      showToast(`✅ บันทึกน้ำหนัก ${serial} แล้ว`);
+    }
+  } else {
+    showToast(`✅ บันทึก (local) ${serial}`);
+  }
+
+  saveState();
   renderSlitMCIDForms(plan,formula);
   renderSlitOSEList();
-  // check if all done
-  if(plan.mcids.every(c=>S.slitData[c.serial]?.done)){plan.slitDone=true;}
   renderAX();
+}
+
+function undoSlitWeight(serial,oseNo){
+  delete S.slitData[serial];
+  const plan=S.osePlans.find(p=>p.oseNo===oseNo);
+  if(plan) plan.slitDone=false;
+  saveState();
+  renderSlitMCIDForms(plan,parseSlitFormula(plan?.job?.name||''));
+  renderSlitOSEList();
 }
 
 // ─── AX CALC ──────────────────────────────────────────────────────
