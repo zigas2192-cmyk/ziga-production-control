@@ -2548,7 +2548,7 @@ function parseAX(file){
 }
 async function applyAX(){
   if(!S._pendingAX) return;
-  const btn=document.querySelector('#ax-result .btn');
+  const btn=document.querySelector('#ax-result .btn')||document.querySelector('#ax-result-mp .btn');
   if(btn){btn.disabled=true;btn.textContent='⏳ กำลังบันทึก...';}
 
   // Always update local state
@@ -2556,9 +2556,18 @@ async function applyAX(){
   renderOSEPending();buildOFMJobSelect();saveState();
 
   if(!graphToken){
-    if(btn){btn.disabled=false;btn.textContent='✓ นำเข้าระบบ';}
-    alert(`✓ นำเข้า ${S.axJobs.length} JOB (local เท่านั้น)`);
-    return;
+    // ลอง login ก่อน
+    if(msalInstance){
+      try{
+        const resp=await msalInstance.loginPopup({scopes:['User.Read','Sites.ReadWrite.All','Chat.ReadWrite']});
+        if(resp?.accessToken) graphToken=resp.accessToken;
+      }catch(e){ console.warn('login failed:',e); }
+    }
+    if(!graphToken){
+      if(btn){btn.disabled=false;btn.textContent='✓ นำเข้าระบบ';}
+      alert(`✓ นำเข้า ${S.axJobs.length} JOB (local เท่านั้น — กด Load L6 เพื่อ login)`);
+      return;
+    }
   }
 
   // Write to L6
