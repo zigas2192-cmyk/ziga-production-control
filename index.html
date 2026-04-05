@@ -352,83 +352,82 @@ table.ax-t .ax-total{background:var(--green-lt);color:var(--green);font-weight:6
 
     <!-- ② OSE PLAN (AS) -->
     <div class="page" id="page-ose-plan">
-      <div class="pg-hd"><div class="pg-title">วางแผน OSE — สั่งสลิท</div>
-        <div class="pg-sub">Import AX export → เรียงลำดับ → กำหนดวัน → ประมาณการณ์ Cap</div></div>
-      <div class="card">
-        <div class="card-title">Import AX Export (OSE)</div>
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          <div class="upload-zone" onclick="document.getElementById('ax-file').click()"
-            ondragover="event.preventDefault()" ondrop="handleDrop(event,'ax')">
-            <input type="file" id="ax-file" accept=".xlsx,.xls,.csv" onchange="parseAX(this.files[0])">
-            <span class="uz-icon">📋</span>
-            <span>Upload OSE-OFM-ORW</span>
-            <span class="uz-name">.xlsx / .csv</span>
-          </div>
-          <span id="ax-file-name" style="font-size:11px;color:var(--ink3)"></span>
-        </div>
-        <div id="ax-result" style="display:none;margin-top:10px">
-          <div class="alert a-ok" id="ax-summary"></div>
-          <div class="btn-row"><button class="btn btn-p" onclick="applyAX()">✓ นำเข้าระบบ</button></div>
-        </div>
+      <div class="pg-hd">
+        <div class="pg-title">🏭 IR Pick Mcoil — หยิบวัตถุดิบ</div>
+        <div class="pg-sub">จอย (คลัง IR) — เลือก MCID ให้แต่ละใบงาน OSE เรียงตามวันที่เริ่ม</div>
       </div>
-      <div class="g2">
-        <div class="card">
-          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
-            <div class="card-title" style="margin:0">OSE ที่รอกำหนดการ <span class="pill p-blue" id="ose-pending-count">0</span></div>
-            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-              <input id="ose-search" placeholder="🔍 ค้นหา OSE No." oninput="renderOSEPending()"
-                style="padding:5px 10px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:12px;outline:none;width:160px">
-              <button onclick="toggleOSEFilter()" style="padding:5px 10px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:11px;cursor:pointer;color:var(--ink2)">
-                🔽 Filter สถานะ
-              </button>
-              <button onclick="clearOSEFilter()" style="padding:5px 8px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:10px;cursor:pointer;color:var(--ink3)">↺</button>
-            </div>
+
+      <!-- toolbar -->
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+        <input id="ose-search" placeholder="🔍 ค้นหา OSE No. / ชื่องาน..." oninput="renderOSEPending()"
+          style="padding:6px 12px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:13px;outline:none;width:220px;color:#111">
+        <select id="ir-status-filter" onchange="renderOSEPending()"
+          style="padding:6px 10px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:13px;outline:none;color:#111">
+          <option value="">ทุกสถานะ</option>
+          <option value="Pick-หยิบวัตถุดิบ">Pick-หยิบวัตถุดิบ</option>
+          <option value="0.Released-ใบงานมีวัตถุดิบ มีสลิทแล้วรอลำดับแผน">0.Released</option>
+          <option value="1.Start-งานกำหนดวันแล้ว">1.Start</option>
+          <option value="2กำลังผลิต">2.กำลังผลิต</option>
+        </select>
+        <button onclick="loadL6FromSP().then(()=>{renderOSEPending();showToast('✅ Load L6 แล้ว');})"
+          style="padding:6px 14px;border:1px solid var(--blue-bd);border-radius:var(--rs);background:var(--blue-bg);color:var(--blue);font-size:13px;cursor:pointer;font-family:var(--sans)">🔄 Load L6</button>
+        <span id="ose-pending-count-badge" style="font-size:12px;color:var(--ink3)"></span>
+      </div>
+
+      <!-- 2-col: OSE list left, MCID pick right -->
+      <div class="g2" style="align-items:start">
+
+        <!-- LEFT: OSE list sorted by startDate -->
+        <div>
+          <div style="font-size:12px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">
+            ใบงาน OSE <span class="pill p-blue" id="ose-pending-count">0</span>
           </div>
-          <!-- Status multi-select filter -->
-          <div id="ose-status-filter" style="display:none;background:var(--panel);border:1px solid var(--b);border-radius:var(--rs);padding:10px;margin-bottom:10px">
-            <div style="font-size:10px;color:var(--ink3);margin-bottom:8px">เลือกได้หลายสถานะ</div>
-            <div id="ose-status-chips" style="display:flex;flex-wrap:wrap;gap:6px"></div>
-          </div>
-          <div id="ose-pending-list"><div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center">ยังไม่มี OSE</div></div>
+          <div id="ose-pending-list"></div>
         </div>
-        <div class="card" id="ose-plan-form-card" style="display:none">
-          <div class="card-title" id="ose-plan-form-title">ตั้งค่า OSE</div>
-          <div id="ose-plan-spec" style="background:var(--amber-bg);border:1px solid var(--amber-bd);border-radius:var(--rs);padding:9px 12px;margin-bottom:10px;font-size:11px;line-height:1.6;color:var(--amber)"></div>
-          <div class="ff"><label>เลือก MCID</label>
-            <!-- MCID filter bar -->
-            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px" id="ose-mcid-filters">
+
+        <!-- RIGHT: MCID picker (shows when OSE selected) -->
+        <div id="ose-plan-form-card" style="display:none">
+          <div style="background:var(--card);border:1px solid var(--b);border-radius:var(--r);padding:14px 16px">
+            <div style="font-size:15px;font-weight:700;color:var(--amber);margin-bottom:4px" id="ose-plan-form-title">เลือก MCID</div>
+            <div id="ose-plan-spec" style="background:var(--amber-bg);border:1px solid var(--amber-bd);border-radius:var(--rs);padding:9px 12px;margin-bottom:12px;font-size:13px;line-height:1.6;color:var(--amber)"></div>
+
+            <!-- MCID filters -->
+            <div style="font-size:12px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">เลือก MCID</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
               <select id="mcid-f-thick" onchange="selMCIDFilter.thick=this.value;renderFilteredMCID()"
-                style="padding:4px 8px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:11px;outline:none">
+                style="padding:5px 8px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:13px;outline:none;color:#111">
                 <option value="">ทุกความหนา</option>
               </select>
               <select id="mcid-f-width" onchange="selMCIDFilter.width=this.value;renderFilteredMCID()"
-                style="padding:4px 8px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:11px;outline:none">
+                style="padding:5px 8px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:13px;outline:none;color:#111">
                 <option value="">ทุกหน้ากว้าง</option>
               </select>
               <select id="mcid-f-factory" onchange="selMCIDFilter.factory=this.value;renderFilteredMCID()"
-                style="padding:4px 8px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:11px;outline:none">
+                style="padding:5px 8px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:13px;outline:none;color:#111">
                 <option value="">ทุกโรงงาน</option>
               </select>
               <select id="mcid-f-coating" onchange="selMCIDFilter.coating=this.value;renderFilteredMCID()"
-                style="padding:4px 8px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:11px;outline:none">
+                style="padding:5px 8px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:13px;outline:none;color:#111">
                 <option value="">ทุกชั้นเคลือบ</option>
               </select>
             </div>
-            <div class="mcid-list" id="ose-mcid-sel" style="max-height:220px"></div>
-            <div id="ose-mcid-summary" style="display:none;margin-top:5px;font-size:11px;padding:6px 10px;border-radius:var(--rs);background:var(--purple-bg);color:var(--purple)"></div>
+            <div class="mcid-list" id="ose-mcid-sel" style="max-height:260px"></div>
+            <div id="ose-mcid-summary" style="display:none;margin-top:6px;font-size:13px;padding:8px 12px;border-radius:var(--rs);background:var(--purple-bg);color:var(--purple)"></div>
+
+            <!-- Cap + estimate -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">
+              <div class="ff"><label>วันเริ่มสลิท</label>
+                <input class="fi" type="text" id="ose-start" placeholder="dd/mm/yyyy" maxlength="10"
+                  style="font-family:var(--mono)" oninput="fmtDateInput(this)"></div>
+              <div class="ff"><label>Cap (นาที/ลูก)</label>
+                <input class="fi" type="number" id="ose-cap" value="50" oninput="calcOSEDays()"></div>
+            </div>
+            <div class="ff"><label>ประมาณการณ์ (auto)</label><input class="fi auto" id="ose-estimate" readonly></div>
+            <div class="ff"><label>ลำดับงาน</label><input class="fi" type="number" id="ose-order" value="1"></div>
+            <button class="btn btn-p btn-full" onclick="saveOSEPlan()">💾 บันทึก MCID → OSE นี้</button>
           </div>
-          <div class="g2">
-            <div class="ff"><label>วันเริ่มสลิท</label><input class="fi" type="date" id="ose-start"></div>
-            <div class="ff"><label>Cap (นาที/ลูก)</label><input class="fi" type="number" id="ose-cap" value="50" oninput="calcOSEDays()"></div>
-          </div>
-          <div class="ff"><label>ประมาณการณ์ (auto)</label><input class="fi auto" id="ose-estimate" readonly></div>
-          <div class="ff"><label>ลำดับงาน</label><input class="fi" type="number" id="ose-order" value="1"></div>
-          <div class="btn-row"><button class="btn btn-p" onclick="saveOSEPlan()">บันทึกแผน OSE</button></div>
         </div>
-      </div>
-      <div class="card">
-        <div class="card-title">แผน OSE ทั้งหมด <span class="pill p-amber" id="ose-plan-count">0</span></div>
-        <div id="ose-planned-list"><div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center">ยังไม่มีแผน</div></div>
+
       </div>
     </div>
 
@@ -1015,7 +1014,7 @@ const MACHINES = ['SL_01','SL_02'];
 
 const TABS_CONFIG = [
   {id:'packing',     label:'รับเหล็ก'},
-  {id:'ose-plan',    label:'วางแผน OSE'},
+  {id:'ose-plan',    label:'🏭 IR Pick Mcoil'},
   {id:'master-plan', label:'📅 Master Plan'},
   {id:'slit',        label:'สลิท+น้ำหนัก'},
   {id:'ax',          label:'AX Calc'},
@@ -2205,50 +2204,54 @@ async function saveEditOSE(){
 function renderOSEPending(){
   const el=document.getElementById('ose-pending-list');
   const role=S.user?.role||'';
-  // Filter by role:
-  // AS sees all OSE to set status/date
-  // IR sees only OSE with status = Pick-หยิบวัตถุดิบ
-  let oses=S.axJobs.filter(j=>j.jobType==='OSE'||j.type==='OSE');
-  if(role==='ir') oses=oses.filter(o=>(o.oseStatus||o.status)==='Pick-หยิบวัตถุดิบ');
 
-  // Apply search filter
+  let oses=S.axJobs.filter(j=>j.jobType==='OSE'||j.type==='OSE'||(j.prod||'').startsWith('OSE'));
+
+  // search
   const searchQ=(document.getElementById('ose-search')?.value||'').toLowerCase().trim();
-  if(searchQ) oses=oses.filter(o=>(o.prod||o.Title||'').toLowerCase().includes(searchQ)||(o.name||'').toLowerCase().includes(searchQ));
+  if(searchQ) oses=oses.filter(o=>(o.prod||'').toLowerCase().includes(searchQ)||(o.name||'').toLowerCase().includes(searchQ));
 
-  // Apply multi-status filter
-  if(oseStatusFilter.size>0) oses=oses.filter(o=>oseStatusFilter.has(o.oseStatus||o.status||''));
+  // dropdown status filter (new single dropdown)
+  const stF=document.getElementById('ir-status-filter')?.value||'';
+  if(stF) oses=oses.filter(o=>(o.oseStatus||o.status||'')===stF);
 
-  // Update count
+  // ── Sort by startDate ASC (ใบงานที่เร็วกว่าขึ้นก่อน), ไม่มีวันลงท้าย
+  oses.sort((a,b)=>{
+    const da=a.startDate||'9999', db=b.startDate||'9999';
+    return da.localeCompare(db);
+  });
+
+  // Update count badges
   const countEl=document.getElementById('ose-pending-count');
+  const badgeEl=document.getElementById('ose-pending-count-badge');
   if(countEl) countEl.textContent=oses.length;
+  if(badgeEl) badgeEl.textContent=`${oses.length} ใบงาน`;
 
   if(!oses.length){
-    el.innerHTML=`<div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center">
-      ${role==='ir'?'ไม่มี OSE ที่รอหยิบวัตถุดิบ — AS ต้องกำหนดสถานะ "Pick-หยิบวัตถุดิบ" ก่อน':'ยังไม่มี OSE — Import AX ก่อน'}
-    </div>`;
+    el.innerHTML='<div style="color:#888;font-size:13px;padding:20px;text-align:center">ไม่มีใบงาน OSE — กด Load L6 ก่อน</div>';
     return;
   }
 
   el.innerHTML=oses.map(o=>{
     const st=o.oseStatus||o.status||'';
     const stColor=OSE_STATUS_COLOR[st]||'p-gray';
-    const isAS=(role==='as'||role==='mgmt'||role==='ap');
-    const isIR=(role==='ir');
+    const mcidCount=S.mcids.filter(m=>m.oseNo===o.prod&&m.status==='จ่ายแล้ว').length;
+    const isActive=selOSEId===o.prod;
     return `
-    <div class="ose-row ${selOSEId===o.prod?'active':''}" onclick="selectOSE('${o.prod}')">
+    <div class="ose-row ${isActive?'active':''}" onclick="selectOSE('${o.prod}')"
+      style="cursor:pointer;margin-bottom:6px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap">
-        <div class="ose-no">${o.prod}</div>
-        <span class="pill ${stColor}" style="font-size:9px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${st}">${st||'ไม่ระบุ'}</span>
+        <div style="font-family:var(--mono);font-size:14px;font-weight:700;color:#1a7a1a">${o.prod}</div>
+        <span class="pill ${stColor}" style="font-size:10px;max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${st}">${st||'ไม่ระบุ'}</span>
       </div>
-      <div class="ose-sub" style="margin:3px 0">${o.name||o.prod}</div>
-      <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">
+      <div style="font-size:13px;color:#444;margin:3px 0;line-height:1.4">${o.name||'—'}</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-top:4px">
         ${o.thick?`<span class="pill p-gray">${o.thick}mm</span>`:''}
         ${o.qty?`<span class="pill p-gray">QTY:${Number(o.qty).toLocaleString()}</span>`:''}
+        ${o.startDate?`<span class="pill p-teal">📅 ${fmtDate(o.startDate)||o.startDate.slice(0,10)}</span>`:'<span class="pill p-gray" style="color:var(--amber)">ยังไม่กำหนดวัน</span>'}
+        ${mcidCount?`<span class="pill p-ok">🪙 ${mcidCount} ลูก</span>`:''}
         ${o.machine?`<span class="pill p-blue">${o.machine}</span>`:''}
-        ${o.startDate?`<span class="pill p-teal" style="font-size:9px">${o.startDate.slice(0,10)}</span>`:''}
       </div>
-      ${isAS?`<div style="margin-top:6px"><button class="btn btn-sm" style="padding:3px 8px;font-size:10px;background:var(--purple-bg);border:1px solid var(--purple-bd);color:var(--purple);border-radius:4px;cursor:pointer" onclick="event.stopPropagation();openEditOSE('${o.prod}')">✏️ กำหนดวัน/สถานะ</button></div>`:''}
-      ${isIR&&st==='Pick-หยิบวัตถุดิบ'?`<div style="margin-top:6px"><button class="btn btn-sm" style="padding:3px 8px;font-size:10px;background:var(--teal-bg);border:1px solid var(--teal-bd);color:var(--teal);border-radius:4px;cursor:pointer" onclick="event.stopPropagation();selectOSE('${o.prod}')">🏭 เลือก MCID</button></div>`:''}
     </div>`;
   }).join('');
 }
