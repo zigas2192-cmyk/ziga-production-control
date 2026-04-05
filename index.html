@@ -1300,22 +1300,43 @@ function parsePacking(file){
   };
   reader.readAsArrayBuffer(file);
 }
+// ── Ensure MS Graph token — login popup if expired/missing ────────
+async function ensureToken(){
+  if(graphToken) return true;
+  if(!msalInstance) return false;
+  try{
+    const resp=await msalInstance.loginPopup({scopes:['User.Read','Sites.ReadWrite.All']});
+    if(resp?.accessToken){ graphToken=resp.accessToken; return true; }
+    return false;
+  }catch(e){ console.error('ensureToken error:',e); return false; }
+}
+
 async function applyPacking(){
   if(!S._pendingMCIDs) return;
   const btn=document.getElementById('pk-apply-btn');
-  if(btn){btn.disabled=true;btn.textContent='⏳ กำลังบันทึก...';}
 
+  // ── ถ้าไม่มี token → login Microsoft ก่อน ──────────────────────
+  if(!graphToken){
+    if(!msalInstance){showToast('⚠️ MSAL ไม่พร้อม — reload หน้า');return;}
+    if(btn){btn.disabled=true;btn.textContent='⏳ กำลัง login...';}
+    try{
+      const resp=await msalInstance.loginPopup({scopes:['User.Read','Sites.ReadWrite.All']});
+      if(resp?.accessToken){
+        graphToken=resp.accessToken;
+        showToast('✅ Login สำเร็จ — กำลังบันทึก...');
+      } else {
+        if(btn){btn.disabled=false;btn.textContent='✓ ยืนยันรับเข้าคลัง';}
+        showToast('❌ Login ไม่สำเร็จ');return;
+      }
+    }catch(e){
+      if(btn){btn.disabled=false;btn.textContent='✓ ยืนยันรับเข้าคลัง';}
+      showToast('❌ Login error: '+e.message);return;
+    }
+  }
+
+  if(btn){btn.disabled=true;btn.textContent='⏳ กำลังบันทึก...';}
   const today=new Date().toISOString();
   let saved=0, skipped=0, errors=0;
-
-  // Check token — if no Graph token fall back to local only
-  if(!graphToken){
-    S.mcids=[...S._pendingMCIDs];
-    renderPackingList();updatePackingStats();saveState();
-    if(btn){btn.disabled=false;btn.textContent='✓ ยืนยันรับเข้าคลัง';}
-    alert(`✓ รับเข้าคลัง ${S.mcids.length} MCID (local เท่านั้น — ยังไม่ได้ connect SharePoint)`);
-    return;
-  }
 
   showProgress('กำลังบันทึกเข้า SharePoint L4...',0,S._pendingMCIDs.length);
 
@@ -2658,7 +2679,7 @@ async function saveOSEPlan(){
 
   // ── PATCH SharePoint ──────────────────────────────────────────
   const btn=document.querySelector('#ose-plan-form-card button');
-  if(graphToken){
+  if(await ensureToken()){
     if(btn){btn.disabled=true;btn.textContent='⏳ กำลังบันทึก...';}
     // PATCH L6: status + startDate + remarks
     if(job?.spId){
@@ -2872,7 +2893,7 @@ async function saveSlitWeight(serial,oseNo){
   if(allDone) plan.slitDone=true;
 
   // PATCH SharePoint
-  if(graphToken){
+  if(await ensureToken()){
     // PATCH L4: MCIDStatus → 3.slitแล้ว
     const mc=S.mcids.find(c=>c.serial===serial);
     if(mc){
