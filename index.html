@@ -345,6 +345,7 @@ table.ax-t .ax-total{background:var(--green-lt);color:var(--green);font-weight:6
           </select>
           <button onclick="resetPkFilters()" style="padding:6px 10px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:11px;cursor:pointer;color:var(--ink3)">↺ ล้าง filter</button>
           <button onclick="loadL4FromSP()" style="padding:6px 12px;border:1px solid var(--blue-bd);border-radius:var(--rs);background:var(--blue-bg);color:var(--blue);font-size:11px;cursor:pointer;font-family:var(--sans)">🔄 Load L4</button>
+          <button onclick="debugL4Sample()" title="ดู field keys จริงจาก SP" style="padding:6px 10px;border:1px solid #ddd;border-radius:var(--rs);background:#f5f5f5;color:#888;font-size:11px;cursor:pointer">📋 Raw</button>
           <span id="pk-filter-count" style="font-size:11px;color:var(--ink3);margin-left:4px"></span>
         </div>
         <div id="pk-mcid-list"><div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center">ยังไม่มีข้อมูล</div></div>
@@ -1451,11 +1452,43 @@ async function detectL4Fields(){
 }
 
 async function patchL4MCID(spId, oseNo, statusVal){
-  const fields={};
-  if(oseNo!==undefined)     fields.OSENo      = oseNo;       // custom column display name
-  if(statusVal!==undefined) fields.MCIDStatus = statusVal;   // Choice column display name
-  console.log(`🔧 PATCH L4 item ${spId} →`, JSON.stringify(fields));
-  return spPatchItem(SP_LISTS.L4, spId, fields);
+  // ลองส่งทั้ง display name และ field_N พร้อมกัน
+  // SP จะใช้แค่ตัวที่รู้จัก ตัวที่ไม่รู้จักจะ ignore หรือ error
+  // Strategy: ส่งแยกเป็น 2 PATCH ถ้า PATCH รวมกัน error
+
+  const oseFields={};
+  if(oseNo!==undefined){
+    oseFields.field_11=oseNo;  // ลอง field_11
+  }
+  if(statusVal!==undefined){
+    oseFields.field_12=statusVal;  // ลอง field_12
+  }
+
+  console.log(`🔧 PATCH L4 item ${spId} (attempt 1 field_N):`, JSON.stringify(oseFields));
+  const ok1=await spPatchItem(SP_LISTS.L4, spId, oseFields);
+  if(ok1){ console.log('✅ PATCH L4 ok with field_N'); return true; }
+
+  // Attempt 2: display names
+  const dispFields={};
+  if(oseNo!==undefined)     dispFields.OSENo      =oseNo;
+  if(statusVal!==undefined) dispFields.MCIDStatus =statusVal;
+  console.log(`🔧 PATCH L4 item ${spId} (attempt 2 display):`, JSON.stringify(dispFields));
+  const ok2=await spPatchItem(SP_LISTS.L4, spId, dispFields);
+  if(ok2){ console.log('✅ PATCH L4 ok with display names'); return true; }
+
+  // Attempt 3: แยก PATCH ทีละ field
+  let anyOk=false;
+  if(oseNo!==undefined){
+    const r=await spPatchItem(SP_LISTS.L4, spId, {field_11:oseNo})||
+            await spPatchItem(SP_LISTS.L4, spId, {OSENo:oseNo});
+    if(r) anyOk=true;
+  }
+  if(statusVal!==undefined){
+    const r=await spPatchItem(SP_LISTS.L4, spId, {field_12:statusVal})||
+            await spPatchItem(SP_LISTS.L4, spId, {MCIDStatus:statusVal});
+    if(r) anyOk=true;
+  }
+  return anyOk;
 }
 async function ensureToken(){
   if(graphToken) return true;
