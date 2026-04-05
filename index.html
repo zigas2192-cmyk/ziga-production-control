@@ -3018,6 +3018,22 @@ function renderSlitOSEList(){
   }).join('');
 }
 
+function parseSlitFormula(name){
+  if(!name) return {parts:[],scrap:0,total:0};
+  const parts=[];
+  const partReg=/([\d.]+)\s*[xX×]\s*(\d+)/g;
+  let m;
+  while((m=partReg.exec(name))!==null){
+    const w=parseFloat(m[1]); const c=parseInt(m[2]);
+    if(w>10) parts.push({width:w,count:c});
+  }
+  let scrap=0;
+  const scrapM=name.match(/จับข้าง\s*([\d.]+)/);
+  if(scrapM) scrap=parseFloat(scrapM[1]);
+  const total=parts.reduce((s,p)=>s+p.width*p.count,0)+scrap*2;
+  return {parts,scrap,total};
+}
+
 async function selectSlitOSE(oseNo){
   S.selectedOSE=oseNo;
   let plan=S.osePlans.find(p=>p.oseNo===oseNo);
