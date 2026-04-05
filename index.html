@@ -618,13 +618,32 @@ table.ax-t .ax-total{background:var(--green-lt);color:var(--green);font-weight:6
 
       <!-- ① ตารางเครื่องจักร -->
       <div id="mp-schedule" class="mp-content">
-        <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+        <!-- Toolbar row 1: search + show empty -->
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
           <input id="mp-sch-search" placeholder="🔍 ค้นหาใบงาน..." oninput="renderMachineSchedule()"
-            style="padding:6px 12px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:13px;outline:none;width:180px;color:#111">
-          <label style="font-size:13px;color:var(--ink2);display:flex;align-items:center;gap:5px;cursor:pointer">
+            style="flex:1;min-width:150px;padding:7px 12px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:13px;outline:none;color:#111">
+          <label style="font-size:13px;color:var(--ink2);display:flex;align-items:center;gap:5px;cursor:pointer;white-space:nowrap">
             <input type="checkbox" id="mp-show-empty" onchange="renderMachineSchedule()"> แสดงเครื่องว่าง
           </label>
+          <button onclick="clearSchFilters()" style="padding:6px 12px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:12px;cursor:pointer;color:var(--ink3)">↺ ล้าง filter</button>
         </div>
+
+        <!-- Filter: เครื่องจักร (chip multi-select) -->
+        <div style="margin-bottom:8px">
+          <div style="font-size:11px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px">เครื่องจักร</div>
+          <div style="display:flex;gap:5px;flex-wrap:wrap" id="sch-machine-chips">
+            <!-- populated by JS -->
+          </div>
+        </div>
+
+        <!-- Filter: สถานะ (chip multi-select) -->
+        <div style="margin-bottom:14px">
+          <div style="font-size:11px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px">สถานะใบงาน</div>
+          <div style="display:flex;gap:5px;flex-wrap:wrap" id="sch-status-chips">
+            <!-- populated by JS -->
+          </div>
+        </div>
+
         <div id="mp-machine-groups"></div>
       </div>
 
@@ -801,11 +820,11 @@ async function doMSLogin(){
       const email=account.username.toLowerCase();
       const emp=EMPLOYEES.find(e=>(e.email||'').toLowerCase()===email||(e.email||'').toLowerCase().split('@')[0]===email.split('@')[0]);
       if(emp){
-        // Find fresh role from ROLES array
         const role=ROLES.find(r=>r.id===emp.role);
         if(role){
-          S.selectedRole={...role}; // copy to avoid stale ref
+          S.selectedRole={...role};
           S.user={...emp,roleConfig:S.selectedRole};
+          saveSession(); // ← บันทึก session
           document.getElementById('login-overlay').style.display='none';
           buildNav();initDefGrid();setToday();
           navigate(S.selectedRole.tabs[0]);
@@ -1102,12 +1121,13 @@ function selectEmp(id){
   const emp=EMPLOYEES.find(e=>e.id===id);
   if(!emp)return;
   S.user={...emp, roleConfig:S.selectedRole};
+  // ── บันทึก session ลง localStorage ──────────────────────────────
+  saveSession();
   document.getElementById('login-overlay').style.display='none';
   buildNav();
   initDefGrid();
   setToday();
   navigate(S.selectedRole.tabs[0]);
-  // Auto-load L4 + L6 from SharePoint after login
   if(graphToken){
     setTimeout(()=>loadL4FromSP(),800);
     setTimeout(()=>loadL6FromSP(),1200);
@@ -1117,7 +1137,9 @@ function doLogin(){
   // legacy — not used
 }
 function logout(){
-  S.user=null; S.selectedRole=null;
+  S.user=null; S.selectedRole=null; graphToken=null;
+  // ── ลบ session ──────────────────────────────────────────────────
+  try{ localStorage.removeItem('ziga_session'); }catch(e){}
   document.getElementById('login-overlay').style.display='flex';
   document.getElementById('login-step0').style.display='block';
   document.getElementById('login-step1').style.display='none';
@@ -1347,6 +1369,95 @@ function initMasterPlan(){
   if(sel&&sel.options.length<=1) SHIFTS.forEach(s=>{const o=document.createElement('option');o.value=s.hours;o.textContent=s.label+' ('+s.hours+'h)';sel.appendChild(o);});
   const stSel=document.getElementById('mp-map-status');
   if(stSel&&stSel.options.length<=1) OSE_STATUS.forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent=s;stSel.appendChild(o);});
+  initSchFilterChips();
+  renderMachineSchedule();
+}
+
+// ── Machine Schedule Filter State ────────────────────────────────
+const schFilter = {
+  machines: new Set(), // ว่าง = แสดงทุกเครื่อง
+  statuses: new Set(), // ว่าง = แสดงทุกสถานะ
+};
+
+// เครื่องทั้งหมดแบบแยก (ไม่รวม group)
+const ALL_MACHINES_FLAT = MACHINE_GROUPS.flatMap(g=>g.machines);
+
+// สถานะที่ต้องการ filter (เฉพาะ 0-3)
+const SCH_STATUSES = [
+  {val:'0.Schedule-ใบงานรอ Mcoilเข้า',      label:'0.Schedule-รอ Mcoil', color:'var(--ink3)'},
+  {val:'0.Released-ใบงานมีวัตถุดิบ มีสลิทแล้วรอลำดับแผน', label:'0.Released',    color:'var(--blue)'},
+  {val:'Pick-หยิบวัตถุดิบ',                  label:'Pick',                color:'var(--teal)'},
+  {val:'1.Start-งานกำหนดวันแล้ว',            label:'1.Start',             color:'var(--purple)'},
+  {val:'2กำลังผลิต',                          label:'2.กำลังผลิต',         color:'var(--amber)'},
+  {val:'3.Report as finished-รับผลผลิตเข้าคลัง', label:'3.Report',        color:'var(--green)'},
+];
+
+function initSchFilterChips(){
+  // เครื่องจักร chips
+  const mEl=document.getElementById('sch-machine-chips');
+  if(mEl && mEl.children.length===0){
+    MACHINE_GROUPS.forEach(grp=>{
+      // Group label
+      const glbl=document.createElement('span');
+      glbl.style.cssText='font-size:11px;color:#888;padding:3px 0;display:flex;align-items:center;width:100%;margin-top:4px';
+      glbl.textContent=grp.icon+' '+grp.label+':';
+      mEl.appendChild(glbl);
+      grp.machines.forEach(m=>{
+        const chip=document.createElement('button');
+        chip.dataset.val=m;
+        chip.dataset.type='machine';
+        chip.textContent=m;
+        chip.style.cssText=`padding:4px 10px;border-radius:20px;font-size:11px;cursor:pointer;border:1px solid var(--b2);background:var(--panel);color:#333;font-family:var(--sans);transition:all .12s`;
+        chip.onclick=()=>toggleSchChip('machine',m,chip);
+        mEl.appendChild(chip);
+      });
+    });
+  }
+  // สถานะ chips
+  const sEl=document.getElementById('sch-status-chips');
+  if(sEl && sEl.children.length===0){
+    SCH_STATUSES.forEach(s=>{
+      const chip=document.createElement('button');
+      chip.dataset.val=s.val;
+      chip.dataset.type='status';
+      chip.textContent=s.label;
+      chip.style.cssText=`padding:5px 12px;border-radius:20px;font-size:12px;cursor:pointer;border:1px solid var(--b2);background:var(--panel);color:#333;font-family:var(--sans);transition:all .12s;font-weight:500`;
+      chip.onclick=()=>toggleSchChip('status',s.val,chip,s.color);
+      sEl.appendChild(chip);
+    });
+  }
+}
+
+function toggleSchChip(type, val, el, color){
+  const set=type==='machine'?schFilter.machines:schFilter.statuses;
+  const activeColor=color||'var(--blue)';
+  if(set.has(val)){
+    set.delete(val);
+    el.style.background='var(--panel)';
+    el.style.color='#333';
+    el.style.borderColor='var(--b2)';
+    el.style.fontWeight=type==='machine'?'400':'500';
+  } else {
+    set.add(val);
+    el.style.background=activeColor;
+    el.style.color='#fff';
+    el.style.borderColor=activeColor;
+    el.style.fontWeight='700';
+  }
+  renderMachineSchedule();
+}
+
+function clearSchFilters(){
+  schFilter.machines.clear();
+  schFilter.statuses.clear();
+  // Reset chip styles
+  document.querySelectorAll('#sch-machine-chips button,#sch-status-chips button').forEach(ch=>{
+    ch.style.background='var(--panel)';
+    ch.style.color='#333';
+    ch.style.borderColor='var(--b2)';
+    ch.style.fontWeight='400';
+  });
+  document.getElementById('mp-sch-search').value='';
   renderMachineSchedule();
 }
 
@@ -1354,10 +1465,25 @@ function initMasterPlan(){
 function renderMachineSchedule(){
   const el=document.getElementById('mp-machine-groups');
   if(!el) return;
+
+  // Init chips on first render
+  initSchFilterChips();
+
   const q=(document.getElementById('mp-sch-search')?.value||'').toLowerCase();
   const showEmpty=document.getElementById('mp-show-empty')?.checked||false;
+
+  // Apply filters
   let allJobs=S.axJobs.filter(j=>isActive(j)&&j.machine);
-  if(q) allJobs=allJobs.filter(j=>(j.prod||'').toLowerCase().includes(q)||(j.name||'').toLowerCase().includes(q)||(j.machine||'').toLowerCase().includes(q));
+  if(q) allJobs=allJobs.filter(j=>
+    (j.prod||'').toLowerCase().includes(q)||
+    (j.name||'').toLowerCase().includes(q)||
+    (j.machine||'').toLowerCase().includes(q));
+  // machine chip filter
+  if(schFilter.machines.size>0)
+    allJobs=allJobs.filter(j=>schFilter.machines.has(j.machine));
+  // status chip filter
+  if(schFilter.statuses.size>0)
+    allJobs=allJobs.filter(j=>schFilter.statuses.has(j.oseStatus||j.status||''));
 
   const unassigned=S.axJobs.filter(j=>isActive(j)&&!j.machine).length;
   let html='';
@@ -2323,15 +2449,22 @@ function selectOSE(prod){
 }
 
 function renderFilteredMCIDWithPicked(preSelected){
-  // Include both unused MCIDs AND already-picked ones for this OSE
-  const available=S.mcids.filter(c=>!c.used||selMCIDs.includes(c.serial));
-  renderFilteredMCID(available);
-  // Re-check boxes for pre-selected
+  // ใส่ preSelected เข้า selMCIDs ก่อน render ครั้งเดียว
   preSelected.forEach(serial=>{
     if(!selMCIDs.includes(serial)) selMCIDs.push(serial);
   });
-  // Re-render to show checkmarks
+  // รวม MCID ที่ว่าง + ที่หยิบแล้วของ OSE นี้ (ไม่ filter out by used)
+  const available=S.mcids.filter(c=>!c.used || selMCIDs.includes(c.serial));
   renderFilteredMCID(available);
+  // อัป summary
+  const n=selMCIDs.length;
+  const sumEl=document.getElementById('ose-mcid-summary');
+  if(sumEl){
+    const wt=S.mcids.filter(c=>selMCIDs.includes(c.serial)).reduce((s,c)=>s+c.wt_kg,0);
+    if(n>0){sumEl.style.display='block';sumEl.textContent=`เลือก ${n} ลูก · ${wt.toFixed(3)} kg รวม`;}
+    else sumEl.style.display='none';
+  }
+  calcOSEDays();
 }
 function renderOSEMCIDSel(list){ renderFilteredMCID(list); }
 function renderFilteredMCID(baseList){
@@ -2357,20 +2490,34 @@ function renderFilteredMCID(baseList){
 
   const el=document.getElementById('ose-mcid-sel');
   if(!el)return;
-  el.innerHTML=list.map(c=>`
-    <div class="mcid-item ${selMCIDs.includes(c.serial)?'sel':''}" onclick="toggleOSEMCID('${c.serial}')">
-      <div class="mchk">${selMCIDs.includes(c.serial)?'✓':''}</div>
+
+  // แยก picked ขึ้นก่อน ที่เหลือตาม
+  const picked=list.filter(c=>selMCIDs.includes(c.serial));
+  const unpicked=list.filter(c=>!selMCIDs.includes(c.serial));
+  const sorted=[...picked,...unpicked];
+
+  el.innerHTML=sorted.map(c=>{
+    const isSel=selMCIDs.includes(c.serial);
+    return `
+    <div class="mcid-item ${isSel?'sel':''}" onclick="toggleOSEMCID('${c.serial}')"
+      style="${isSel?'border:2px solid #1a7a1a;background:#e8f5e8;':''}padding:12px 10px">
+      <div class="mchk" style="width:22px;height:22px;border-radius:5px;font-size:13px;flex-shrink:0;
+        ${isSel?'background:#1a7a1a;border-color:#1a7a1a;color:#fff;font-weight:700':'border:2px solid #bbb'}">
+        ${isSel?'✓':''}
+      </div>
       <div style="flex:1">
-        <div class="mcid-srl">${c.serial}</div>
-        <div class="mcid-dtl" style="display:flex;gap:4px;flex-wrap:wrap;margin-top:3px">
-          ${c.thick?`<span class="pill p-gray" style="font-size:9px">${c.thick}mm</span>`:''}
-          ${c.width?`<span class="pill p-gray" style="font-size:9px">W${c.width}</span>`:''}
-          ${c.factory?`<span class="pill p-blue" style="font-size:9px">${c.factory}</span>`:''}
-          ${c.coating?`<span class="pill p-teal" style="font-size:9px">${c.coating}</span>`:''}
+        <div style="font-family:var(--mono);font-size:15px;font-weight:700;color:${isSel?'#1a7a1a':'#111'}">${c.serial}</div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">
+          ${c.thick?`<span class="pill p-gray">${c.thick}mm</span>`:''}
+          ${c.width?`<span class="pill p-gray">W${c.width}</span>`:''}
+          ${c.factory?`<span class="pill p-blue" style="font-size:10px">${c.factory}</span>`:''}
+          ${c.coating?`<span class="pill p-teal" style="font-size:10px">${c.coating}</span>`:''}
+          ${isSel?`<span class="pill p-ok" style="font-size:10px;font-weight:700">✓ เลือกแล้ว</span>`:''}
         </div>
       </div>
-      <div style="text-align:right;font-family:var(--mono);font-size:11px;white-space:nowrap">${c.wt_kg.toFixed(3)} kg</div>
-    </div>`).join('')||'<div style="color:var(--ink3);font-size:11px;padding:10px;text-align:center">ไม่มี MCID ที่ตรงกับ filter</div>';
+      <div style="text-align:right;font-family:var(--mono);font-size:13px;font-weight:600;white-space:nowrap;color:${isSel?'#1a7a1a':'#333'}">${c.wt_kg.toFixed(3)} kg</div>
+    </div>`;
+  }).join('')||'<div style="color:var(--ink3);font-size:13px;padding:14px;text-align:center">ไม่มี MCID ที่ตรงกับ filter</div>';
 }
 function toggleOSEMCID(serial){
   const job=S.axJobs.find(j=>j.prod===selOSEId);
@@ -2840,23 +2987,101 @@ function renderDash(){
       <td>${p.slitDone?'<span class="pill p-ok">เสร็จ</span>':done>0?'<span class="pill p-blue">กำลังทำ</span>':'<span class="pill p-amber">รอ</span>'}</td></tr>`;}).join('')}
     </tbody></table></div>`:'<div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center">ยังไม่มีแผน OSE</div>';
 }
-// ── Auto-init MSAL on page load ──────────────────────────────────
-window.addEventListener('load', function(){
+// ── Session helpers ──────────────────────────────────────────────
+function saveSession(){
+  try{
+    localStorage.setItem('ziga_session', JSON.stringify({
+      userId:    S.user?.id||'',
+      roleId:    S.selectedRole?.id||S.user?.roleConfig?.id||'',
+      savedAt:   Date.now(),
+    }));
+  }catch(e){console.warn('saveSession error:',e);}
+}
+function restoreSession(){
+  try{
+    const raw=localStorage.getItem('ziga_session');
+    if(!raw) return false;
+    const sess=JSON.parse(raw);
+    // session หมดอายุหลัง 12 ชั่วโมง
+    if(Date.now()-sess.savedAt > 12*60*60*1000){
+      localStorage.removeItem('ziga_session');
+      return false;
+    }
+    const emp=EMPLOYEES.find(e=>e.id===sess.userId);
+    const role=ROLES.find(r=>r.id===sess.roleId);
+    if(!emp||!role) return false;
+    S.user={...emp, roleConfig:role};
+    S.selectedRole=role;
+    return true;
+  }catch(e){ return false; }
+}
+
+// ── Silent token acquire (PKCE stored in sessionStorage) ─────────
+async function trySilentToken(){
+  if(!msalInstance) return false;
+  try{
+    // ลอง acquire token โดยไม่ต้อง popup
+    const accounts = msalInstance._token ? [{}] : [];
+    if(graphToken){
+      // Token ยังอยู่ใน memory — ใช้ต่อได้เลย
+      return true;
+    }
+    return false;
+  }catch(e){ return false; }
+}
+
+// ── Auto-init MSAL on page load + restore session ────────────────
+window.addEventListener('load', async function(){
   const ready = initMSAL();
-  if(ready){
-    console.log('✅ MSAL initialized — Client ID:', AZURE_CONFIG.clientId.slice(0,8)+'...');
-  } else {
-    console.warn('⚠️ MSAL not initialized');
-  }
+  if(ready) console.log('✅ MSAL initialized');
+
   // Handle MSAL redirect response (if any)
   if(msalInstance){
-    msalInstance.handleRedirectPromise().then(resp=>{
+    try{
+      const resp = await msalInstance.handleRedirectPromise();
       if(resp && resp.accessToken){
         graphToken = resp.accessToken;
         console.log('✅ Graph token from redirect');
       }
-    }).catch(e=>console.error('Redirect error:',e));
+    }catch(e){ console.error('Redirect error:',e); }
   }
+
+  // ── ลอง restore session ──────────────────────────────────────
+  if(restoreSession()){
+    console.log('✅ Session restored:', S.user?.name);
+    document.getElementById('login-overlay').style.display='none';
+    buildNav();
+    initDefGrid();
+    setToday();
+    navigate(S.selectedRole.tabs[0]);
+
+    // ลอง re-acquire token แบบ silent ถ้ายังไม่มี
+    if(!graphToken && ready){
+      showToast('🔄 กำลัง refresh token... (อาจต้อง login ใหม่ถ้า token หมดอายุ)');
+      // ถ้า session storage ยังมี token จาก MSAL cache ให้ดึงมาใช้
+      try{
+        const resp = await msalInstance.loginPopup({
+          scopes:['User.Read','Sites.ReadWrite.All'],
+          prompt:'none' // silent — ไม่แสดง popup ถ้า session ยังอยู่
+        });
+        if(resp?.accessToken){
+          graphToken=resp.accessToken;
+          showToast('✅ Token refresh สำเร็จ');
+          setTimeout(()=>loadL4FromSP(),500);
+          setTimeout(()=>loadL6FromSP(),900);
+        }
+      }catch(e){
+        // Silent fail → ยังใช้ได้ในโหมด local ไม่ต้อง login ใหม่
+        console.log('Silent token failed — using local mode:', e.message);
+        showToast('⚠️ ใช้งานได้แต่ยังไม่ได้ connect SP — กด Load L6 เพื่อ login ใหม่');
+      }
+    } else if(graphToken){
+      // Token ยังอยู่ — load data ต่อเลย
+      setTimeout(()=>loadL4FromSP(),600);
+      setTimeout(()=>loadL6FromSP(),1000);
+    }
+  }
+  // ถ้า restore ไม่ได้ → แสดง login screen ตามปกติ
 });
 </script>
 </body>
