@@ -2277,7 +2277,8 @@ async function loadL6FromSP(){
     if(!items.length){hideProgress();return;}
     S.axJobs=items.map(f=>({
       prod:         f.Title||'',
-      item:         f.field_1||'',
+      item:         f.field_1||'',        // OFMRef (จับคู่ OSE↔OFM)
+      itemCode:     f.Itemnumber||'',     // Item code สินค้า เช่น NASLF00280F001
       name:         f.field_2||'',
       thick:        parseFloat(f.field_3)||0,
       width:        parseFloat(f.field_4)||0,
@@ -2433,6 +2434,7 @@ function parseAX(file){
     const iWidth=ci('WidthMM'), iRemarks=ci('Remarks'), iQtyCoils=ci('QtyCoils');
     const iMachine=ci('Machine'), iStartDate=ci('StartDate'), iEndDate=ci('EndDate');
     const iPriority=ci('Priority'), iQtyLines=ci('QtyPlanLines');
+    const iItemNum=ci('Itemnumber')||ci('ItemNumber'); // L6 custom column
 
     // AX export format: Production, Item number, Name, Status, Quantity, JobType...
     const iProd=ci('Production'), iItem=ci('Item number'), iName=ci('Name');
@@ -2472,7 +2474,9 @@ function parseAX(file){
           if(m) endDate=`${m[3]}-${m[2]}-${m[1]}`;
         }
         return {prod,item,name,status:oseStatus,oseStatus,qty,jobType,thick,width,
-                machine,startDate,endDate,priority,remarks,used:false};
+                machine,startDate,endDate,priority,remarks,
+                itemCode: iItemNum>=0 ? String(r[iItemNum]||'').trim() : '',
+                used:false};
       });
     } else if(isAXFormat){
       // ── AX Export format ────────────────────────────────────────
@@ -2489,7 +2493,9 @@ function parseAX(file){
         const mItem=item.match(/(\d{4,5})(?:F\d+)?$/);
         if(mItem){const t=parseInt(mItem[1]);thick=t>100?t/100:t/10;}
         if(!thick){const mName=name.match(/-([\d.]+)(?:\(K\d+\))?/);if(mName)thick=parseFloat(mName[1]);}
-        return {prod,item,name:name.slice(0,200),status,oseStatus:status,qty,jobType,thick,createdAt,used:false};
+        return {prod,item,name:name.slice(0,200),status,oseStatus:status,qty,jobType,thick,
+                itemCode:item, // AX: Item number = item code
+                createdAt,used:false};
       });
     } else {
       showToast('⚠️ ไม่รู้จัก format — ต้องมี column "Title" หรือ "Production"');
@@ -2542,7 +2548,8 @@ async function applyAX(){
     try{
       const fields={
         Title:      j.prod,
-        field_1:    j.item     ||undefined,
+        field_1:    j.item     ||undefined,        // OFMRef
+        Itemnumber: j.itemCode ||j.item||undefined, // Item code สินค้า
         field_2:    j.name     ||undefined,
         field_3:    j.thick    ? Number(j.thick)  : undefined,
         field_10:   j.status   ||undefined,
