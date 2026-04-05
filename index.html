@@ -291,7 +291,13 @@ table.ax-t .ax-total{background:var(--green-lt);color:var(--green);font-weight:6
   <nav id="topnav">
     <div class="nav-brand">ZIGA <span>·</span> Factory</div>
     <div class="nav-tabs" id="nav-tabs"></div>
-    <div class="nav-user" onclick="logout()" id="nav-user-btn"></div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <div onclick="clearCacheOnly()" title="ล้างข้อมูลใบงานใน app (ไม่กระทบ SP)"
+        style="padding:5px 10px;border-radius:6px;font-size:11px;cursor:pointer;color:#aaa;border:1px solid #444;background:transparent">
+        🗑 ล้าง cache
+      </div>
+      <div class="nav-user" onclick="logout()" id="nav-user-btn"></div>
+    </div>
   </nav>
   <div class="content" id="content">
 
@@ -1194,6 +1200,23 @@ function clearState(){
   try{ localStorage.removeItem(STATE_KEY); }catch(e){}
   S.mcids=[]; S.axJobs=[]; S.osePlans=[];
   S.ofmPlans=[]; S.slitData={}; S.defects=[];
+}
+
+function clearCacheOnly(){
+  if(!confirm('ล้างข้อมูลใบงาน (L6) ใน app?\n\n(ไม่กระทบข้อมูลใน SharePoint)\nต้อง Load L6 ใหม่หลังล้าง)')) return;
+  S.axJobs=[]; S.osePlans=[];
+  try{
+    const raw=localStorage.getItem(STATE_KEY);
+    if(raw){
+      const d=JSON.parse(raw);
+      d.axJobs=[]; d.osePlans=[];
+      localStorage.setItem(STATE_KEY,JSON.stringify(d));
+    }
+  }catch(e){}
+  renderOSEPending();
+  renderSlitOSEList();
+  initMasterPlan();
+  showToast('✅ ล้าง L6 cache แล้ว — กด Load L6 เพื่อโหลดใหม่');
 }
 
 // ล้าง MCID ออกจาก app (local cache เท่านั้น — ไม่ลบใน SP)
