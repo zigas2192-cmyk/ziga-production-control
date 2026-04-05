@@ -478,11 +478,7 @@ table.ax-t .ax-total{background:var(--green-lt);color:var(--green);font-weight:6
     </div>
 
     <!-- ④ AX CALC (Duke) -->
-    <div class="page" id="page-ax">
-      <div class="pg-hd"><div class="pg-title">คำนวณ AX — พร้อม Key เข้าระบบ</div>
-        <div class="pg-sub">Duke (AP) — เห็นน้ำหนักแยกตามหน้าสลิท พร้อม Serial AX ครบทุกบรรทัด</div></div>
-      <div id="ax-content"><div style="color:var(--ink3);font-size:12px;padding:40px;text-align:center">รอสุภาพบันทึกน้ำหนัก (หน้าสลิท) ก่อนครับ</div></div>
-    </div>
+
 
     <!-- ⑤ OFM วางแผน -->
     <div class="page" id="page-ofm-plan">
@@ -915,7 +911,7 @@ function initMSAL() {
 async function msalLogin() {
   if (!msalInstance) return null;
   try {
-    const resp = await msalInstance.loginPopup({ scopes: ['User.Read','Sites.ReadWrite.All'] });
+    const resp = await msalInstance.loginPopup({ scopes: ['User.Read','Sites.ReadWrite.All','Chat.ReadWrite'] });
     graphToken = resp.accessToken;
     return resp.account;
   } catch(e) { console.error('MSAL login failed:', e); return null; }
@@ -1070,7 +1066,7 @@ async function debugL4Sample(){
 // ─── EMPLOYEES ────────────────────────────────────────────────────
 const EMPLOYEES = [{"id":"ZZ41050601","name":"นาย ศุภกิจ งามจิตรเจริญ","position":"Chief Executive Officer - CEO","dept":"บริหาร","role":"mgmt"},{"id":"ZZ44030101","name":"นางสาว เมทินี งามจิตรเจริญ","position":"Chief Innovation Officer-CIO","dept":"บริหาร","role":"mgmt","email":"maetinee@ziga.co.th"},{"id":"ZZ53060701","name":"นางสาว ธนิดา เกรียงพานิช","position":"Managing Director – Factory Division","dept":"บริหาร","role":"mgmt","email":"tanida@ziga.co.th"},{"id":"ZZ55020101","name":"นางสาว วราลักษณ์ งามจิตรเจริญ","position":"Chief Marketing Officer-CMO","dept":"บริหาร","role":"mgmt"},{"id":"ZZ65101702","name":"นางสาว ศิริพิมพ์ เชื้อเจ็ดตน","position":"IT Support Officer","dept":"แผนก IT & Bitcoin","role":"mgmt"},{"id":"ZZ66080101","name":"นาย สมคิด อังกุโร","position":"IT & Bitcoin Manager","dept":"แผนก IT & Bitcoin","role":"mgmt"},{"id":"ZZ58090101","name":"นาย จตุรณ เพ็งเอี่ยม","position":"เจ้าหน้าที่วางแผนผลิต-AP","dept":"แผนกPlanning Resource","role":"ap","email":"jaturon@ziga.co.th"},{"id":"ZZ61010305","name":"นางสาว สุวิภา ปานประชาติ","position":"เจ้าหน้าที่วางแผนผลิต-AP","dept":"แผนกPlanning Resource","role":"as","email":"suwipha@ziga.co.th"},{"id":"ZZ65070101","name":"นางสาว บุณยานุช อุปสุข","position":"QMR และจป.วิชาชีพ","dept":"แผนกQMRและจป.วิชาชีพ","role":"mgmt"},{"id":"ZZ68081201","name":"นางสาว ณัฏฐากุญช์ กอบแก้ว","position":"เจ้าหน้าที่คลัง-สลิทและวัสดุสิ้นเปลือง","dept":"แผนกคลังสลิทและวัสดุสิ้นเปลือง","role":"ir","email":"nutthakul@ziga.co.th"},{"id":"ZZ68111701","name":"นาย ทวีศักดิ์ วรรณาลัย","position":"เจ้าหน้าที่คลัง-สลิทและวัสดุสิ้นเปลือง","dept":"แผนกคลังสลิทและวัสดุสิ้นเปลือง","role":"ir","email":"nutthakul@ziga.co.th"},{"id":"ZZ62041703","name":"นาย กิตติพงษ์ โสภณกิตติพัฒน์","position":"เจ้าหน้าที่คลังจัดส่ง","dept":"แผนกคลังสินค้าและจัดส่ง","role":"mgmt"},{"id":"ZZ66020102","name":"นางสาว จีระนันท์ มีคำ","position":"เจ้าหน้าที่ธุรการคลังจัดส่ง","dept":"แผนกคลังสินค้าและจัดส่ง","role":"mgmt"},{"id":"ZZ66062201","name":"นางสาว พีชญา สมประสงค์","position":"เจ้าหน้าที่เช็คเกอร์","dept":"แผนกคลังสินค้าและจัดส่ง","role":"mgmt"},{"id":"ZZ66082501","name":"นาย สิทธานนท์ นันทวงศ์สาร","position":"เจ้าหน้าที่คลังจัดส่ง","dept":"แผนกคลังสินค้าและจัดส่ง","role":"mgmt"},{"id":"ZZ68010201","name":"นาย อิทธิพล วิไลรัตน์","position":"เจ้าหน้าที่คลังจัดส่ง","dept":"แผนกคลังสินค้าและจัดส่ง","role":"mgmt"},{"id":"ZZ59020401","name":"นางสาว ณิชาดา อ๊อตจังหรีด","position":"หัวหน้าแผนกบัญชี","dept":"แผนกบัญชีและการเงิน","role":"mgmt"},{"id":"ZZ63021702","name":"นางสาว บุษกร เพชรคง","position":"เจ้าหน้าที่บัญชีเจ้าหนี้","dept":"แผนกบัญชีและการเงิน","role":"mgmt"},{"id":"ZZ66050801","name":"นางสาว ไพลิน มีชัยโย","position":"ผู้ช่วยผู้จัดการฝ่ายบัญชี","dept":"แผนกบัญชีและการเงิน","role":"mgmt"},{"id":"ZZ66053001","name":"นาย อดิศักดิ์ วงศ์ก้อม","position":"เจ้าหน้าที่ประกันคุณภาพ","dept":"แผนกประกันคุณภาพ","role":"qa"},{"id":"ZZ68021401","name":"นาย อภินันท์ บุญสม","position":"เจ้าหน้าที่ประกันคุณภาพ","dept":"แผนกประกันคุณภาพ","role":"qa"},{"id":"ZZ68022001","name":"นางสาว วรรณรดา สุวรรณกาญจน์","position":"QA Supervisor","dept":"แผนกประกันคุณภาพ","role":"qa"},{"id":"ZZ69032301","name":"นางสาว สุกานดา งามสวย","position":"เจ้าหน้าที่ประกันคุณภาพ","dept":"แผนกประกันคุณภาพ","role":"qa"},{"id":"ZZ55061101","name":"นาย สุรเชษฐ์ สุดศิลา","position":"หัวหน้าควบคุมเครื่องรีดต่อคอยล์","dept":"แผนกผลิต - เครื่องรีด ทีม1","role":"ofm"},{"id":"ZZ57102101","name":"นาย สงวน สุดแก้ว","position":"หัวหน้าทีมผลิต-เครื่องรีด","dept":"แผนกผลิต - เครื่องรีด ทีม1","role":"ofm"},{"id":"ZZ58110201","name":"นาย อุเทน กองสิงห์","position":"เจ้าหน้าที่คุมเครื่องรีดต่อคอยล์","dept":"แผนกผลิต - เครื่องรีด ทีม1","role":"ofm"},{"id":"ZZ60062401","name":"นาย ภูษิต บัวชุม","position":"หัวหน้าควบคุมเครื่องรีดต่อคอยล์","dept":"แผนกผลิต - เครื่องรีด ทีม1","role":"ofm"},{"id":"ZZ67082101","name":"นาย สงบ การบรรจง","position":"เจ้าหน้าที่ควบคุมเครื่องรีดต่อคอลย์","dept":"แผนกผลิต - เครื่องรีด ทีม1","role":"ofm"},{"id":"ZZ58010801","name":"นาย ภูมินทร์ มั่นศักดิ์","position":"หัวหน้าควบคุมเครื่องรีดต่อคอยล์","dept":"แผนกผลิต - เครื่องรีด ทีม2","role":"ofm"},{"id":"ZZ63021701","name":"นาย วิชัย ด่านมะณี","position":"เจ้าหน้าที่ผลิต-เกลียว","dept":"แผนกผลิต - ตัด ลบคม ทำเกลียว","role":"ofm"},{"id":"ZZ66021403","name":"นาย วิทัต วุฒิวิมล","position":"เจ้าหน้าที่ผลิต-ข้อต่อ","dept":"แผนกผลิต - ตัด ลบคม ทำเกลียว","role":"ofm"},{"id":"ZZ67062101","name":"นาย นาราภัทร สายจันดี","position":"เจ้าหน้าที่ผลิต-ลบคม","dept":"แผนกผลิต - ตัด ลบคม ทำเกลียว","role":"ofm"},{"id":"ZZ68020302","name":"นาย ศิวะกรณ์ สุขเจริญ","position":"พนักงานคุมเครื่องลบคมทำเกลียว","dept":"แผนกผลิต - ตัด ลบคม ทำเกลียว","role":"ofm"},{"id":"ZZ68070201","name":"นาย กิตติพร เกษประเสริฐ","position":"พนักงานคุมเครื่องลบคมทำเกลียว","dept":"แผนกผลิต - ตัด ลบคม ทำเกลียว","role":"ofm"},{"id":"ZZ57060801","name":"นาย รุ่งโรจน์ วามะลุน","position":"เจ้าหน้าที่ผลิต-ท่อโค้งและข้อต่อ","dept":"แผนกผลิต - ท่อโค้ง","role":"ofm"},{"id":"ZZ55062101","name":"นาย ธัณพิสิฐ น้อมนุช","position":"หัวหน้าคุมเครื่อง-แพ็คกิ้ง","dept":"แผนกผลิต - แพ็คกิ้ง","role":"ofm"},{"id":"ZZ66050201","name":"นาย เอกภพ ภู่ศรีพงษ์","position":"เจ้าหน้าที่ผลิต-สลิทเตอร์","dept":"แผนกสลิทเหล็ก","role":"slit","email":"suparp@ziga.co.th"},{"id":"ZZ68010801","name":"นาย สุภาพ เม่นแก้ว","position":"พนักงานผลิต-สลิทเตอร์","dept":"แผนกสลิทเหล็ก","role":"slit","email":"suparp@ziga.co.th"},{"id":"ZZ69010601","name":"นาย สามารถ ดาสม","position":"เจ้าหน้าที่ผลิต-สลิทเตอร์","dept":"แผนกสลิทเหล็ก","role":"slit"},{"id":"ZZ41050602","name":"นางสาว ฐปนี ตรีมุทธาพงศ์","position":"Financial Controller","dept":"ฝ่ายบัญชีและการเงิน (AFM)","role":"mgmt","email":"tapanee@ziga.co.th"},{"id":"ZZ69020201","name":"นาย ทิพยเนตร เจี้ยงรักษา","position":"Production Supervisor","dept":"ส่วนผลิตและควบคุมอุปทานการผลิต","role":"supervisor"},{"id":"ZZ69020202","name":"นาย มนตรี รักเสมอวงค์","position":"รองหัวหน้าแผนกผลิต","dept":"ส่วนผลิตและควบคุมอุปทานการผลิต","role":"supervisor"}];
 
-const ROLES = [{"id":"mgmt","icon":"👑","title":"ผู้บริหาร / บัญชี","sub":"ดูภาพรวมทุก module","tabs":["dash","ose-plan","master-plan","packing","ofm-plan","prod","qa","ax","slit"]},{"id":"ap","icon":"📊","title":"จนท. AP","sub":"Duke — สั่งสลิท / AX Calc","tabs":["ose-plan","ax","master-plan","dash"]},{"id":"as","icon":"📅","title":"จนท. AS","sub":"แป๋ม — วางแผน OFM / ลำดับงาน","tabs":["ose-plan","ofm-plan","master-plan","dash"]},{"id":"ir","icon":"🏭","title":"จนท. คลัง IR","sub":"จอย — รับเหล็กม้วน / เลือก MCID","tabs":["packing","ose-plan"]},{"id":"slit","icon":"⚙️","title":"จนท. Slitter","sub":"สุภาพ / เอกภพ / สามารถ — บันทึกสลิท","tabs":["slit","packing"]},{"id":"ofm","icon":"🔧","title":"พนักงานผลิต","sub":"เครื่องรีด / ลบคม / เกลียว / แพ็ค","tabs":["prod"]},{"id":"qa","icon":"🔍","title":"จนท. QA","sub":"บันทึกของเสีย FM-QA-08","tabs":["qa","dash"]},{"id":"supervisor","icon":"👷","title":"Production Supervisor","sub":"ตรวจสอบพารามิเตอร์","tabs":["prod","dash"]}];
+const ROLES = [{"id": "mgmt", "icon": "👑", "title": "ผู้บริหาร / บัญชี", "sub": "ดูภาพรวมทุก module", "tabs": ["dash", "ose-plan", "master-plan", "packing", "ofm-plan", "prod", "qa", "slit"]}, {"id": "ap", "icon": "📊", "title": "จนท. AP", "sub": "Duke — สั่งสลิท / ดู L4", "tabs": ["ose-plan", "master-plan", "dash"]}, {"id": "as", "icon": "📅", "title": "จนท. AS", "sub": "แป๋ม — วางแผน OFM / ลำดับงาน", "tabs": ["ose-plan", "ofm-plan", "master-plan", "dash"]}, {"id": "ir", "icon": "🏭", "title": "จนท. คลัง IR", "sub": "จอย — รับเหล็กม้วน / เลือก MCID", "tabs": ["packing", "ose-plan"]}, {"id": "slit", "icon": "⚙️", "title": "จนท. Slitter", "sub": "สุภาพ / เอกภพ / สามารถ — บันทึกสลิท", "tabs": ["slit", "packing"]}, {"id": "ofm", "icon": "🔧", "title": "พนักงานผลิต", "sub": "เครื่องรีด / ลบคม / เกลียว / แพ็ค", "tabs": ["prod"]}, {"id": "qa", "icon": "🔍", "title": "จนท. QA", "sub": "บันทึกของเสีย FM-QA-08", "tabs": ["qa", "dash"]}, {"id": "supervisor", "icon": "👷", "title": "Production Supervisor", "sub": "ตรวจสอบพารามิเตอร์", "tabs": ["prod", "dash"]}];
 
 const SHIFTS = [
   {label:'07:00-12:00', hours:5},
@@ -1132,7 +1128,6 @@ const TABS_CONFIG = [
   {id:'ose-plan',    label:'🏭 IR Pick Mcoil'},
   {id:'master-plan', label:'📅 Master Plan'},
   {id:'slit',        label:'สลิท+น้ำหนัก'},
-  {id:'ax',          label:'AX Calc'},
   {id:'ofm-plan',    label:'วางแผน OFM'},
   {id:'prod',        label:'บันทึกผลิต'},
   {id:'qa',          label:'FM-08 ของเสีย'},
@@ -1473,7 +1468,7 @@ async function ensureToken(){
   if(graphToken) return true;
   if(!msalInstance) return false;
   try{
-    const resp=await msalInstance.loginPopup({scopes:['User.Read','Sites.ReadWrite.All']});
+    const resp=await msalInstance.loginPopup({scopes:['User.Read','Sites.ReadWrite.All','Chat.ReadWrite']});
     if(resp?.accessToken){ graphToken=resp.accessToken; return true; }
     return false;
   }catch(e){ console.error('ensureToken error:',e); return false; }
@@ -1488,7 +1483,7 @@ async function applyPacking(){
     if(!msalInstance){showToast('⚠️ MSAL ไม่พร้อม — reload หน้า');return;}
     if(btn){btn.disabled=true;btn.textContent='⏳ กำลัง login...';}
     try{
-      const resp=await msalInstance.loginPopup({scopes:['User.Read','Sites.ReadWrite.All']});
+      const resp=await msalInstance.loginPopup({scopes:['User.Read','Sites.ReadWrite.All','Chat.ReadWrite']});
       if(resp?.accessToken){
         graphToken=resp.accessToken;
         showToast('✅ Login สำเร็จ — กำลังบันทึก...');
@@ -2983,37 +2978,59 @@ function renderOSEPlanned(){
 // ─── SLIT บันทึก ──────────────────────────────────────────────────
 function renderSlitOSEList(){
   const el=document.getElementById('slit-ose-list');
-  // แสดง OSE จาก S.axJobs ที่ status = Pick หรือ 2.กำลังผลิต
-  // หรือจาก S.osePlans (local plan)
-  let plans=S.osePlans;
-  // ถ้าไม่มี osePlans ให้ดึงจาก axJobs ที่ Pick แล้ว
-  if(!plans.length){
-    const pickJobs=S.axJobs.filter(j=>(j.jobType==='OSE'||(j.prod||'').startsWith('OSE'))&&
-      (j.oseStatus||j.status||'').includes('Pick'));
-    if(pickJobs.length){
-      plans=pickJobs.map(j=>({
-        oseNo:j.prod, job:j,
-        mcids:S.mcids.filter(c=>c.oseNo===j.prod&&c.status==='ใช้แล้ว'),
-        slitDone:false
-      }));
+
+  // ดึง OSE ที่มี MCID status='ใช้แล้ว' (Pick แล้ว) จาก L4
+  // รวม osePlans + axJobs ที่ pick แล้ว
+  const oseNosWithMCID=[...new Set(S.mcids
+    .filter(c=>c.oseNo&&c.status==='ใช้แล้ว')
+    .map(c=>c.oseNo))];
+
+  let plans=[];
+  oseNosWithMCID.forEach(oseNo=>{
+    const existing=S.osePlans.find(p=>p.oseNo===oseNo);
+    const job=S.axJobs.find(j=>j.prod===oseNo)||{prod:oseNo,name:oseNo};
+    const mcids=S.mcids.filter(c=>c.oseNo===oseNo&&c.status==='ใช้แล้ว');
+    if(existing){
+      existing.mcids=mcids; // อัป mcids
+      plans.push(existing);
+    } else {
+      plans.push({oseNo,job,mcids,slitDone:false});
     }
-  }
+  });
+
+  // fallback: ถ้าไม่มี MCID ในคลัง → ดูจาก osePlans เดิม
+  if(!plans.length) plans=S.osePlans;
+
   if(!plans.length){
-    el.innerHTML='<div style="color:#888;font-size:13px;padding:20px;text-align:center">ยังไม่มีแผน OSE — Load L6 ก่อน</div>';
+    el.innerHTML='<div style="color:#888;font-size:13px;padding:20px;text-align:center">ยังไม่มีใบงาน — กด Load L4 ก่อน</div>';
     return;
   }
+
+  // เรียง: ยังไม่เสร็จขึ้นก่อน
+  plans.sort((a,b)=>{
+    const aDone=a.mcids.every(c=>S.slitData[c.serial]?.done)&&a.mcids.length>0;
+    const bDone=b.mcids.every(c=>S.slitData[c.serial]?.done)&&b.mcids.length>0;
+    return aDone-bDone;
+  });
+
   el.innerHTML=plans.map(p=>{
     const done=p.mcids.filter(c=>S.slitData[c.serial]?.done).length;
     const total=p.mcids.length;
     const allDone=done===total&&total>0;
     const isActive=S.selectedOSE===p.oseNo;
     return `<div class="ose-row ${isActive?'active':''}" onclick="selectSlitOSE('${p.oseNo}')"
-      style="cursor:pointer;margin-bottom:6px;${allDone?'opacity:.6':''}">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-        <div style="font-family:var(--mono);font-size:14px;font-weight:700;color:#1a7a1a">${p.oseNo}</div>
-        <span class="pill ${allDone?'p-ok':done>0?'p-blue':'p-amber'}">${done}/${total} ลูก${allDone?' ✓':''}</span>
+      style="cursor:pointer;margin-bottom:6px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+        <div style="font-family:var(--mono);font-size:14px;font-weight:700;color:${allDone?'#888':'#1a7a1a'}">${p.oseNo}</div>
+        <div style="display:flex;gap:5px;align-items:center">
+          ${allDone
+            ? `<span class="pill p-ok" style="font-size:12px;font-weight:700">✅ เสร็จสิ้น</span>`
+            : `<span class="pill ${done>0?'p-blue':'p-amber'}">${done}/${total} ลูก</span>`
+          }
+        </div>
       </div>
-      <div style="font-size:13px;color:#444;margin-top:3px">${p.job.name||p.job.prod||''}</div>
+      <div style="font-size:13px;color:${allDone?'#aaa':'#444'};margin-top:3px">${p.job.name||p.job.prod||''}</div>
+      ${allDone?`<div style="font-size:11px;color:var(--green);margin-top:4px">บันทึกน้ำหนักครบแล้ว · ${total} ลูก</div>`:''}
     </div>`;
   }).join('');
 }
@@ -3126,6 +3143,37 @@ function renderSlitMCIDForms(plan,formula){
   }).join('')||'<div style="color:#888;font-size:13px;padding:20px;text-align:center">ไม่มี MCID ที่ pick แล้วในใบงานนี้</div>';
 }
 
+// ── ส่ง Teams chat message ──────────────────────────────────────
+async function sendTeamsMessage(toEmail, message){
+  if(!graphToken) return false;
+  try{
+    const userRes=await graphGet(`/users/${toEmail}`);
+    if(!userRes?.id){ console.error('ไม่พบ user:', toEmail); return false; }
+    const toUserId=userRes.id;
+    const meRes=await graphGet('/me');
+    const meId=meRes?.id;
+    if(!meId) return false;
+    // สร้าง / หา 1:1 chat
+    const chatRes=await graphPost('/chats',{
+      chatType:'oneOnOne',
+      members:[
+        {'@odata.type':'#microsoft.graph.aadUserConversationMember',
+          roles:['owner'],
+          'user@odata.bind':`https://graph.microsoft.com/v1.0/users('${meId}')`},
+        {'@odata.type':'#microsoft.graph.aadUserConversationMember',
+          roles:['owner'],
+          'user@odata.bind':`https://graph.microsoft.com/v1.0/users('${toUserId}')`}
+      ]
+    });
+    const chatId=chatRes?.id;
+    if(!chatId){ console.error('สร้าง chat ไม่ได้'); return false; }
+    const msgRes=await graphPost(`/chats/${chatId}/messages`,{
+      body:{contentType:'html', content:message}
+    });
+    return !!msgRes?.id;
+  }catch(e){ console.error('sendTeamsMessage error:',e); return false; }
+}
+
 async function saveSlitWeight(serial,oseNo){
   const before=parseFloat(document.getElementById(`sl-before-${serial}`)?.value)||0;
   const after =parseFloat(document.getElementById(`sl-after-${serial}`)?.value)||0;
@@ -3179,7 +3227,6 @@ async function saveSlitWeight(serial,oseNo){
           if(ok){
             job.oseStatus='4.End-เสร็จสิ้น';
             job.status='4.End-เสร็จสิ้น';
-            // Summary popup
             const totalNet=plan.mcids.reduce((s,c)=>{
               const d=S.slitData[c.serial];
               return s+(d?d.net:0);
@@ -3188,6 +3235,16 @@ async function saveSlitWeight(serial,oseNo){
             setTimeout(()=>{
               alert(`✅ สลิทครบแล้ว!\n\nOSE: ${oseNo}\nจำนวน: ${plan.mcids.length} ลูก\nน้ำหนัก Net รวม: ${totalNet.toFixed(3)} kg\n\nStatus L6 → 4.End-เสร็จสิ้น`);
             },500);
+            // ส่ง Teams แจ้ง Duke (AP)
+            const teamsMsg=`🏭 <b>สลิทเสร็จสิ้น</b><br>
+OSE: <b>${oseNo}</b><br>
+จำนวน: ${plan.mcids.length} ลูก<br>
+น้ำหนัก Net รวม: <b>${totalNet.toFixed(3)} kg</b><br>
+บันทึกโดย: ${S.user?.name||'Slitter'}<br>
+<i>กรุณาตรวจสอบใน L4 และ Key เข้า AX</i>`;
+            sendTeamsMessage('jaturon@ziga.co.th', teamsMsg)
+              .then(ok=>{ if(ok) showToast('📨 แจ้ง Duke ทาง Teams แล้ว'); })
+              .catch(()=>{});
           }
         }
       }
@@ -3576,7 +3633,7 @@ window.addEventListener('load', async function(){
       // ถ้า session storage ยังมี token จาก MSAL cache ให้ดึงมาใช้
       try{
         const resp = await msalInstance.loginPopup({
-          scopes:['User.Read','Sites.ReadWrite.All'],
+          scopes:['User.Read','Sites.ReadWrite.All','Chat.ReadWrite'],
           prompt:'none' // silent — ไม่แสดง popup ถ้า session ยังอยู่
         });
         if(resp?.accessToken){
