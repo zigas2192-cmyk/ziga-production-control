@@ -1393,35 +1393,34 @@ const SCH_STATUSES = [
 ];
 
 function initSchFilterChips(){
-  // เครื่องจักร chips
   const mEl=document.getElementById('sch-machine-chips');
-  if(mEl && mEl.children.length===0){
+  if(mEl && !mEl.dataset.init){
+    mEl.dataset.init='1';
+    mEl.innerHTML=''; // clear whitespace
     MACHINE_GROUPS.forEach(grp=>{
-      // Group label
-      const glbl=document.createElement('span');
-      glbl.style.cssText='font-size:11px;color:#888;padding:3px 0;display:flex;align-items:center;width:100%;margin-top:4px';
-      glbl.textContent=grp.icon+' '+grp.label+':';
+      const glbl=document.createElement('div');
+      glbl.style.cssText='font-size:11px;color:#888;padding:3px 0 3px;display:flex;align-items:center;width:100%;margin-top:6px;font-weight:600';
+      glbl.textContent=grp.icon+' '+grp.label;
       mEl.appendChild(glbl);
       grp.machines.forEach(m=>{
         const chip=document.createElement('button');
         chip.dataset.val=m;
-        chip.dataset.type='machine';
         chip.textContent=m;
-        chip.style.cssText=`padding:4px 10px;border-radius:20px;font-size:11px;cursor:pointer;border:1px solid var(--b2);background:var(--panel);color:#333;font-family:var(--sans);transition:all .12s`;
-        chip.onclick=()=>toggleSchChip('machine',m,chip);
+        chip.style.cssText='padding:5px 11px;border-radius:20px;font-size:12px;cursor:pointer;border:1px solid var(--b2);background:var(--panel);color:#333;font-family:var(--sans);transition:all .12s;font-weight:500';
+        chip.onclick=()=>toggleSchChip('machine',m,chip,grp.color);
         mEl.appendChild(chip);
       });
     });
   }
-  // สถานะ chips
   const sEl=document.getElementById('sch-status-chips');
-  if(sEl && sEl.children.length===0){
+  if(sEl && !sEl.dataset.init){
+    sEl.dataset.init='1';
+    sEl.innerHTML='';
     SCH_STATUSES.forEach(s=>{
       const chip=document.createElement('button');
       chip.dataset.val=s.val;
-      chip.dataset.type='status';
       chip.textContent=s.label;
-      chip.style.cssText=`padding:5px 12px;border-radius:20px;font-size:12px;cursor:pointer;border:1px solid var(--b2);background:var(--panel);color:#333;font-family:var(--sans);transition:all .12s;font-weight:500`;
+      chip.style.cssText='padding:5px 14px;border-radius:20px;font-size:12px;cursor:pointer;border:1px solid var(--b2);background:var(--panel);color:#333;font-family:var(--sans);transition:all .12s;font-weight:500';
       chip.onclick=()=>toggleSchChip('status',s.val,chip,s.color);
       sEl.appendChild(chip);
     });
@@ -1450,14 +1449,14 @@ function toggleSchChip(type, val, el, color){
 function clearSchFilters(){
   schFilter.machines.clear();
   schFilter.statuses.clear();
-  // Reset chip styles
   document.querySelectorAll('#sch-machine-chips button,#sch-status-chips button').forEach(ch=>{
     ch.style.background='var(--panel)';
     ch.style.color='#333';
     ch.style.borderColor='var(--b2)';
-    ch.style.fontWeight='400';
+    ch.style.fontWeight='500';
   });
-  document.getElementById('mp-sch-search').value='';
+  const s=document.getElementById('mp-sch-search');
+  if(s) s.value='';
   renderMachineSchedule();
 }
 
