@@ -1419,24 +1419,12 @@ async function detectL4Fields(){
   }catch(e){ console.warn('detectL4Fields error:',e); }
 }
 
-// wrapper สำหรับ PATCH L4
-// field_12=MCIDStatus (จาก GET), field_11=OSENo
-// ถ้า field_12 ไม่ work → retry ด้วย MCIDStatus (display name)
 async function patchL4MCID(spId, oseNo, statusVal){
   const fields={};
-  if(oseNo!==undefined)     fields.field_11 = oseNo;
-  if(statusVal!==undefined) fields.field_12  = statusVal;
+  if(oseNo!==undefined)     fields.OSENo      = oseNo;       // custom column display name
+  if(statusVal!==undefined) fields.MCIDStatus = statusVal;   // Choice column display name
   console.log(`🔧 PATCH L4 item ${spId} →`, JSON.stringify(fields));
-  const ok = await spPatchItem(SP_LISTS.L4, spId, fields);
-  if(!ok && statusVal!==undefined){
-    // Retry: SP choice column อาจต้องใช้ display name ตอน PATCH
-    const fields2={};
-    if(oseNo!==undefined) fields2.field_11=oseNo;
-    fields2.MCIDStatus=statusVal;
-    console.log(`🔄 Retry PATCH L4 with MCIDStatus display name:`, JSON.stringify(fields2));
-    return spPatchItem(SP_LISTS.L4, spId, fields2);
-  }
-  return ok;
+  return spPatchItem(SP_LISTS.L4, spId, fields);
 }
 async function ensureToken(){
   if(graphToken) return true;
@@ -1477,49 +1465,37 @@ async function applyPacking(){
 
   showProgress('กำลังบันทึกเข้า SharePoint L4...',0,S._pendingMCIDs.length);
 
-  // field mapping จาก Raw data ที่ยืนยันแล้ว:
-  // field_1=ItemNumber, field_2=ProductName, field_3=BatchNumber
-  // field_4=ThicknessMM, field_5=WidthMM, field_6=WeightKG(กรัม as text)
-  // field_7=Factory, field_8=Coating, field_9=PONo
-  // field_12=MCIDStatus (Choice: "1.stockในคลัง")
-  // OSENo ยังไม่เห็นใน raw — ลองทั้ง field_11 และ OSENo
+  // จาก SP column headers จริง: ItemNumber, ProductName, BatchNumber,
+  // ThicknessMM, WidthMM, WeightKG, Factory, Coating, PONo, MCIDStatus(Choice), OSENo
 
   for(let i=0;i<S._pendingMCIDs.length;i++){
     const c=S._pendingMCIDs[i];
     showProgress(`กำลังบันทึก ${c.serial} (${i+1}/${S._pendingMCIDs.length})`,i+1,S._pendingMCIDs.length);
     try{
+      // POST ด้วย text/number fields ก่อน (ไม่รวม Choice)
       const fields={
-        Title:    String(c.serial||'').trim(),
-        field_1:  c.item    ? String(c.item).trim()    : undefined,
-        field_2:  c.name    ? String(c.name).trim()    : undefined,
-        field_3:  c.batch   ? String(c.batch).trim()   : undefined,
-        field_4:  c.thick>0 ? String(c.thick)          : undefined,
-        field_5:  c.width>0 ? String(c.width)          : undefined,
-        field_6:  c.wt_kg>0 ? String(Math.round(c.wt_kg*1000)) : undefined,
-        field_7:  c.factory ? String(c.factory).trim() : undefined,
-        field_8:  c.coating ? String(c.coating).trim() : undefined,
-        field_9:  c.pono    ? String(c.pono).trim()    : undefined,
-        // Choice column: ลองส่งทั้ง 2 ชื่อ — SP Graph API บางครั้งต้องใช้ display name
-        field_12: '1.stockในคลัง',
+        Title:       String(c.serial||'').trim(),
+        ItemNumber:  c.item    ? String(c.item).trim()    : undefined,
+        ProductName: c.name    ? String(c.name).trim()    : undefined,
+        BatchNumber: c.batch   ? String(c.batch).trim()   : undefined,
+        ThicknessMM: c.thick>0 ? Number(c.thick)          : undefined,
+        WidthMM:     c.width>0 ? Number(c.width)          : undefined,
+        WeightKG:    c.wt_kg>0 ? Number(c.wt_kg)          : undefined,
+        Factory:     c.factory ? String(c.factory).trim() : undefined,
+        Coating:     c.coating ? String(c.coating).trim() : undefined,
+        PONo:        c.pono    ? String(c.pono).trim()    : undefined,
       };
-      // Remove undefined
       Object.keys(fields).forEach(k=>{ if(fields[k]===undefined||fields[k]==='') delete fields[k]; });
       console.log('📝 spAddItem L4:', c.serial, JSON.stringify(fields));
-      let result=await spAddItem(SP_LISTS.L4, fields);
-      if(!result){
-        // Retry without Choice field — อาจ SP ไม่ยอม POST Choice ผ่าน field_12
-        // ลอง POST โดยไม่มี field_12 ก่อน แล้วค่อย PATCH เพิ่ม
-        const fieldsNoChoice={...fields};
-        delete fieldsNoChoice.field_12;
-        console.log('🔄 Retry spAddItem without field_12:', c.serial);
-        result=await spAddItem(SP_LISTS.L4, fieldsNoChoice);
-        if(result){
-          // PATCH MCIDStatus แยก
-          await spPatchItem(SP_LISTS.L4, result.id, {field_12:'1.stockในคลัง'});
-        }
+      const result=await spAddItem(SP_LISTS.L4, fields);
+      if(result){
+        c.spId=result.id;
+        // PATCH Choice column แยก (SP Graph API Choice ต้อง PATCH ไม่ใช่ POST)
+        await spPatchItem(SP_LISTS.L4, result.id, {MCIDStatus:'ว่าง'});
+        saved++;
+      } else {
+        console.error('spAddItem null for', c.serial); skipped++;
       }
-      if(result){ c.spId=result.id; saved++; }
-      else { console.error('spAddItem null for', c.serial); skipped++; }
     }catch(err){ console.error('SP write error:',c.serial,err); errors++; }
   }
 
@@ -1541,24 +1517,24 @@ async function loadL4FromSP(){
     // Early columns (field_1..field_9) ใช้ field_N
     S.mcids=items.map(f=>({
       serial:   f.Title||'',
-      item:     f.field_1||'',
-      name:     f.field_2||'',
-      batch:    f.field_3||'',
-      thick:    parseFloat(f.field_4)||0,
-      width:    parseFloat(f.field_5)||1250,
-      wt_kg:    parseFloat(f.field_6)||0,  // stored as grams text → parse as number
-      factory:  f.field_7||'',
-      coating:  f.field_8||'',
-      pono:     f.field_9||'',
-      recDate:  f.field_10||'',
-      oseNo:    f.field_11||'',
-      status:   f.field_12||'1.stockในคลัง',
-      used:    (f.field_12||'')==='2.pickเข้าใบงานOSE'||(f.field_12||'')==='3.slitแล้ว',
+      item:     f.ItemNumber ||f.field_1||'',
+      name:     f.ProductName||f.field_2||'',
+      batch:    f.BatchNumber||f.field_3||'',
+      thick:    parseFloat(f.ThicknessMM||f.field_4)||0,
+      width:    parseFloat(f.WidthMM    ||f.field_5)||1250,
+      wt_kg:    parseFloat(f.WeightKG   ||f.field_6)||0,
+      factory:  f.Factory    ||f.field_7||'',
+      coating:  f.Coating    ||f.field_8||'',
+      pono:     f.PONo       ||f.field_9||'',
+      recDate:  f.ReceivedDate||f.field_10||'',
+      oseNo:    f.OSENo      ||f.field_11||'',
+      status:   f.MCIDStatus ||f.field_12||'ว่าง',
+      used:    (f.MCIDStatus||f.field_12||'')==='ใช้แล้ว'||(f.MCIDStatus||f.field_12||'')==='3.slitแล้ว',
       wBefore:  parseFloat(f.field_13)||0,
       wAfter:   parseFloat(f.field_14)||0,
       wScrap:   parseFloat(f.field_15)||0,
       wNet:     parseFloat(f.field_16)||0,
-      remarks:  f.field_17||'',
+      remarks:  f.Remarks||f.field_17||'',
       spId:     f.id||'',
     }));
     hideProgress();
@@ -2681,7 +2657,7 @@ function renderOSEPending(){
   el.innerHTML=oses.map(o=>{
     const st=o.oseStatus||o.status||'';
     const stColor=OSE_STATUS_COLOR[st]||'p-gray';
-    const mcidCount=S.mcids.filter(m=>m.oseNo===o.prod&&m.status==='2.pickเข้าใบงานOSE').length;
+    const mcidCount=S.mcids.filter(m=>m.oseNo===o.prod&&m.status==='ใช้แล้ว').length;
     const isActive=selOSEId===o.prod;
     return `
     <div class="ose-row ${isActive?'active':''}" onclick="selectOSE('${o.prod}')"
@@ -2707,7 +2683,7 @@ function selectOSE(prod){
   if(!job) return;
 
   // Check if already picked — pre-select MCIDs
-  const alreadyPicked=S.mcids.filter(c=>c.oseNo===prod&&c.status==='2.pickเข้าใบงานOSE');
+  const alreadyPicked=S.mcids.filter(c=>c.oseNo===prod&&c.status==='ใช้แล้ว');
   alreadyPicked.forEach(c=>{ if(!selMCIDs.includes(c.serial)) selMCIDs.push(c.serial); });
 
   const st=job.oseStatus||job.status||'';
@@ -2874,7 +2850,7 @@ async function saveOSEPlan(){
     order:parseInt(document.getElementById('ose-order')?.value)||1,
     estimate:document.getElementById('ose-estimate')?.value||'',
     slitDone:false});
-  mcids.forEach(c=>{const mc=S.mcids.find(x=>x.serial===c.serial);if(mc){mc.used=true;mc.oseNo=selOSEId;mc.status='2.pickเข้าใบงานOSE';}});
+  mcids.forEach(c=>{const mc=S.mcids.find(x=>x.serial===c.serial);if(mc){mc.used=true;mc.oseNo=selOSEId;mc.status='ใช้แล้ว';}});
 
   // Update job status locally
   if(job){ job.oseStatus=newStatus; job.status=newStatus; if(remark) job.remarks=remark; }
@@ -2918,7 +2894,7 @@ async function saveOSEPlan(){
       const c=mcids[i];
       showProgress(`${c.serial} (${i+1}/${mcids.length})`,i+1,mcids.length);
       if(c.spId){
-        const ok=await patchL4MCID(c.spId, selOSEId, '2.pickเข้าใบงานOSE');
+        const ok=await patchL4MCID(c.spId, selOSEId, 'ใช้แล้ว');
         if(ok) l4ok++;
         else{ console.error('PATCH failed:',c.serial); l4skip++; }
       } else {
@@ -2974,7 +2950,7 @@ function renderSlitOSEList(){
     if(pickJobs.length){
       plans=pickJobs.map(j=>({
         oseNo:j.prod, job:j,
-        mcids:S.mcids.filter(c=>c.oseNo===j.prod&&c.status==='2.pickเข้าใบงานOSE'),
+        mcids:S.mcids.filter(c=>c.oseNo===j.prod&&c.status==='ใช้แล้ว'),
         slitDone:false
       }));
     }
@@ -3006,7 +2982,7 @@ function selectSlitOSE(oseNo){
   if(!plan){
     const job=S.axJobs.find(j=>j.prod===oseNo);
     if(!job) return;
-    const mcids=S.mcids.filter(c=>c.oseNo===oseNo&&c.status==='2.pickเข้าใบงานOSE');
+    const mcids=S.mcids.filter(c=>c.oseNo===oseNo&&c.status==='ใช้แล้ว');
     plan={oseNo,job,mcids,slitDone:false};
     S.osePlans.push(plan);
   }
