@@ -1062,17 +1062,64 @@ const TABS_CONFIG = [
 // ─── STATE ────────────────────────────────────────────────────────
 const S = {
   user:null, selectedRole:null,
-  mcids:[],          // packing list
-  axJobs:[],         // from AX export
-  osePlans:[],       // planned OSE with MCID selection
-  ofmPlans:[],       // OFM daily plan
-  slitData:{},       // Serial → {before,after,scrap,done}
-  prodData:{},       // planId → actual result
+  mcids:[],
+  axJobs:[],
+  osePlans:[],
+  ofmPlans:[],
+  slitData:{},
+  prodData:{},
   defects:[],
-  selectedOSE:null,  // for slit page
+  selectedOSE:null,
   selectedOFMPlan:null,
   selectedDefType:null,
 };
+
+// ── State persistence helpers ─────────────────────────────────────
+const STATE_KEY='ziga_app_state';
+const STATE_VER=3; // bump to invalidate old cache
+
+function saveState(){
+  try{
+    const data={
+      v: STATE_VER,
+      savedAt: Date.now(),
+      mcids:   S.mcids,
+      axJobs:  S.axJobs,
+      osePlans:S.osePlans,
+      ofmPlans:S.ofmPlans,
+      slitData:S.slitData,
+      defects: S.defects,
+    };
+    localStorage.setItem(STATE_KEY, JSON.stringify(data));
+  }catch(e){ console.warn('saveState error:',e); }
+}
+
+function loadState(){
+  try{
+    const raw=localStorage.getItem(STATE_KEY);
+    if(!raw) return false;
+    const data=JSON.parse(raw);
+    if(data.v!==STATE_VER){ localStorage.removeItem(STATE_KEY); return false; }
+    // ไม่ restore ถ้าข้อมูลเก่ากว่า 24 ชั่วโมง
+    if(Date.now()-data.savedAt > 24*60*60*1000){
+      localStorage.removeItem(STATE_KEY); return false;
+    }
+    if(data.mcids  ) S.mcids   = data.mcids;
+    if(data.axJobs ) S.axJobs  = data.axJobs;
+    if(data.osePlans)S.osePlans= data.osePlans;
+    if(data.ofmPlans)S.ofmPlans= data.ofmPlans;
+    if(data.slitData)S.slitData= data.slitData;
+    if(data.defects) S.defects = data.defects;
+    console.log(`✅ State restored: ${S.mcids.length} MCID · ${S.axJobs.length} jobs`);
+    return true;
+  }catch(e){ console.warn('loadState error:',e); return false; }
+}
+
+function clearState(){
+  try{ localStorage.removeItem(STATE_KEY); }catch(e){}
+  S.mcids=[]; S.axJobs=[]; S.osePlans=[];
+  S.ofmPlans=[]; S.slitData={}; S.defects=[];
+}
 
 // ─── LOGIN ────────────────────────────────────────────────────────
 const roleGrid = document.getElementById('role-grid');
@@ -1138,8 +1185,11 @@ function doLogin(){
 }
 function logout(){
   S.user=null; S.selectedRole=null; graphToken=null;
-  // ── ลบ session ──────────────────────────────────────────────────
   try{ localStorage.removeItem('ziga_session'); }catch(e){}
+  // ถามว่าจะล้าง data cache ด้วยไหม
+  if(confirm('ล้างข้อมูล cache (MCID/Jobs) ด้วยไหม?\n\nกด OK = ล้างทั้งหมด (ต้อง Load L6 ใหม่)\nกด Cancel = เก็บ cache ไว้')){
+    clearState();
+  }
   document.getElementById('login-overlay').style.display='flex';
   document.getElementById('login-step0').style.display='block';
   document.getElementById('login-step1').style.display='none';
@@ -1228,7 +1278,7 @@ async function applyPacking(){
   // Check token — if no Graph token fall back to local only
   if(!graphToken){
     S.mcids=[...S._pendingMCIDs];
-    renderPackingList();updatePackingStats();
+    renderPackingList();updatePackingStats();saveState();
     if(btn){btn.disabled=false;btn.textContent='✓ ยืนยันรับเข้าคลัง';}
     alert(`✓ รับเข้าคลัง ${S.mcids.length} MCID (local เท่านั้น — ยังไม่ได้ connect SharePoint)`);
     return;
@@ -1278,7 +1328,7 @@ async function applyPacking(){
 
   hideProgress();
   S.mcids=[...S._pendingMCIDs];
-  renderPackingList();updatePackingStats();
+  renderPackingList();updatePackingStats();saveState();
   if(btn){btn.disabled=false;btn.textContent='✓ ยืนยันรับเข้าคลัง';}
   alert(`✅ บันทึกเข้า SharePoint L4 แล้ว\n✓ สำเร็จ: ${saved}\n⚠️ ข้าม: ${skipped}\n❌ Error: ${errors}`);
 }
@@ -1320,8 +1370,9 @@ async function loadL4FromSP(){
       spId:     f.id||'',
     }));
     hideProgress();
-    renderPackingList();updatePackingStats();
+    renderPackingList();updatePackingStats();saveState();
     console.log(`✅ Loaded ${S.mcids.length} MCID from L4`);
+    saveState();
   }catch(e){hideProgress();console.error('loadL4 error:',e);}
 }
 
@@ -2044,8 +2095,9 @@ async function loadL6FromSP(){
       used:         false,
     }));
     hideProgress();
-    renderOSEPending();buildOFMJobSelect();
+    renderOSEPending();buildOFMJobSelect();saveState();
     console.log(`✅ Loaded ${S.axJobs.length} jobs from L6`);
+    saveState();
   }catch(e){hideProgress();console.error('loadL6 error:',e);}
 }
 
@@ -2205,7 +2257,7 @@ async function applyAX(){
 
   // Always update local state
   S.axJobs=[...S._pendingAX];
-  renderOSEPending();buildOFMJobSelect();
+  renderOSEPending();buildOFMJobSelect();saveState();
 
   if(!graphToken){
     if(btn){btn.disabled=false;btn.textContent='✓ นำเข้าระบบ';}
@@ -3048,11 +3100,20 @@ window.addEventListener('load', async function(){
   // ── ลอง restore session ──────────────────────────────────────
   if(restoreSession()){
     console.log('✅ Session restored:', S.user?.name);
+    // ── โหลด state (MCID + jobs) จาก localStorage ──────────────
+    const hasState=loadState();
     document.getElementById('login-overlay').style.display='none';
     buildNav();
     initDefGrid();
     setToday();
     navigate(S.selectedRole.tabs[0]);
+    // render ข้อมูลที่ restore มา
+    if(hasState){
+      renderPackingList();updatePackingStats();
+      renderOSEPending();
+      renderDash();
+      showToast(`✅ โหลดข้อมูลจาก cache: ${S.mcids.length} MCID · ${S.axJobs.length} jobs`);
+    }
 
     // ลอง re-acquire token แบบ silent ถ้ายังไม่มี
     if(!graphToken && ready){
