@@ -595,14 +595,17 @@ table.ax-t .ax-total{background:var(--green-lt);color:var(--green);font-weight:6
 
       <!-- Work Queue Tab -->
       <div id="mp-queue" class="mp-content">
-        <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
-          <div style="font-size:12px;font-weight:500;color:var(--ink2)">แสดง 5 งานถัดไป</div>
-          <select id="mp-machine-filter" onchange="renderWorkQueue()" style="padding:5px 8px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:12px;outline:none">
-            <option value="">ทุกเครื่อง</option>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+          <div style="font-size:12px;font-weight:500;color:var(--ink2)">งานทั้งหมด · สถานะ 0–3</div>
+          <select id="mp-machine-filter" onchange="renderWorkQueue()" style="padding:5px 8px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:11px;outline:none">
+            <option value="">🪙 OSE: ทุกเครื่อง</option>
             <option value="SL_01">SL_01</option>
             <option value="SL_02">SL_02</option>
           </select>
-          <button onclick="loadL6FromSP().then(renderWorkQueue)" style="padding:5px 10px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:11px;cursor:pointer">🔄 Refresh</button>
+          <button onclick="loadL6FromSP().then(()=>{renderWorkQueue();showToast('✅ Load L6 แล้ว — '+S.axJobs.length+' jobs');})"
+            style="padding:5px 10px;border:1px solid var(--blue-bd);border-radius:var(--rs);background:var(--blue-bg);color:var(--blue);font-size:11px;cursor:pointer;font-family:var(--sans)">🔄 Load L6 จาก SP</button>
+          <button onclick="renderWorkQueue()" style="padding:5px 10px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:11px;cursor:pointer">↻</button>
+          <span id="mp-queue-info" style="font-size:10px;color:var(--ink3)"></span>
         </div>
         <div id="mp-queue-list"></div>
       </div>
@@ -1294,57 +1297,124 @@ function initMasterPlan(){
 }
 
 // ── Work Queue ───────────────────────────────────────────────────
+// status 0-3 = active (exclude 4.End and 5.Cancle)
+const ACTIVE_STATUS_PREFIX=['0.','1.','2','3.','Pick-'];
+function isActiveStatus(st){
+  if(!st) return true; // no status = include
+  if(st.startsWith('4.End')||st.startsWith('5.Cancle')) return false;
+  return true;
+}
+
 function renderWorkQueue(){
   const el=document.getElementById('mp-queue-list');
   if(!el) return;
   const machFilter=document.getElementById('mp-machine-filter')?.value||'';
 
-  // Get OSE jobs sorted by priority then startDate, filter out done/cancelled
-  const doneStatus=['4.End-เสร็จสิ้น','5.Cancle-ยกเลิก'];
-  let jobs=S.axJobs.filter(j=>(j.jobType==='OSE'||j.type==='OSE')&&!doneStatus.includes(j.oseStatus||j.status||''));
-  if(machFilter) jobs=jobs.filter(j=>j.machine===machFilter);
+  // Partition all axJobs into OSE / OFM / ORW, status 0-3
+  const allActive=S.axJobs.filter(j=>isActiveStatus(j.oseStatus||j.status||''));
+  let oseJobs = allActive.filter(j=>j.jobType==='OSE'||j.type==='OSE'||(j.prod||'').startsWith('OSE'));
+  let ofmJobs = allActive.filter(j=>j.jobType==='OFM'||j.type==='OFM'||(j.prod||'').startsWith('OFM'));
+  let orwJobs = allActive.filter(j=>j.jobType==='ORW'||j.type==='ORW'||(j.prod||'').startsWith('ORW'));
 
-  // Sort: priority ASC, then startDate ASC
-  jobs.sort((a,b)=>{
+  // machine filter applies only to OSE (they have machine assigned)
+  if(machFilter) oseJobs=oseJobs.filter(j=>!j.machine||j.machine===machFilter);
+
+  // Sort OSE by priority then startDate; OFM/ORW by prod descending (newest first)
+  oseJobs.sort((a,b)=>{
     const pa=parseInt(a.priority)||999, pb=parseInt(b.priority)||999;
     if(pa!==pb) return pa-pb;
-    const da=a.startDate||'9999', db=b.startDate||'9999';
-    return da.localeCompare(db);
+    return (a.startDate||'9999').localeCompare(b.startDate||'9999');
   });
+  ofmJobs.sort((a,b)=>(b.prod||'').localeCompare(a.prod||''));
+  orwJobs.sort((a,b)=>(b.prod||'').localeCompare(a.prod||''));
 
-  const slot=jobs.slice(0,5);
-  if(!slot.length){
-    el.innerHTML='<div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center">ไม่มีงานในคิว — นำเข้า AX และกำหนดสถานะก่อน</div>';
+  if(!oseJobs.length&&!ofmJobs.length&&!orwJobs.length){
+    el.innerHTML='<div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center">ไม่มีงานในคิว — นำเข้า AX หรือ Load L6 จาก SP ก่อน</div>';
     return;
   }
 
-  el.innerHTML=slot.map((j,i)=>{
+  // ── OSE Card builder ──────────────────────────────────────────
+  function oseCard(j,i,limit){
     const st=j.oseStatus||j.status||'';
     const stColor=OSE_STATUS_COLOR[st]||'p-gray';
     const startStr=j.startDate?j.startDate.slice(0,10):'ยังไม่กำหนด';
-    const mcids=S.mcids.filter(m=>m.oseNo===j.prod||m.oseNo===j.prod);
     const mcidCount=S.mcids.filter(m=>m.status==='จ่ายแล้ว'&&m.oseNo===j.prod).length;
-    return `
-    <div class="queue-card" style="border-left:3px solid ${i===0?'var(--green)':i===1?'var(--blue)':'var(--b2)'}">
-      <div class="queue-rank">${j.priority||i+1}</div>
+    const ofmRef=j.item||j.ofmRef||'';
+    return `<div class="queue-card" style="border-left:3px solid ${i===0?'var(--green)':i===1?'var(--blue)':'var(--b2)'}">
+      <div class="queue-rank" style="background:var(--green-bg);border-color:var(--green-bd);color:var(--green)">${j.priority||i+1}</div>
       <div class="queue-body">
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:3px">
           <span class="queue-ose">${j.prod}</span>
           <span class="pill ${stColor}" style="font-size:9px">${st||'ไม่ระบุ'}</span>
           ${j.machine?`<span class="pill p-blue" style="font-size:9px">${j.machine}</span>`:''}
+          ${i===0?`<span class="pill p-ok" style="font-size:9px">▶ Next</span>`:''}
         </div>
         <div class="queue-formula">${j.name||''}</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;align-items:center">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:5px;align-items:center">
           ${j.thick?`<span class="pill p-gray" style="font-size:9px">${j.thick}mm</span>`:''}
           ${j.qty?`<span class="pill p-gray" style="font-size:9px">QTY:${Number(j.qty).toLocaleString()}</span>`:''}
           <span class="pill p-teal" style="font-size:9px">📅 ${startStr}</span>
           ${mcidCount?`<span class="pill p-ok" style="font-size:9px">🪙 ${mcidCount} ลูก</span>`:''}
-          ${j.ofmRef?`<span class="pill p-purple" style="font-size:9px">OFM: ${j.ofmRef.slice(0,20)}</span>`:''}
+          ${ofmRef?`<span class="pill p-purple" style="font-size:9px">→ ${ofmRef.slice(0,18)}</span>`:''}
         </div>
       </div>
-      ${i===0?`<span class="pill p-ok" style="font-size:10px">▶ กำลังดำเนินการ</span>`:''}
     </div>`;
-  }).join('');
+  }
+
+  // ── OFM/ORW Row builder (compact table) ──────────────────────
+  function jobRows(jobs, limit){
+    return jobs.slice(0,limit).map(j=>{
+      const st=j.oseStatus||j.status||'';
+      const stColor=OSE_STATUS_COLOR[st]||'p-gray';
+      return `<tr>
+        <td class="mono" style="font-size:11px;color:var(--blue)">${j.prod}</td>
+        <td style="font-size:10px;color:var(--ink3);max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${j.name||''}</td>
+        <td>${j.thick?`<span class="pill p-gray" style="font-size:9px">${j.thick}mm</span>`:''}</td>
+        <td class="mono" style="font-size:10px">${j.qty?Number(j.qty).toLocaleString():'-'}</td>
+        <td><span class="pill ${stColor}" style="font-size:9px">${st||'ไม่ระบุ'}</span></td>
+        <td style="font-size:10px;color:var(--ink3)">${j.startDate?j.startDate.slice(0,10):'-'}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // ── Section header ────────────────────────────────────────────
+  function sectionHd(label, count, color){
+    return `<div style="display:flex;align-items:center;gap:8px;margin:14px 0 8px">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:${color}">${label}</div>
+      <span class="pill" style="background:${color}22;border-color:${color}44;color:${color};font-size:10px">${count} ใบ</span>
+    </div>`;
+  }
+
+  let html='';
+
+  // ── Section 1: OSE ────────────────────────────────────────────
+  if(oseJobs.length){
+    html+=sectionHd('🪙 OSE — สลิทเหล็กม้วน',oseJobs.length,'var(--green)');
+    html+=oseJobs.slice(0,5).map((j,i)=>oseCard(j,i,5)).join('');
+    if(oseJobs.length>5) html+=`<div style="font-size:11px;color:var(--ink3);text-align:center;padding:6px">... และอีก ${oseJobs.length-5} ใบ</div>`;
+  }
+
+  // ── Section 2: OFM ───────────────────────────────────────────
+  if(ofmJobs.length){
+    html+=sectionHd('🔧 OFM — ใบงานผลิต (รีด/สลิท)',ofmJobs.length,'var(--blue)');
+    html+=`<div class="tbl-wrap"><table class="ft">
+      <thead><tr><th>OFM No.</th><th>ชื่องาน</th><th>หนา</th><th>QTY</th><th>สถานะ</th><th>เริ่ม</th></tr></thead>
+      <tbody>${jobRows(ofmJobs,10)}</tbody>
+    </table></div>`;
+    if(ofmJobs.length>10) html+=`<div style="font-size:11px;color:var(--ink3);text-align:center;padding:6px">... และอีก ${ofmJobs.length-10} ใบ</div>`;
+  }
+
+  // ── Section 3: ORW ───────────────────────────────────────────
+  if(orwJobs.length){
+    html+=sectionHd('⚙️ ORW — ใบงานข้อต่อ',orwJobs.length,'var(--purple)');
+    html+=`<div class="tbl-wrap"><table class="ft">
+      <thead><tr><th>ORW No.</th><th>ชื่องาน</th><th>หนา</th><th>QTY</th><th>สถานะ</th><th>เริ่ม</th></tr></thead>
+      <tbody>${jobRows(orwJobs,8)}</tbody>
+    </table></div>`;
+    if(orwJobs.length>8) html+=`<div style="font-size:11px;color:var(--ink3);text-align:center;padding:6px">... และอีก ${orwJobs.length-8} ใบ</div>`;
+  }
+
+  el.innerHTML=html;
 }
 
 // ── Monthly Plan Calculator ──────────────────────────────────────
@@ -1423,48 +1493,72 @@ function renderOSEMapping(){
   const q=(document.getElementById('mp-map-search')?.value||'').toLowerCase();
   const stFilter=document.getElementById('mp-map-status')?.value||'';
 
-  let jobs=S.axJobs.filter(j=>j.jobType==='OSE'||j.type==='OSE');
-  if(q) jobs=jobs.filter(j=>(j.prod||'').toLowerCase().includes(q)||(j.name||'').toLowerCase().includes(q));
-  if(stFilter) jobs=jobs.filter(j=>(j.oseStatus||j.status||'')===stFilter);
-  jobs.sort((a,b)=>(parseInt(a.priority)||999)-(parseInt(b.priority)||999));
+  let oseJobs=S.axJobs.filter(j=>j.jobType==='OSE'||j.type==='OSE'||(j.prod||'').startsWith('OSE'));
+  if(q) oseJobs=oseJobs.filter(j=>(j.prod||'').toLowerCase().includes(q)||(j.name||'').toLowerCase().includes(q));
+  if(stFilter) oseJobs=oseJobs.filter(j=>(j.oseStatus||j.status||'')===stFilter);
+  oseJobs.sort((a,b)=>(parseInt(a.priority)||999)-(parseInt(b.priority)||999));
 
-  if(!jobs.length){el.innerHTML='<div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center">ไม่มี OSE</div>';return;}
+  if(!oseJobs.length){
+    el.innerHTML='<div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center">ไม่มี OSE — Load L6 จาก SP ก่อน</div>';
+    return;
+  }
 
-  // Get OFM jobs for dropdown
-  const ofmJobs=S.axJobs.filter(j=>j.jobType==='OFM'||j.type==='OFM');
+  // OFM list from SAME L6 table
+  const ofmJobs=S.axJobs
+    .filter(j=>j.jobType==='OFM'||j.type==='OFM'||(j.prod||'').startsWith('OFM'))
+    .sort((a,b)=>(b.prod||'').localeCompare(a.prod||''));
+
+  const ofmOptHtml=`<option value="">— ยังไม่จับคู่ —</option>`+
+    ofmJobs.map(o=>`<option value="${o.prod}">${o.prod}${o.name?' — '+o.name.slice(0,40):''}</option>`).join('');
 
   el.innerHTML=`
-  <div class="map-row" style="background:var(--panel);font-size:10px;color:var(--ink3);font-weight:500">
-    <div>OSE No. / ลำดับ</div><div>SlitFormula</div><div>OFM ที่จับคู่</div><div>Action</div>
+  <div style="font-size:10px;color:var(--ink3);margin-bottom:10px">
+    OSE: <strong>${oseJobs.length}</strong> ใบ &nbsp;|&nbsp; OFM ในระบบ: <strong>${ofmJobs.length}</strong> ใบ
+    ${!ofmJobs.length?`<span style="color:var(--amber)">&nbsp;⚠️ ยังไม่มี OFM — Load L6 จาก SP ก่อน</span>`:''}
   </div>
-  <div style="background:var(--card);border:1px solid var(--b);border-radius:var(--r);overflow:hidden">
-  ${jobs.map(j=>`
-    <div class="map-row">
-      <div>
-        <div class="mono" style="font-size:12px;color:var(--blue)">${j.prod}</div>
-        <div style="display:flex;gap:4px;margin-top:3px">
-          <input type="number" placeholder="#" value="${j.priority||''}"
-            style="width:40px;padding:3px 5px;border:1px solid var(--b2);border-radius:4px;background:var(--panel);font-size:11px;outline:none"
+  <div class="tbl-wrap">
+  <table class="ft" style="min-width:700px">
+    <thead><tr>
+      <th style="width:130px">OSE No.</th>
+      <th style="width:90px">ลำดับ / วันเริ่ม</th>
+      <th>SlitFormula</th>
+      <th style="width:240px">OFM ที่จับคู่</th>
+      <th style="width:60px">บันทึก</th>
+    </tr></thead>
+    <tbody>
+    ${oseJobs.map(j=>{
+      const st=j.oseStatus||j.status||'';
+      const stColor=OSE_STATUS_COLOR[st]||'p-gray';
+      const safeId=j.prod.replace(/[^a-z0-9]/gi,'_');
+      return `<tr>
+        <td>
+          <div class="mono" style="font-size:12px;color:var(--blue);font-weight:600">${j.prod}</div>
+          <span class="pill ${stColor}" style="font-size:8px;margin-top:3px;display:inline-block">${st.slice(0,22)||'ไม่ระบุ'}</span>
+        </td>
+        <td>
+          <input type="number" placeholder="#" value="${j.priority||''}" id="mp-pri-${safeId}"
+            style="width:38px;padding:3px 4px;border:1px solid var(--b2);border-radius:4px;background:var(--panel);font-size:11px;outline:none;margin-bottom:3px"
             onchange="updateOSEPriority('${j.prod}',this.value)">
-          <input type="date" value="${j.startDate?j.startDate.slice(0,10):''}"
-            style="width:115px;padding:3px 5px;border:1px solid var(--b2);border-radius:4px;background:var(--panel);font-size:10px;outline:none"
+          <input type="date" value="${j.startDate?j.startDate.slice(0,10):''}" id="mp-dt-${safeId}"
+            style="width:120px;padding:3px 5px;border:1px solid var(--b2);border-radius:4px;background:var(--panel);font-size:10px;outline:none;display:block"
             onchange="updateOSEDate('${j.prod}',this.value)">
-        </div>
-      </div>
-      <div style="font-size:10px;color:var(--ink3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%">${j.name||''}</div>
-      <div>
-        <input list="ofm-list-${j.prod.replace(/[^a-z0-9]/gi,'')}" value="${j.item||''}" placeholder="พิมพ์ OFM No..."
-          style="width:100%;padding:5px 8px;border:1px solid var(--b2);border-radius:4px;background:var(--panel);font-size:11px;outline:none"
-          onchange="updateOSEOFMRef('${j.prod}',this.value)">
-        <datalist id="ofm-list-${j.prod.replace(/[^a-z0-9]/gi,'')}">
-          ${ofmJobs.map(o=>`<option value="${o.prod}">${o.prod} — ${(o.name||'').slice(0,40)}</option>`).join('')}
-        </datalist>
-      </div>
-      <div>
-        <button onclick="saveOSEMappingRow('${j.prod}')"
-          style="padding:5px 10px;background:var(--blue);color:#fff;border:none;border-radius:4px;font-size:11px;cursor:pointer;font-family:var(--sans)">💾</button>
-      </div>
-    </div>`).join('')}
+        </td>
+        <td style="font-size:10px;color:var(--ink3)">${(j.name||'').slice(0,60)}</td>
+        <td>
+          <select id="mp-ofm-${safeId}"
+            style="width:100%;padding:5px 6px;border:1px solid var(--b2);border-radius:4px;background:var(--panel);font-size:11px;outline:none"
+            onchange="updateOSEOFMRef('${j.prod}',this.value)">
+            ${ofmOptHtml.replace(`value="${j.item||j.ofmRef||''}"`,`value="${j.item||j.ofmRef||''}" selected`)}
+          </select>
+        </td>
+        <td>
+          <button onclick="saveOSEMappingRow('${j.prod}')"
+            style="padding:5px 10px;background:var(--blue);color:#fff;border:none;border-radius:4px;font-size:11px;cursor:pointer;font-family:var(--sans);width:100%">💾</button>
+        </td>
+      </tr>`;
+    }).join('')}
+    </tbody>
+  </table>
   </div>`;
 }
 
