@@ -1420,18 +1420,23 @@ async function detectL4Fields(){
 }
 
 // wrapper สำหรับ PATCH L4
-// field_11=OSENo, MCIDStatus=Choice column (display name ใช้เป็น internal name ตอน write)
+// field_12=MCIDStatus (จาก GET), field_11=OSENo
+// ถ้า field_12 ไม่ work → retry ด้วย MCIDStatus (display name)
 async function patchL4MCID(spId, oseNo, statusVal){
   const fields={};
-  if(oseNo!==undefined){
-    fields.field_11=oseNo;  // ลอง field_11 ก่อน
-  }
-  if(statusVal!==undefined){
-    // Choice column ต้องใช้ display name ตอน write ผ่าน Graph API
-    fields.MCIDStatus=statusVal;
-  }
+  if(oseNo!==undefined)     fields.field_11 = oseNo;
+  if(statusVal!==undefined) fields.field_12  = statusVal;
   console.log(`🔧 PATCH L4 item ${spId} →`, JSON.stringify(fields));
-  return spPatchItem(SP_LISTS.L4, spId, fields);
+  const ok = await spPatchItem(SP_LISTS.L4, spId, fields);
+  if(!ok && statusVal!==undefined){
+    // Retry: SP choice column อาจต้องใช้ display name ตอน PATCH
+    const fields2={};
+    if(oseNo!==undefined) fields2.field_11=oseNo;
+    fields2.MCIDStatus=statusVal;
+    console.log(`🔄 Retry PATCH L4 with MCIDStatus display name:`, JSON.stringify(fields2));
+    return spPatchItem(SP_LISTS.L4, spId, fields2);
+  }
+  return ok;
 }
 async function ensureToken(){
   if(graphToken) return true;
@@ -1495,12 +1500,24 @@ async function applyPacking(){
         field_8:  c.coating ? String(c.coating).trim() : undefined,
         field_9:  c.pono    ? String(c.pono).trim()    : undefined,
         // Choice column: ลองส่งทั้ง 2 ชื่อ — SP Graph API บางครั้งต้องใช้ display name
-        MCIDStatus: '1.stockในคลัง',
+        field_12: '1.stockในคลัง',
       };
       // Remove undefined
       Object.keys(fields).forEach(k=>{ if(fields[k]===undefined||fields[k]==='') delete fields[k]; });
       console.log('📝 spAddItem L4:', c.serial, JSON.stringify(fields));
-      const result=await spAddItem(SP_LISTS.L4, fields);
+      let result=await spAddItem(SP_LISTS.L4, fields);
+      if(!result){
+        // Retry without Choice field — อาจ SP ไม่ยอม POST Choice ผ่าน field_12
+        // ลอง POST โดยไม่มี field_12 ก่อน แล้วค่อย PATCH เพิ่ม
+        const fieldsNoChoice={...fields};
+        delete fieldsNoChoice.field_12;
+        console.log('🔄 Retry spAddItem without field_12:', c.serial);
+        result=await spAddItem(SP_LISTS.L4, fieldsNoChoice);
+        if(result){
+          // PATCH MCIDStatus แยก
+          await spPatchItem(SP_LISTS.L4, result.id, {field_12:'1.stockในคลัง'});
+        }
+      }
       if(result){ c.spId=result.id; saved++; }
       else { console.error('spAddItem null for', c.serial); skipped++; }
     }catch(err){ console.error('SP write error:',c.serial,err); errors++; }
