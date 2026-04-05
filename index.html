@@ -1500,38 +1500,38 @@ async function applyPacking(){
 
   showProgress('กำลังบันทึกเข้า SharePoint L4...',0,S._pendingMCIDs.length);
 
-  // จาก SP column headers จริง: ItemNumber, ProductName, BatchNumber,
-  // ThicknessMM, WidthMM, WeightKG, Factory, Coating, PONo, MCIDStatus(Choice), OSENo
+  // internal names ยืนยันจาก Raw data: field_1..field_9
+  // Display names (ItemNumber ฯลฯ) ใช้ไม่ได้ตอน POST
 
   for(let i=0;i<S._pendingMCIDs.length;i++){
     const c=S._pendingMCIDs[i];
     showProgress(`กำลังบันทึก ${c.serial} (${i+1}/${S._pendingMCIDs.length})`,i+1,S._pendingMCIDs.length);
     try{
-      // POST ด้วย text/number fields ก่อน (ไม่รวม Choice)
       const fields={
-        Title:       String(c.serial||'').trim(),
-        ItemNumber:  c.item    ? String(c.item).trim()    : undefined,
-        ProductName: c.name    ? String(c.name).trim()    : undefined,
-        BatchNumber: c.batch   ? String(c.batch).trim()   : undefined,
-        ThicknessMM: c.thick>0 ? Number(c.thick)          : undefined,
-        WidthMM:     c.width>0 ? Number(c.width)          : undefined,
-        WeightKG:    c.wt_kg>0 ? Number(c.wt_kg)          : undefined,
-        Factory:     c.factory ? String(c.factory).trim() : undefined,
-        Coating:     c.coating ? String(c.coating).trim() : undefined,
-        PONo:        c.pono    ? String(c.pono).trim()    : undefined,
+        Title:   String(c.serial||'').trim(),
+        field_1: c.item    ? String(c.item).trim()    : undefined,
+        field_2: c.name    ? String(c.name).trim()    : undefined,
+        field_3: c.batch   ? String(c.batch).trim()   : undefined,
+        field_4: c.thick>0 ? Number(c.thick)          : undefined,
+        field_5: c.width>0 ? Number(c.width)          : undefined,
+        field_6: c.wt_kg>0 ? Number(c.wt_kg)          : undefined,
+        field_7: c.factory ? String(c.factory).trim() : undefined,
+        field_8: c.coating ? String(c.coating).trim() : undefined,
+        field_9: c.pono    ? String(c.pono).trim()    : undefined,
       };
       Object.keys(fields).forEach(k=>{ if(fields[k]===undefined||fields[k]==='') delete fields[k]; });
       console.log('📝 spAddItem L4:', c.serial, JSON.stringify(fields));
       const result=await spAddItem(SP_LISTS.L4, fields);
       if(result){
         c.spId=result.id;
-        // PATCH Choice column แยก (SP Graph API Choice ต้อง PATCH ไม่ใช่ POST)
+        // PATCH MCIDStatus แยก (Choice column)
         await spPatchItem(SP_LISTS.L4, result.id, {MCIDStatus:'ว่าง'});
         saved++;
+        console.log('✅ saved:', c.serial, 'id:', result.id);
       } else {
-        console.error('spAddItem null for', c.serial); skipped++;
+        console.error('❌ spAddItem null for', c.serial); skipped++;
       }
-    }catch(err){ console.error('SP write error:',c.serial,err); errors++; }
+    }catch(err){ console.error('❌ error:',c.serial,err); errors++; }
   }
 
   hideProgress();
