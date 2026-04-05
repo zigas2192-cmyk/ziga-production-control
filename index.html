@@ -1577,7 +1577,7 @@ async function loadL4FromSP(){
       wAfter:   parseFloat(f.field_14)||0,
       wScrap:   parseFloat(f.field_15)||0,
       wNet:     parseFloat(f.field_16)||0,
-      remarks:  f.Remarks||f.field_17||'',
+      remarks:  f.field_17||'',
       spId:     f.id||'',
     }));
     hideProgress();
@@ -3151,8 +3151,17 @@ async function saveSlitWeight(serial,oseNo){
         }catch(e){}
       }
       if(mc.spId){
-        await patchL4MCID(mc.spId, undefined, '3.slitแล้ว');
+        // PATCH L4: น้ำหนัก + MCIDStatus
+        // field_13=WeightBefore, field_14=WeightAfter, field_15=WeightScrap, field_16=WeightNet
+        await spPatchItem(SP_LISTS.L4, mc.spId, {
+          field_13: String(before),
+          field_14: String(after),
+          field_15: String(scrap),
+          field_16: String(after-scrap),
+          field_12: '3.slitแล้ว',
+        });
         mc.status='3.slitแล้ว';
+        mc.wBefore=before; mc.wAfter=after; mc.wScrap=scrap; mc.wNet=after-scrap;
       }
     }
     // ถ้าสลิทครบทุกลูก → PATCH L6: status → 4.End-เสร็จสิ้น
@@ -3170,7 +3179,15 @@ async function saveSlitWeight(serial,oseNo){
           if(ok){
             job.oseStatus='4.End-เสร็จสิ้น';
             job.status='4.End-เสร็จสิ้น';
-            showToast(`✅ ${oseNo} → 4.End-เสร็จสิ้น · สลิทครบ ${plan.mcids.length} ลูก`);
+            // Summary popup
+            const totalNet=plan.mcids.reduce((s,c)=>{
+              const d=S.slitData[c.serial];
+              return s+(d?d.net:0);
+            },0);
+            showToast(`🎉 ${oseNo} เสร็จสิ้น! · ${plan.mcids.length} ลูก · Net รวม ${totalNet.toFixed(3)} kg`);
+            setTimeout(()=>{
+              alert(`✅ สลิทครบแล้ว!\n\nOSE: ${oseNo}\nจำนวน: ${plan.mcids.length} ลูก\nน้ำหนัก Net รวม: ${totalNet.toFixed(3)} kg\n\nStatus L6 → 4.End-เสร็จสิ้น`);
+            },500);
           }
         }
       }
