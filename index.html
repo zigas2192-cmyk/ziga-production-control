@@ -605,6 +605,29 @@ table.ax-t .ax-total{background:var(--green-lt);color:var(--green);font-weight:6
         <div class="pg-sub">AS กำหนดเครื่องจักร + วันเริ่ม/จบ · ฝ่ายบริหารดูภาพรวมทุกใบงาน · เฉพาะ status 0–3</div>
       </div>
 
+      <!-- Upload AX Export card -->
+      <div style="background:var(--card);border:1px solid var(--b);border-radius:var(--r);padding:14px 16px;margin-bottom:14px">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <div style="font-size:14px;font-weight:600;color:var(--ink2)">📋 Import ใบงาน OSE / OFM / ORW</div>
+          <div class="upload-zone" style="padding:8px 16px;min-height:unset;flex-direction:row;gap:8px;cursor:pointer"
+            onclick="document.getElementById('ax-file-mp').click()"
+            ondragover="event.preventDefault()" ondrop="handleDrop(event,'ax')">
+            <input type="file" id="ax-file-mp" accept=".xlsx,.xls,.csv"
+              onchange="parseAX(this.files[0]);this.value=''">
+            <span style="font-size:15px">📋</span>
+            <span style="font-size:13px;font-weight:500">Upload AX Export</span>
+            <span style="font-size:11px;color:var(--ink3)">.xlsx / .csv</span>
+          </div>
+          <span id="ax-file-name-mp" style="font-size:12px;color:var(--ink3)"></span>
+          <div id="ax-result-mp" style="display:none;flex:1;min-width:200px">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <div id="ax-summary-mp" style="font-size:13px;color:var(--green);font-weight:600"></div>
+              <button onclick="applyAX()" class="btn btn-p" style="padding:6px 16px;font-size:13px">✓ นำเข้าระบบ</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Sub-tabs -->
       <div style="display:flex;gap:8px;margin-bottom:14px;border-bottom:1px solid var(--b);padding-bottom:8px;flex-wrap:wrap;align-items:center">
         <button class="mp-tab active" onclick="switchMPTab('schedule',this)">🏭 ตารางเครื่องจักร</button>
@@ -951,16 +974,29 @@ async function spGetFields(listName){
   const siteId = await getSiteId();
   const listId = await getListId(listName);
   if(!siteId||!listId){console.error('spGetFields: no site/list');return;}
-  const r = await graphGet(`/sites/${siteId}/lists/${listId}/fields?$select=displayName,internalName&$top=100`);
+
+  // ลอง columns endpoint ก่อน (ใช้งานได้กับ Graph API ส่วนใหญ่)
+  let r = await graphGet(`/sites/${siteId}/lists/${listId}/columns?$top=100`);
   if(r?.value){
-    const fields = r.value.filter(f=>
-      !f.internalName.startsWith('_') &&
-      !['ContentType','Edit','DocIcon','LinkTitleNoMenu','LinkTitle','ItemChildCount','FolderChildCount','AppAuthor','AppEditor'].includes(f.internalName)
-    ).map(f=>({display:f.displayName, internal:f.internalName}));
+    const fields = r.value
+      .filter(f=>f.name&&!f.name.startsWith('_')&&!f.hidden)
+      .map(f=>({display:f.displayName||f.name, internal:f.name}));
     console.table(fields);
-    console.log('Copy this mapping:', JSON.stringify(fields));
+    console.log('L4 columns JSON:', JSON.stringify(fields));
     return fields;
   }
+
+  // Fallback: อ่าน 1 item แล้วดู keys
+  console.warn('columns endpoint failed, reading first item keys...');
+  const items = await spGetItems(listName,'',1);
+  if(items.length){
+    const keys=Object.keys(items[0]).filter(k=>!['@odata.etag','id','contentType','Modified','Created','AuthorLookupId','EditorLookupId'].includes(k));
+    const fields=keys.map(k=>({display:k,internal:k}));
+    console.table(fields);
+    console.log('L4 item keys JSON:', JSON.stringify(fields));
+    return fields;
+  }
+  return null;
 }
 
 async function spGetItems(listName, filter = '', top = 500) {
@@ -1300,7 +1336,37 @@ function parsePacking(file){
   };
   reader.readAsArrayBuffer(file);
 }
-// ── Ensure MS Graph token — login popup if expired/missing ────────
+// ── L4 field name cache (auto-detected from SP) ──────────────────
+let L4_FIELD_OSENO     = 'OSENo';      // default, updated after first spGetFields
+let L4_FIELD_MCIDSTATUS= 'MCIDStatus'; // default, updated after first spGetFields
+let L4_FIELDS_DETECTED = false;
+
+async function detectL4Fields(){
+  if(L4_FIELDS_DETECTED) return;
+  try{
+    const fields=await spGetFields(SP_LISTS.L4);
+    if(!fields||!fields.length) return;
+    // columns endpoint ใช้ name เป็น internal name
+    // หา field ที่ display name ตรงกับ OSENo / MCIDStatus
+    const oseField  =fields.find(f=>f.display==='OSENo'     ||f.internal==='OSENo');
+    const statField =fields.find(f=>f.display==='MCIDStatus'||f.internal==='MCIDStatus'||f.display.toLowerCase().includes('mcid'));
+    if(oseField)  { L4_FIELD_OSENO     =oseField.internal;  }
+    if(statField) { L4_FIELD_MCIDSTATUS=statField.internal; }
+    L4_FIELDS_DETECTED=true;
+    console.log(`📋 L4 fields detected → OSENo="${L4_FIELD_OSENO}" MCIDStatus="${L4_FIELD_MCIDSTATUS}"`);
+    showToast(`📋 L4: OSENo="${L4_FIELD_OSENO}" | MCIDStatus="${L4_FIELD_MCIDSTATUS}"`);
+  }catch(e){ console.warn('detectL4Fields error:',e); }
+}
+
+// wrapper สำหรับ PATCH L4 ใช้ field name ที่ detect มาแล้ว
+async function patchL4MCID(spId, oseNo, statusVal){
+  await detectL4Fields();
+  const fields={};
+  if(oseNo!==undefined)   fields[L4_FIELD_OSENO]     =oseNo;
+  if(statusVal!==undefined)fields[L4_FIELD_MCIDSTATUS]=statusVal;
+  console.log(`🔧 PATCH L4 item ${spId} →`, JSON.stringify(fields));
+  return spPatchItem(SP_LISTS.L4, spId, fields);
+}
 async function ensureToken(){
   if(graphToken) return true;
   if(!msalInstance) return false;
@@ -1365,9 +1431,10 @@ async function applyPacking(){
         field_7:     c.factory ? String(c.factory).trim() : undefined,
         field_8:     c.coating ? String(c.coating).trim() : undefined,
         field_9:     c.pono    ? String(c.pono).trim()    : undefined,
-        // MCIDStatus — custom column ใช้ display name เป็น internal name
-        MCIDStatus:  '1.stockในคลัง',
       };
+      // ใช้ field name จริงจาก SP (ถูก detect แล้วใน detectL4Fields)
+      await detectL4Fields();
+      fields[L4_FIELD_MCIDSTATUS]='1.stockในคลัง';
       // ReceivedDate (field_10) — ISO format
       if(c.recDate){
         try{fields.field_10=new Date(c.recDate).toISOString();}
@@ -1375,6 +1442,7 @@ async function applyPacking(){
       }
       // Remove undefined
       Object.keys(fields).forEach(k=>{ if(fields[k]===undefined||fields[k]==='') delete fields[k]; });
+      console.log('📝 spAddItem L4:', c.serial, JSON.stringify(fields));
       const result=await spAddItem(SP_LISTS.L4, fields);
       if(result){ c.spId=result.id; saved++; }
       else skipped++;
@@ -2294,10 +2362,20 @@ function parseAX(file){
     const byType={};
     parsed.forEach(j=>{byType[j.jobType]=(byType[j.jobType]||0)+1;});
     const summary=Object.entries(byType).map(([k,v])=>`${k}:${v}`).join(' · ');
-    document.getElementById('ax-summary').textContent=`✓ พบ ${parsed.length} JOB — ${summary}`;
-    document.getElementById('ax-result').style.display='block';
+    const summaryText=`✓ พบ ${parsed.length} JOB — ${summary}`;
+    // อัป UI ทั้ง 2 จุด (OSE plan page + Master Plan page)
+    const axSumEl=document.getElementById('ax-summary');
+    if(axSumEl) axSumEl.textContent=summaryText;
+    const axResEl=document.getElementById('ax-result');
+    if(axResEl) axResEl.style.display='block';
+    const axSumMpEl=document.getElementById('ax-summary-mp');
+    if(axSumMpEl) axSumMpEl.textContent=summaryText;
+    const axResMpEl=document.getElementById('ax-result-mp');
+    if(axResMpEl) axResMpEl.style.display='block';
     const fn=document.getElementById('ax-file-name');
-    if(fn)fn.textContent=file.name;
+    if(fn) fn.textContent=file.name;
+    const fnMp=document.getElementById('ax-file-name-mp');
+    if(fnMp) fnMp.textContent=file.name;
   };
   reader.readAsArrayBuffer(file);
 }
@@ -2716,12 +2794,7 @@ async function saveOSEPlan(){
       const c=mcids[i];
       showProgress(`${c.serial} (${i+1}/${mcids.length})`,i+1,mcids.length);
       if(c.spId){
-        // Custom columns ใน SP ใช้ display name เป็น internal name
-        // OSENo, MCIDStatus คือ column ที่สร้างทีหลัง → ใช้ชื่อตรงๆ
-        const ok=await spPatchItem(SP_LISTS.L4,c.spId,{
-          OSENo:      selOSEId,
-          MCIDStatus: '2.pickเข้าใบงานOSE',
-        });
+        const ok=await patchL4MCID(c.spId, selOSEId, '2.pickเข้าใบงานOSE');
         if(ok) l4ok++;
         else{ console.error('PATCH failed:',c.serial); l4skip++; }
       } else {
@@ -2904,7 +2977,7 @@ async function saveSlitWeight(serial,oseNo){
         }catch(e){}
       }
       if(mc.spId){
-        await spPatchItem(SP_LISTS.L4, mc.spId, {MCIDStatus:'3.slitแล้ว'});
+        await patchL4MCID(mc.spId, undefined, '3.slitแล้ว');
         mc.status='3.slitแล้ว';
       }
     }
