@@ -1451,44 +1451,16 @@ async function detectL4Fields(){
   }catch(e){ console.warn('detectL4Fields error:',e); }
 }
 
+// field_11 = OSENo, field_12 = MCIDStatus (ยืนยันจาก SP FldEdit URL)
 async function patchL4MCID(spId, oseNo, statusVal){
-  // ลองส่งทั้ง display name และ field_N พร้อมกัน
-  // SP จะใช้แค่ตัวที่รู้จัก ตัวที่ไม่รู้จักจะ ignore หรือ error
-  // Strategy: ส่งแยกเป็น 2 PATCH ถ้า PATCH รวมกัน error
-
-  const oseFields={};
-  if(oseNo!==undefined){
-    oseFields.field_11=oseNo;  // ลอง field_11
-  }
-  if(statusVal!==undefined){
-    oseFields.field_12=statusVal;  // ลอง field_12
-  }
-
-  console.log(`🔧 PATCH L4 item ${spId} (attempt 1 field_N):`, JSON.stringify(oseFields));
-  const ok1=await spPatchItem(SP_LISTS.L4, spId, oseFields);
-  if(ok1){ console.log('✅ PATCH L4 ok with field_N'); return true; }
-
-  // Attempt 2: display names
-  const dispFields={};
-  if(oseNo!==undefined)     dispFields.OSENo      =oseNo;
-  if(statusVal!==undefined) dispFields.MCIDStatus =statusVal;
-  console.log(`🔧 PATCH L4 item ${spId} (attempt 2 display):`, JSON.stringify(dispFields));
-  const ok2=await spPatchItem(SP_LISTS.L4, spId, dispFields);
-  if(ok2){ console.log('✅ PATCH L4 ok with display names'); return true; }
-
-  // Attempt 3: แยก PATCH ทีละ field
-  let anyOk=false;
-  if(oseNo!==undefined){
-    const r=await spPatchItem(SP_LISTS.L4, spId, {field_11:oseNo})||
-            await spPatchItem(SP_LISTS.L4, spId, {OSENo:oseNo});
-    if(r) anyOk=true;
-  }
-  if(statusVal!==undefined){
-    const r=await spPatchItem(SP_LISTS.L4, spId, {field_12:statusVal})||
-            await spPatchItem(SP_LISTS.L4, spId, {MCIDStatus:statusVal});
-    if(r) anyOk=true;
-  }
-  return anyOk;
+  const fields={};
+  if(oseNo!==undefined)     fields.field_11=oseNo;
+  if(statusVal!==undefined) fields.field_12=statusVal;
+  console.log(`🔧 PATCH L4 item ${spId}:`, JSON.stringify(fields));
+  const ok=await spPatchItem(SP_LISTS.L4, spId, fields);
+  if(ok) console.log(`✅ PATCH L4 ok item ${spId}`);
+  else   console.error(`❌ PATCH L4 failed item ${spId}`);
+  return ok;
 }
 async function ensureToken(){
   if(graphToken) return true;
@@ -1553,8 +1525,8 @@ async function applyPacking(){
       const result=await spAddItem(SP_LISTS.L4, fields);
       if(result){
         c.spId=result.id;
-        // PATCH MCIDStatus แยก (Choice column)
-        await spPatchItem(SP_LISTS.L4, result.id, {MCIDStatus:'ว่าง'});
+        // PATCH MCIDStatus (field_12) แยก — Choice column
+        await spPatchItem(SP_LISTS.L4, result.id, {field_12:'ว่าง'});
         saved++;
         console.log('✅ saved:', c.serial, 'id:', result.id);
       } else {
@@ -1591,9 +1563,9 @@ async function loadL4FromSP(){
       coating:  f.Coating    ||f.field_8||'',
       pono:     f.PONo       ||f.field_9||'',
       recDate:  f.ReceivedDate||f.field_10||'',
-      oseNo:    f.OSENo      ||f.field_11||'',
-      status:   f.MCIDStatus ||f.field_12||'ว่าง',
-      used:    (f.MCIDStatus||f.field_12||'')==='ใช้แล้ว'||(f.MCIDStatus||f.field_12||'')==='3.slitแล้ว',
+      oseNo:    f.field_11||'',
+      status:   f.field_12||'ว่าง',
+      used:    (f.field_12||'')==='ใช้แล้ว'||(f.field_12||'')==='3.slitแล้ว',
       wBefore:  parseFloat(f.field_13)||0,
       wAfter:   parseFloat(f.field_14)||0,
       wScrap:   parseFloat(f.field_15)||0,
