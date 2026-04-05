@@ -1301,17 +1301,18 @@ async function applyPacking(){
       // field_7=Factory, field_8=Coating, field_9=PONo
       // field_10=ReceivedDate(DateTime), field_11=OSENo, field_12=MCIDStatus(Choice)
       const fields={
-        Title:    String(c.serial||'').trim(),
-        field_1:  c.item    ? String(c.item).trim()    : undefined,
-        field_2:  c.name    ? String(c.name).trim()    : undefined,
-        field_3:  c.batch   ? String(c.batch).trim()   : undefined,
-        field_4:  c.thick   ? Number(c.thick)          : undefined,
-        field_5:  c.width   ? Number(c.width)          : undefined,
-        field_6:  c.wt_kg>0 ? String(c.wt_kg)         : undefined,
-        field_7:  c.factory ? String(c.factory).trim() : undefined,
-        field_8:  c.coating ? String(c.coating).trim() : undefined,
-        field_9:  c.pono    ? String(c.pono).trim()    : undefined,
-        field_12: 'ในคลัง',
+        Title:       String(c.serial||'').trim(),
+        field_1:     c.item    ? String(c.item).trim()    : undefined,
+        field_2:     c.name    ? String(c.name).trim()    : undefined,
+        field_3:     c.batch   ? String(c.batch).trim()   : undefined,
+        field_4:     c.thick   ? Number(c.thick)          : undefined,
+        field_5:     c.width   ? Number(c.width)          : undefined,
+        field_6:     c.wt_kg>0 ? String(c.wt_kg)         : undefined,
+        field_7:     c.factory ? String(c.factory).trim() : undefined,
+        field_8:     c.coating ? String(c.coating).trim() : undefined,
+        field_9:     c.pono    ? String(c.pono).trim()    : undefined,
+        // MCIDStatus — custom column ใช้ display name เป็น internal name
+        MCIDStatus:  'ในคลัง',
       };
       // ReceivedDate (field_10) — ISO format
       if(c.recDate){
@@ -1340,13 +1341,8 @@ async function loadL4FromSP(){
     showProgress('กำลังโหลด MCID จาก SharePoint...',0,1);
     const items=await spGetItems(SP_LISTS.L4,'',500);
     if(!items.length){hideProgress();return;}
-    // Map SP internal field names (field_1..field_17) to app properties
-    // field_1=ItemNumber, field_2=ProductName, field_3=BatchNumber
-    // field_4=ThicknessMM, field_5=WidthMM, field_6=WeightKG
-    // field_7=Factory, field_8=Coating, field_9=PONo
-    // field_10=ReceivedDate, field_11=OSENo, field_12=MCIDStatus
-    // field_13=WeightBefore, field_14=WeightAfter, field_15=WeightScrap
-    // field_16=WeightNet, field_17=Remarks
+    // L4 custom columns: OSENo, MCIDStatus ใช้ display name เป็น internal name
+    // Early columns (field_1..field_9) ใช้ field_N
     S.mcids=items.map(f=>({
       serial:   f.Title||'',
       item:     f.field_1||'',
@@ -1358,15 +1354,16 @@ async function loadL4FromSP(){
       factory:  f.field_7||'',
       coating:  f.field_8||'',
       pono:     f.field_9||'',
-      recDate:  f.field_10||'',
-      oseNo:    f.field_11||'',
-      status:   f.field_12||'ในคลัง',
-      used:     f.field_12==='จ่ายแล้ว'||f.field_12==='สลิตแล้ว',
-      wBefore:  parseFloat(f.field_13)||0,
-      wAfter:   parseFloat(f.field_14)||0,
-      wScrap:   parseFloat(f.field_15)||0,
-      wNet:     parseFloat(f.field_16)||0,
-      remarks:  f.field_17||'',
+      recDate:  f.field_10||f.ReceivedDate||'',
+      // OSENo และ MCIDStatus — ลอง display name ก่อน แล้ว fallback ไป field_N
+      oseNo:    f.OSENo    ||f.field_11||'',
+      status:   f.MCIDStatus||f.field_12||'ในคลัง',
+      used:    (f.MCIDStatus||f.field_12||'')==='จ่ายแล้ว'||(f.MCIDStatus||f.field_12||'')==='สลิตแล้ว',
+      wBefore:  parseFloat(f.WeightBefore||f.field_13)||0,
+      wAfter:   parseFloat(f.WeightAfter ||f.field_14)||0,
+      wScrap:   parseFloat(f.WeightScrap ||f.field_15)||0,
+      wNet:     parseFloat(f.WeightNet   ||f.field_16)||0,
+      remarks:  f.Remarks ||f.field_17||'',
       spId:     f.id||'',
     }));
     hideProgress();
@@ -2665,9 +2662,11 @@ async function saveOSEPlan(){
       const c=mcids[i];
       showProgress(`${c.serial} (${i+1}/${mcids.length})`,i+1,mcids.length);
       if(c.spId){
+        // Custom columns ใน SP ใช้ display name เป็น internal name
+        // OSENo, MCIDStatus คือ column ที่สร้างทีหลัง → ใช้ชื่อตรงๆ
         const ok=await spPatchItem(SP_LISTS.L4,c.spId,{
-          field_11: selOSEId,
-          field_12: 'จ่ายแล้ว',
+          OSENo:      selOSEId,
+          MCIDStatus: 'จ่ายแล้ว',
         });
         if(ok) l4ok++;
         else{ console.error('PATCH failed:',c.serial); l4skip++; }
