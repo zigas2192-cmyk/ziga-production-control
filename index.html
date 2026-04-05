@@ -345,6 +345,8 @@ table.ax-t .ax-total{background:var(--green-lt);color:var(--green);font-weight:6
           </select>
           <button onclick="resetPkFilters()" style="padding:6px 10px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:11px;cursor:pointer;color:var(--ink3)">↺ ล้าง filter</button>
           <button onclick="loadL4FromSP()" style="padding:6px 12px;border:1px solid var(--blue-bd);border-radius:var(--rs);background:var(--blue-bg);color:var(--blue);font-size:11px;cursor:pointer;font-family:var(--sans)">🔄 Load L4</button>
+          <button onclick="clearLocalMCID()" style="padding:6px 12px;border:1px solid #f44;border-radius:var(--rs);background:#fff5f5;color:#c00;font-size:11px;cursor:pointer;font-family:var(--sans)" title="ล้าง MCID ออกจาก app (ไม่ลบใน SP)">🗑 ล้าง cache</button>
+          <button onclick="deleteAllL4()" style="padding:6px 12px;border:1px solid #900;border-radius:var(--rs);background:#fff0f0;color:#900;font-size:11px;cursor:pointer;font-family:var(--sans);font-weight:600" title="ลบทั้งหมดใน SharePoint L4">⚠️ ลบใน SP</button>
           <button onclick="debugL4Fields()" title="Debug: ดู field internal names จาก SP" style="padding:6px 10px;border:1px solid #ddd;border-radius:var(--rs);background:#f5f5f5;color:#888;font-size:11px;cursor:pointer">🔍 Fields</button>
           <button onclick="debugL4Sample()" title="Debug: ดู raw data 3 rows แรกจาก SP" style="padding:6px 10px;border:1px solid #ddd;border-radius:var(--rs);background:#f5f5f5;color:#888;font-size:11px;cursor:pointer">📋 Raw</button>
           <span id="pk-filter-count" style="font-size:11px;color:var(--ink3);margin-left:4px"></span>
@@ -1193,6 +1195,39 @@ function clearState(){
   try{ localStorage.removeItem(STATE_KEY); }catch(e){}
   S.mcids=[]; S.axJobs=[]; S.osePlans=[];
   S.ofmPlans=[]; S.slitData={}; S.defects=[];
+}
+
+// ล้าง MCID ออกจาก app (local cache เท่านั้น — ไม่ลบใน SP)
+function clearLocalMCID(){
+  if(!confirm(`ล้าง MCID ${S.mcids.length} รายการออกจาก app?\n\n(ไม่ลบข้อมูลใน SharePoint)\nถ้าต้องการลบใน SP ให้ใช้ปุ่ม "ลบทั้งหมดใน SP"`)) return;
+  S.mcids=[];
+  S._pendingMCIDs=null;
+  saveState();
+  renderPackingList();
+  updatePackingStats();
+  showToast('✅ ล้าง MCID cache แล้ว');
+}
+
+// ลบ MCID ทั้งหมดใน SP L4 (ใช้กรณีรีเซ็ต)
+async function deleteAllL4(){
+  if(!graphToken){ showToast('⚠️ login ก่อน'); return; }
+  if(!confirm(`⚠️ ลบ MCID ${S.mcids.length} รายการออกจาก SharePoint L4?\n\nการกระทำนี้ไม่สามารถย้อนกลับได้!\nกด OK เพื่อยืนยัน`)) return;
+  const items=await spGetItems(SP_LISTS.L4,'',500);
+  if(!items.length){ showToast('ไม่มีข้อมูลใน L4'); return; }
+  const siteId=await getSiteId();
+  const listId=await getListId(SP_LISTS.L4);
+  showProgress('กำลังลบ...',0,items.length);
+  let deleted=0;
+  for(let i=0;i<items.length;i++){
+    showProgress(`ลบ ${i+1}/${items.length}`,i+1,items.length);
+    const resp=await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${items[i].id}`,{
+      method:'DELETE', headers:{Authorization:`Bearer ${graphToken}`}
+    });
+    if(resp.ok||resp.status===204) deleted++;
+  }
+  hideProgress();
+  S.mcids=[]; saveState(); renderPackingList(); updatePackingStats();
+  showToast(`✅ ลบแล้ว ${deleted}/${items.length} รายการจาก SP`);
 }
 
 // ─── LOGIN ────────────────────────────────────────────────────────
