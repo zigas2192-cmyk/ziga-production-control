@@ -2500,18 +2500,28 @@ function selectOSE(prod){
 }
 
 function renderFilteredMCIDWithPicked(preSelected){
-  // ใส่ preSelected เข้า selMCIDs ก่อน render ครั้งเดียว
+  // Step 1: ใส่ทุก serial ที่เคย pick เข้า selMCIDs ก่อน
   preSelected.forEach(serial=>{
     if(!selMCIDs.includes(serial)) selMCIDs.push(serial);
   });
-  // รวม MCID ที่ว่าง + ที่หยิบแล้วของ OSE นี้ (ไม่ filter out by used)
-  const available=S.mcids.filter(c=>!c.used || selMCIDs.includes(c.serial));
+
+  // Step 2: สร้าง baseList — รวม MCID ที่ว่าง + ที่ผูกกับ OSE นี้ทั้งหมด
+  // (ไม่ filter ด้วย used เพื่อให้เห็น MCID ที่หยิบไปแล้ว)
+  const pickedSet=new Set(selMCIDs);
+  const available=S.mcids.filter(c=>
+    !c.used ||                          // ยังว่าง
+    pickedSet.has(c.serial) ||          // อยู่ใน selMCIDs
+    c.oseNo===selOSEId                  // ผูกกับ OSE นี้
+  );
+
+  // Step 3: render
   renderFilteredMCID(available);
-  // อัป summary
+
+  // Step 4: อัป summary
   const n=selMCIDs.length;
   const sumEl=document.getElementById('ose-mcid-summary');
   if(sumEl){
-    const wt=S.mcids.filter(c=>selMCIDs.includes(c.serial)).reduce((s,c)=>s+c.wt_kg,0);
+    const wt=S.mcids.filter(c=>pickedSet.has(c.serial)).reduce((s,c)=>s+c.wt_kg,0);
     if(n>0){sumEl.style.display='block';sumEl.textContent=`เลือก ${n} ลูก · ${wt.toFixed(3)} kg รวม`;}
     else sumEl.style.display='none';
   }
@@ -2519,8 +2529,12 @@ function renderFilteredMCIDWithPicked(preSelected){
 }
 function renderOSEMCIDSel(list){ renderFilteredMCID(list); }
 function renderFilteredMCID(baseList){
-  // Include unused MCIDs + already-picked ones for current OSE
-  const all=baseList||S.mcids.filter(c=>!c.used||selMCIDs.includes(c.serial));
+  // baseList ถูกส่งมาจาก renderFilteredMCIDWithPicked แล้ว
+  // ถ้าไม่มี → แสดงทุก MCID ที่ว่าง + ที่ผูกกับ OSE ปัจจุบัน
+  const pickedSet=new Set(selMCIDs);
+  const all=baseList||S.mcids.filter(c=>
+    !c.used || pickedSet.has(c.serial) || (selOSEId && c.oseNo===selOSEId)
+  );
   const sel=(id,vals,cur)=>{
     const el=document.getElementById(id);if(!el)return;
     const prev=cur||el.value;
