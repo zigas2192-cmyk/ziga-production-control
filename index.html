@@ -1423,13 +1423,15 @@ function renderMachineSchedule(){
                     </div>
                     <div>
                       <div style="font-size:11px;color:#666;margin-bottom:3px">วันเริ่ม</div>
-                      <input type="date" id="sch-sel-sd-${sid}" value="${j.startDate?j.startDate.slice(0,10):''}"
-                        style="padding:5px 8px;border:1px solid var(--b2);border-radius:4px;background:#fff;font-size:13px;outline:none;color:#111">
+                      <input type="text" id="sch-sel-sd-${sid}" value="${fmtDate(j.startDate)}" placeholder="dd/mm/yyyy" maxlength="10"
+                        style="padding:5px 8px;border:1px solid var(--b2);border-radius:4px;background:#fff;font-size:13px;outline:none;color:#111;width:110px;font-family:var(--mono)"
+                        oninput="fmtDateInput(this)">
                     </div>
                     <div>
                       <div style="font-size:11px;color:#666;margin-bottom:3px">วันจบ</div>
-                      <input type="date" id="sch-sel-ed-${sid}" value="${j.endDate?j.endDate.slice(0,10):''}"
-                        style="padding:5px 8px;border:1px solid var(--b2);border-radius:4px;background:#fff;font-size:13px;outline:none;color:#111">
+                      <input type="text" id="sch-sel-ed-${sid}" value="${fmtDate(j.endDate)}" placeholder="dd/mm/yyyy" maxlength="10"
+                        style="padding:5px 8px;border:1px solid var(--b2);border-radius:4px;background:#fff;font-size:13px;outline:none;color:#111;width:110px;font-family:var(--mono)"
+                        oninput="fmtDateInput(this)">
                     </div>
                     <div style="flex:1;min-width:200px">
                       <div style="font-size:11px;color:#666;margin-bottom:3px">หมายเหตุ (Remarks)</div>
@@ -1533,8 +1535,12 @@ function renderUnassigned(){
         <td style="font-family:var(--mono);font-size:13px;text-align:right;color:#111">${j.qty?Number(j.qty).toLocaleString():'—'}</td>
         <td>${oseRef}</td>
         <td><select style="${iStyle}" onchange="updateJobMachine('${j.prod}',this.value)">${opts}</select></td>
-        <td><input type="date" value="${j.startDate?j.startDate.slice(0,10):''}" style="${iStyle}" onchange="updateOSEDate('${j.prod}',this.value)"></td>
-        <td><input type="date" value="${j.endDate?j.endDate.slice(0,10):''}" style="${iStyle}" onchange="updateJobEndDate('${j.prod}',this.value)"></td>
+        <td><input type="text" value="${fmtDate(j.startDate)}" placeholder="dd/mm/yyyy" maxlength="10"
+          style="${iStyle};width:108px;font-family:var(--mono)" oninput="fmtDateInput(this)"
+          onblur="updateOSEDate('${j.prod}',this.value)"></td>
+        <td><input type="text" value="${fmtDate(j.endDate)}" placeholder="dd/mm/yyyy" maxlength="10"
+          style="${iStyle};width:108px;font-family:var(--mono)" oninput="fmtDateInput(this)"
+          onblur="updateJobEndDate('${j.prod}',this.value)"></td>
         <td><select style="${iStyle}" onchange="updateJobStatus('${j.prod}',this.value)">
           <option value="">— ไม่เปลี่ยน —</option>${stOptsSelected}
         </select></td>
@@ -1546,8 +1552,42 @@ function renderUnassigned(){
 }
 
 function updateJobMachine(prod,val){const j=S.axJobs.find(j=>j.prod===prod);if(j)j.machine=val;}
-function updateJobEndDate(prod,val){const j=S.axJobs.find(j=>j.prod===prod);if(j)j.endDate=val;}
+function updateJobEndDate(prod,val){const j=S.axJobs.find(j=>j.prod===prod);if(j)j.endDate=parseDMY(val);}
 function updateJobStatus(prod,val){if(!val)return;const j=S.axJobs.find(j=>j.prod===prod);if(j){j.oseStatus=val;j.status=val;}}
+
+// ── Date helpers dd/mm/yyyy ──────────────────────────────────────
+// Convert yyyy-mm-dd → dd/mm/yyyy for display
+function fmtDate(iso){
+  if(!iso) return '';
+  const d=iso.slice(0,10).split('-');
+  return d.length===3?`${d[2]}/${d[1]}/${d[0]}`:'';
+}
+// Parse dd/mm/yyyy → yyyy-mm-dd for storage
+function parseDMY(str){
+  if(!str) return '';
+  // accept both dd/mm/yyyy and yyyy-mm-dd
+  if(/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+  const p=str.trim().split('/');
+  if(p.length===3&&p[2].length===4) return `${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;
+  return '';
+}
+// Date input field (text, dd/mm/yyyy) with auto-format on blur
+function dateInput(val, onchangeFn, sid){
+  const display=fmtDate(val);
+  const iS='padding:5px 8px;border:1px solid var(--b2);border-radius:4px;background:#fff;font-size:13px;outline:none;color:#111;width:108px;font-family:var(--mono)';
+  return `<input type="text" value="${display}" placeholder="dd/mm/yyyy" maxlength="10"
+    style="${iS}"
+    oninput="fmtDateInput(this)"
+    onblur="${onchangeFn}">`;
+}
+function fmtDateInput(el){
+  // auto-insert / after day and month
+  let v=el.value.replace(/[^0-9/]/g,'');
+  const nums=v.replace(/\//g,'');
+  if(nums.length>=3&&!v.includes('/')){v=nums.slice(0,2)+'/'+nums.slice(2);}
+  if(nums.length>=5&&v.split('/').length<3){const p=v.split('/');v=p[0]+'/'+p[1]+'/'+nums.slice(4);}
+  el.value=v;
+}
 
 async function saveJobSchedule(prod){
   const j=S.axJobs.find(j=>j.prod===prod);
@@ -1590,16 +1630,16 @@ async function saveSchEdit(prod){
   // Update local
   if(newSt)         { j.oseStatus=newSt; j.status=newSt; }
   if(newMach)         j.machine=newMach;
-  if(newSd)           j.startDate=newSd;
-  if(newEd)           j.endDate=newEd;
+  if(newSd)           j.startDate=parseDMY(newSd);
+  if(newEd)           j.endDate=parseDMY(newEd);
   if(newRm!==undefined) j.remarks=newRm;
   // PATCH SP
   if(graphToken && j.spId){
     const fields={};
-    if(newSt)   fields.field_10=newSt;
-    if(newMach) fields.field_6=newMach;
-    if(newSd)   fields.field_7=new Date(newSd).toISOString();
-    if(newEd)   fields.field_8=new Date(newEd).toISOString();
+    if(newSt)           fields.field_10=newSt;
+    if(newMach)         fields.field_6=newMach;
+    if(parseDMY(newSd)) fields.field_7=new Date(parseDMY(newSd)).toISOString();
+    if(parseDMY(newEd)) fields.field_8=new Date(parseDMY(newEd)).toISOString();
     if(newRm!==undefined) fields.field_17=newRm;
     if(Object.keys(fields).length){
       const ok=await spPatchItem(SP_LISTS.L6,j.spId,fields);
@@ -1778,7 +1818,9 @@ function renderOSEMapping(){
         <td><div style="font-family:var(--mono);font-size:13px;font-weight:700;color:#1a7a1a">${j.prod}</div>
           <span class="pill ${stColor}" style="font-size:10px;margin-top:3px;display:inline-block;max-width:118px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${st||'ไม่ระบุ'}</span></td>
         <td><input type="number" placeholder="#" value="${j.priority||''}" style="width:40px;${iStyle}" onchange="updateOSEPriority('${j.prod}',this.value)"></td>
-        <td><input type="date" value="${j.startDate?j.startDate.slice(0,10):''}" style="width:106px;${iStyle}" onchange="updateOSEDate('${j.prod}',this.value)"></td>
+        <td><input type="text" value="${fmtDate(j.startDate)}" placeholder="dd/mm/yyyy" maxlength="10"
+          style="width:108px;${iStyle};font-family:var(--mono)" oninput="fmtDateInput(this)"
+          onblur="updateOSEDate('${j.prod}',this.value)"></td>
         <td style="font-size:13px;color:#222;max-width:270px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${j.name||''}">${j.name||'—'}</td>
         <td><select style="width:100%;${iStyle};padding:5px 7px" onchange="updateOSEOFMRef('${j.prod}',this.value)">${opts}</select></td>
         <td><button onclick="saveOSEMappingRow('${j.prod}')" style="padding:6px 8px;background:var(--blue);color:#fff;border:none;border-radius:4px;font-size:13px;cursor:pointer;width:100%">💾</button></td>
@@ -1794,7 +1836,7 @@ async function updateOSEPriority(prod, val){
 }
 async function updateOSEDate(prod, val){
   const j=S.axJobs.find(j=>j.prod===prod);
-  if(j) j.startDate=val;
+  if(j) j.startDate=parseDMY(val);
 }
 async function updateOSEOFMRef(prod, val){
   const j=S.axJobs.find(j=>j.prod===prod);
