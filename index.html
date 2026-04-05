@@ -383,8 +383,27 @@ table.ax-t .ax-total{background:var(--green-lt);color:var(--green);font-weight:6
         <div class="card" id="ose-plan-form-card" style="display:none">
           <div class="card-title" id="ose-plan-form-title">ตั้งค่า OSE</div>
           <div id="ose-plan-spec" style="background:var(--amber-bg);border:1px solid var(--amber-bd);border-radius:var(--rs);padding:9px 12px;margin-bottom:10px;font-size:11px;line-height:1.6;color:var(--amber)"></div>
-          <div class="ff"><label>เลือก MCID (filter ตาม spec)</label>
-            <div class="mcid-list" id="ose-mcid-sel" style="max-height:180px"></div>
+          <div class="ff"><label>เลือก MCID</label>
+            <!-- MCID filter bar -->
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px" id="ose-mcid-filters">
+              <select id="mcid-f-thick" onchange="selMCIDFilter.thick=this.value;renderFilteredMCID()"
+                style="padding:4px 8px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:11px;outline:none">
+                <option value="">ทุกความหนา</option>
+              </select>
+              <select id="mcid-f-width" onchange="selMCIDFilter.width=this.value;renderFilteredMCID()"
+                style="padding:4px 8px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:11px;outline:none">
+                <option value="">ทุกหน้ากว้าง</option>
+              </select>
+              <select id="mcid-f-factory" onchange="selMCIDFilter.factory=this.value;renderFilteredMCID()"
+                style="padding:4px 8px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:11px;outline:none">
+                <option value="">ทุกโรงงาน</option>
+              </select>
+              <select id="mcid-f-coating" onchange="selMCIDFilter.coating=this.value;renderFilteredMCID()"
+                style="padding:4px 8px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:11px;outline:none">
+                <option value="">ทุกชั้นเคลือบ</option>
+              </select>
+            </div>
+            <div class="mcid-list" id="ose-mcid-sel" style="max-height:220px"></div>
             <div id="ose-mcid-summary" style="display:none;margin-top:5px;font-size:11px;padding:6px 10px;border-radius:var(--rs);background:var(--purple-bg);color:var(--purple)"></div>
           </div>
           <div class="g2">
@@ -1352,6 +1371,7 @@ async function applyAX(){
 // ─── OSE PLAN ─────────────────────────────────────────────────────
 let selOSEId=null, selMCIDs=[];
 let editOSEId=null;
+let selMCIDFilter={thick:'',width:'',factory:'',coating:''};
 let oseStatusFilter=new Set(); // multi-select filter
 
 function toggleOSEFilter(){
@@ -1503,29 +1523,72 @@ function selectOSE(prod){
   const job=S.axJobs.find(j=>j.prod===prod);
   document.getElementById('ose-plan-form-card').style.display='block';
   document.getElementById('ose-plan-form-title').textContent=`ตั้งค่า ${prod}`;
+  const st=job.oseStatus||job.status||'';
   document.getElementById('ose-plan-spec').innerHTML=`
-    <strong>${prod}</strong><br>${job.name}<br>
-    ${job.thick?`ความหนา: <strong>${job.thick} mm</strong> · `:''}QTY: ${job.qty.toLocaleString()}`;
-  // filter MCID by thickness
-  const avail=S.mcids.filter(c=>!c.used&&(!job.thick||Math.abs(c.thick-parseFloat(job.thick))<0.01));
-  renderOSEMCIDSel(avail);
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
+      <strong style="font-size:13px">${prod}</strong>
+      ${st?`<span class="pill ${OSE_STATUS_COLOR[st]||'p-gray'}" style="font-size:9px">${st}</span>`:''}
+    </div>
+    <div style="margin-bottom:6px;line-height:1.5">${job.name||''}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;font-size:11px">
+      ${job.thick?`<span class="pill p-gray">หนา ${job.thick} mm</span>`:''}
+      ${job.width?`<span class="pill p-gray">กว้าง ${job.width} mm</span>`:''}
+      ${job.qty?`<span class="pill p-gray">QTY: ${Number(job.qty).toLocaleString()}</span>`:''}
+      ${job.machine?`<span class="pill p-blue">${job.machine}</span>`:''}
+      ${job.startDate?`<span class="pill p-teal">เริ่ม ${job.startDate.slice(0,10)}</span>`:''}
+    </div>
+    ${job.remarks?`<div style="margin-top:6px;font-size:10px;color:var(--ink3)">📝 ${job.remarks}</div>`:''}`;
+
+  // Filter MCID with sub-filters
+  selMCIDFilter={thick:job.thick?String(job.thick):'',width:'',factory:'',coating:''};
+  renderFilteredMCID();
   renderOSEPending();
   calcOSEDays();
 }
-function renderOSEMCIDSel(list){
+function renderOSEMCIDSel(list){ renderFilteredMCID(list); }
+function renderFilteredMCID(baseList){
+  // Populate filter dropdowns from available MCIDs
+  const all=baseList||S.mcids.filter(c=>!c.used);
+  const sel=(id,vals,cur)=>{
+    const el=document.getElementById(id);if(!el)return;
+    const prev=cur||el.value;
+    el.innerHTML=`<option value="">${el.options[0].text}</option>`+vals.map(v=>`<option value="${v}">${v}</option>`).join('');
+    el.value=prev;
+  };
+  sel('mcid-f-thick',  [...new Set(all.map(c=>c.thick).filter(Boolean))].sort((a,b)=>a-b).map(t=>String(t)));
+  sel('mcid-f-width',  [...new Set(all.map(c=>c.width).filter(Boolean))].sort((a,b)=>a-b).map(w=>String(w)));
+  sel('mcid-f-factory',[...new Set(all.map(c=>c.factory).filter(Boolean))].sort());
+  sel('mcid-f-coating',[...new Set(all.map(c=>c.coating).filter(Boolean))].sort());
+
+  // Apply filters
+  let list=all;
+  if(selMCIDFilter.thick)   list=list.filter(c=>String(c.thick)===selMCIDFilter.thick);
+  if(selMCIDFilter.width)   list=list.filter(c=>String(c.width)===selMCIDFilter.width);
+  if(selMCIDFilter.factory) list=list.filter(c=>c.factory===selMCIDFilter.factory);
+  if(selMCIDFilter.coating) list=list.filter(c=>c.coating===selMCIDFilter.coating);
+
   const el=document.getElementById('ose-mcid-sel');
+  if(!el)return;
   el.innerHTML=list.map(c=>`
     <div class="mcid-item ${selMCIDs.includes(c.serial)?'sel':''}" onclick="toggleOSEMCID('${c.serial}')">
       <div class="mchk">${selMCIDs.includes(c.serial)?'✓':''}</div>
-      <div><div class="mcid-srl">${c.serial}</div><div class="mcid-dtl">${c.thick}mm · ${c.wt_kg.toFixed(3)}kg</div></div>
-    </div>`).join('')||'<div style="color:var(--ink3);font-size:11px;padding:10px">ไม่มี MCID ที่ตรง spec</div>';
+      <div style="flex:1">
+        <div class="mcid-srl">${c.serial}</div>
+        <div class="mcid-dtl" style="display:flex;gap:4px;flex-wrap:wrap;margin-top:3px">
+          ${c.thick?`<span class="pill p-gray" style="font-size:9px">${c.thick}mm</span>`:''}
+          ${c.width?`<span class="pill p-gray" style="font-size:9px">W${c.width}</span>`:''}
+          ${c.factory?`<span class="pill p-blue" style="font-size:9px">${c.factory}</span>`:''}
+          ${c.coating?`<span class="pill p-teal" style="font-size:9px">${c.coating}</span>`:''}
+        </div>
+      </div>
+      <div style="text-align:right;font-family:var(--mono);font-size:11px;white-space:nowrap">${c.wt_kg.toFixed(3)} kg</div>
+    </div>`).join('')||'<div style="color:var(--ink3);font-size:11px;padding:10px;text-align:center">ไม่มี MCID ที่ตรงกับ filter</div>';
 }
 function toggleOSEMCID(serial){
   const job=S.axJobs.find(j=>j.prod===selOSEId);
-  const avail=S.mcids.filter(c=>!c.used&&(!job?.thick||Math.abs(c.thick-parseFloat(job.thick))<0.01));
   const idx=selMCIDs.indexOf(serial);
   if(idx>=0)selMCIDs.splice(idx,1); else selMCIDs.push(serial);
-  renderOSEMCIDSel(avail);
+  renderFilteredMCID();
   const n=selMCIDs.length;
   const sumEl=document.getElementById('ose-mcid-summary');
   const wt=S.mcids.filter(c=>selMCIDs.includes(c.serial)).reduce((s,c)=>s+c.wt_kg,0);
