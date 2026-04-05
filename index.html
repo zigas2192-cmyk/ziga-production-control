@@ -593,6 +593,8 @@ table.ax-t .ax-total{background:var(--green-lt);color:var(--green);font-weight:6
         <button class="mp-tab" onclick="switchMPTab('mapping',this)">🔗 OSE↔OFM</button>
         <button class="mp-tab" onclick="switchMPTab('monthly',this)">📆 Monthly</button>
         <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+          <button onclick="exportMasterPlanXLSX()"
+            style="padding:6px 14px;border:1px solid var(--green-bd);border-radius:var(--rs);background:var(--green-bg);color:var(--green);font-size:13px;cursor:pointer;font-family:var(--sans);font-weight:500">📥 Export Excel</button>
           <button onclick="loadL6FromSP().then(()=>{initMasterPlan();showToast('✅ Load L6: '+S.axJobs.length+' jobs');})"
             style="padding:6px 14px;border:1px solid var(--blue-bd);border-radius:var(--rs);background:var(--blue-bg);color:var(--blue);font-size:13px;cursor:pointer;font-family:var(--sans);font-weight:500">🔄 Load L6</button>
           <span id="mp-summary-badge" style="font-size:12px;color:var(--ink3)"></span>
@@ -1373,15 +1375,16 @@ function renderMachineSchedule(){
             <span style="font-size:12px;color:var(--ink3)">${d.jobs.length} ใบงาน</span>
             ${!d.jobs.length?'<span class="pill p-gray">ว่าง</span>':''}
           </div>
-          ${d.jobs.length?`<div class="tbl-wrap"><table class="ft" style="min-width:680px">
+          ${d.jobs.length?`<div class="tbl-wrap"><table class="ft" style="min-width:820px">
             <thead><tr>
               <th style="width:130px">หมายเลขงาน</th>
               <th>ชื่องาน</th>
               <th style="width:60px">ความหนา</th>
               <th style="width:80px">จำนวน</th>
-              <th style="width:100px">วันที่เริ่ม</th>
-              <th style="width:100px">วันที่จบ</th>
-              <th style="width:140px">สถานะ</th>
+              <th style="width:105px">วันที่เริ่ม</th>
+              <th style="width:105px">วันที่จบ</th>
+              <th style="width:150px">สถานะ</th>
+              <th style="width:58px">แก้ไข</th>
             </tr></thead>
             <tbody>
             ${d.jobs.map(j=>{
@@ -1389,14 +1392,58 @@ function renderMachineSchedule(){
               const stColor=OSE_STATUS_COLOR[st]||'p-gray';
               const jt=jobType(j);
               const tc=jt==='OSE'?'#1a7a1a':jt==='OFM'?'#1259A5':jt==='ORW'?'#433FA8':'#333';
-              return `<tr>
+              const sid=j.prod.replace(/[^a-z0-9]/gi,'_');
+              return `<tr id="sch-row-${sid}">
                 <td><div style="font-family:var(--mono);font-size:13px;font-weight:700;color:${tc}">${j.prod}</div><span style="font-size:11px;color:#666">${jt}</span></td>
-                <td style="font-size:13px;color:#111;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${j.name||''}">${j.name||'—'}</td>
+                <td style="font-size:13px;color:#111;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${j.name||''}">${j.name||'—'}</td>
                 <td style="font-size:13px;text-align:center;color:#111">${j.thick?j.thick+'mm':'—'}</td>
                 <td style="font-family:var(--mono);font-size:13px;text-align:right;color:#111">${j.qty?Number(j.qty).toLocaleString():'—'}</td>
-                <td style="font-size:13px;color:${j.startDate?'#111':'var(--amber)'}">${j.startDate?j.startDate.slice(0,10):'ยังไม่กำหนด'}</td>
-                <td style="font-size:13px;color:#111">${j.endDate?j.endDate.slice(0,10):'—'}</td>
-                <td><span class="pill ${stColor}" style="font-size:11px;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block">${st||'ไม่ระบุ'}</span></td>
+                <td id="sch-start-${sid}" style="font-size:13px;color:${j.startDate?'#111':'var(--amber)'}">
+                  ${j.startDate?j.startDate.slice(0,10):'<span style="color:var(--amber)">ยังไม่กำหนด</span>'}
+                </td>
+                <td id="sch-end-${sid}" style="font-size:13px;color:#111">${j.endDate?j.endDate.slice(0,10):'—'}</td>
+                <td id="sch-st-${sid}"><span class="pill ${stColor}" style="font-size:11px;max-width:138px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block">${st||'ไม่ระบุ'}</span></td>
+                <td><button onclick="openSchEdit('${j.prod}')"
+                  style="padding:5px 9px;background:var(--panel);border:1px solid var(--b2);border-radius:4px;font-size:13px;cursor:pointer;width:100%">✏️</button></td>
+              </tr>
+              <tr id="sch-edit-${sid}" style="display:none;background:#f8f9ff">
+                <td colspan="8" style="padding:10px 14px">
+                  <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+                    <div>
+                      <div style="font-size:11px;color:#666;margin-bottom:3px">สถานะ</div>
+                      <select id="sch-sel-st-${sid}" style="padding:5px 8px;border:1px solid var(--b2);border-radius:4px;background:#fff;font-size:13px;outline:none;color:#111;min-width:220px">
+                        ${OSE_STATUS.map(s=>`<option value="${s}" ${st===s?'selected':''}>${s}</option>`).join('')}
+                      </select>
+                    </div>
+                    <div>
+                      <div style="font-size:11px;color:#666;margin-bottom:3px">เครื่องจักร</div>
+                      <select id="sch-sel-m-${sid}" style="padding:5px 8px;border:1px solid var(--b2);border-radius:4px;background:#fff;font-size:13px;outline:none;color:#111;min-width:150px">
+                        ${MACHINE_GROUPS.map(g=>`<optgroup label="${g.icon} ${g.label}">`+g.machines.map(m=>`<option value="${m}" ${j.machine===m?'selected':''}>${m}</option>`).join('')+'</optgroup>').join('')}
+                      </select>
+                    </div>
+                    <div>
+                      <div style="font-size:11px;color:#666;margin-bottom:3px">วันเริ่ม</div>
+                      <input type="date" id="sch-sel-sd-${sid}" value="${j.startDate?j.startDate.slice(0,10):''}"
+                        style="padding:5px 8px;border:1px solid var(--b2);border-radius:4px;background:#fff;font-size:13px;outline:none;color:#111">
+                    </div>
+                    <div>
+                      <div style="font-size:11px;color:#666;margin-bottom:3px">วันจบ</div>
+                      <input type="date" id="sch-sel-ed-${sid}" value="${j.endDate?j.endDate.slice(0,10):''}"
+                        style="padding:5px 8px;border:1px solid var(--b2);border-radius:4px;background:#fff;font-size:13px;outline:none;color:#111">
+                    </div>
+                    <div style="flex:1;min-width:200px">
+                      <div style="font-size:11px;color:#666;margin-bottom:3px">หมายเหตุ (Remarks)</div>
+                      <input type="text" id="sch-sel-rm-${sid}" value="${(j.remarks||'').replace(/"/g,'&quot;')}" placeholder="พิมพ์หมายเหตุ..."
+                        style="padding:5px 8px;border:1px solid var(--b2);border-radius:4px;background:#fff;font-size:13px;outline:none;color:#111;width:100%">
+                    </div>
+                    <div style="display:flex;gap:6px">
+                      <button onclick="saveSchEdit('${j.prod}')"
+                        style="padding:6px 16px;background:var(--blue);color:#fff;border:none;border-radius:4px;font-size:13px;cursor:pointer;font-weight:600">💾 บันทึก</button>
+                      <button onclick="closeSchEdit('${j.prod}')"
+                        style="padding:6px 12px;background:var(--panel);border:1px solid var(--b2);border-radius:4px;font-size:13px;cursor:pointer">ยกเลิก</button>
+                    </div>
+                  </div>
+                </td>
               </tr>`;
             }).join('')}
             </tbody>
@@ -1434,8 +1481,9 @@ function renderUnassigned(){
     '</optgroup>').join('');
 
   const iStyle='padding:5px 7px;border:1px solid var(--b2);border-radius:4px;background:#fff;font-size:13px;outline:none;color:#111;width:100%';
+  const stOpts=OSE_STATUS.map(s=>`<option value="${s}">${s}</option>`).join('');
 
-  el.innerHTML=`<div class="tbl-wrap"><table class="ft" style="min-width:860px">
+  el.innerHTML=`<div class="tbl-wrap"><table class="ft" style="min-width:1060px">
     <thead><tr>
       <th style="width:130px">หมายเลขงาน</th>
       <th>ชื่องาน</th>
@@ -1444,6 +1492,7 @@ function renderUnassigned(){
       <th style="width:175px">เครื่องจักร</th>
       <th style="width:115px">วันที่เริ่ม</th>
       <th style="width:115px">วันที่จบ</th>
+      <th style="width:210px">สถานะ</th>
       <th style="width:58px">บันทึก</th>
     </tr></thead>
     <tbody>
@@ -1452,14 +1501,19 @@ function renderUnassigned(){
       const tc=jt==='OSE'?'#1a7a1a':jt==='OFM'?'#1259A5':jt==='ORW'?'#433FA8':'#333';
       const hasM=!!j.machine;
       const opts=hasM?machOpts.replace(`value="${j.machine}"`,`value="${j.machine}" selected`):machOpts;
+      const curSt=j.oseStatus||j.status||'';
+      const stOptsSelected=curSt?stOpts.replace(`value="${curSt}"`,`value="${curSt}" selected`):stOpts;
       return `<tr style="${!hasM?'background:var(--amber-bg)':''}">
         <td><div style="font-family:var(--mono);font-size:13px;font-weight:700;color:${tc}">${j.prod}</div><span style="font-size:11px;color:#666">${jt}</span></td>
-        <td style="font-size:13px;color:#111;max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${j.name||''}">${j.name||'—'}</td>
+        <td style="font-size:13px;color:#111;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${j.name||''}">${j.name||'—'}</td>
         <td style="font-size:13px;text-align:center;color:#111">${j.thick?j.thick+'mm':'—'}</td>
         <td style="font-family:var(--mono);font-size:13px;text-align:right;color:#111">${j.qty?Number(j.qty).toLocaleString():'—'}</td>
         <td><select style="${iStyle}" onchange="updateJobMachine('${j.prod}',this.value)">${opts}</select></td>
         <td><input type="date" value="${j.startDate?j.startDate.slice(0,10):''}" style="${iStyle}" onchange="updateOSEDate('${j.prod}',this.value)"></td>
         <td><input type="date" value="${j.endDate?j.endDate.slice(0,10):''}" style="${iStyle}" onchange="updateJobEndDate('${j.prod}',this.value)"></td>
+        <td><select style="${iStyle}" onchange="updateJobStatus('${j.prod}',this.value)">
+          <option value="">— ไม่เปลี่ยน —</option>${stOptsSelected}
+        </select></td>
         <td><button onclick="saveJobSchedule('${j.prod}')" style="padding:6px 10px;background:var(--blue);color:#fff;border:none;border-radius:4px;font-size:13px;cursor:pointer;width:100%">💾</button></td>
       </tr>`;
     }).join('')}
@@ -1469,6 +1523,70 @@ function renderUnassigned(){
 
 function updateJobMachine(prod,val){const j=S.axJobs.find(j=>j.prod===prod);if(j)j.machine=val;}
 function updateJobEndDate(prod,val){const j=S.axJobs.find(j=>j.prod===prod);if(j)j.endDate=val;}
+function updateJobStatus(prod,val){if(!val)return;const j=S.axJobs.find(j=>j.prod===prod);if(j){j.oseStatus=val;j.status=val;}}
+
+async function saveJobSchedule(prod){
+  const j=S.axJobs.find(j=>j.prod===prod);
+  if(!j) return;
+  if(!graphToken){showToast('⚠️ login ก่อน');return;}
+  if(!j.spId){showToast('⚠️ ไม่พบ spId — Load L6 ก่อน');return;}
+  const fields={};
+  if(j.machine)          fields.field_6 =j.machine;
+  if(j.startDate)        fields.field_7 =new Date(j.startDate).toISOString();
+  if(j.endDate)          fields.field_8 =new Date(j.endDate).toISOString();
+  if(j.oseStatus||j.status) fields.field_10=j.oseStatus||j.status;
+  const ok=await spPatchItem(SP_LISTS.L6,j.spId,fields);
+  if(ok){
+    showToast(`✅ บันทึก ${prod} → ${j.machine||'?'} | ${(j.oseStatus||'').slice(0,20)}`);
+    renderMachineSchedule();
+    renderUnassigned();
+  } else showToast(`❌ บันทึกไม่สำเร็จ: ${prod}`);
+}
+
+// ── Inline edit in machine schedule table ────────────────────────
+function openSchEdit(prod){
+  const sid=prod.replace(/[^a-z0-9]/gi,'_');
+  const row=document.getElementById('sch-edit-'+sid);
+  if(row) row.style.display=row.style.display==='none'?'':'none';
+}
+function closeSchEdit(prod){
+  const sid=prod.replace(/[^a-z0-9]/gi,'_');
+  const row=document.getElementById('sch-edit-'+sid);
+  if(row) row.style.display='none';
+}
+async function saveSchEdit(prod){
+  const j=S.axJobs.find(j=>j.prod===prod);
+  if(!j) return;
+  const sid=prod.replace(/[^a-z0-9]/gi,'_');
+  const newSt  = document.getElementById('sch-sel-st-'+sid)?.value||'';
+  const newMach= document.getElementById('sch-sel-m-'+sid)?.value||'';
+  const newSd  = document.getElementById('sch-sel-sd-'+sid)?.value||'';
+  const newEd  = document.getElementById('sch-sel-ed-'+sid)?.value||'';
+  const newRm  = document.getElementById('sch-sel-rm-'+sid)?.value||'';
+  // Update local
+  if(newSt)         { j.oseStatus=newSt; j.status=newSt; }
+  if(newMach)         j.machine=newMach;
+  if(newSd)           j.startDate=newSd;
+  if(newEd)           j.endDate=newEd;
+  if(newRm!==undefined) j.remarks=newRm;
+  // PATCH SP
+  if(graphToken && j.spId){
+    const fields={};
+    if(newSt)   fields.field_10=newSt;
+    if(newMach) fields.field_6=newMach;
+    if(newSd)   fields.field_7=new Date(newSd).toISOString();
+    if(newEd)   fields.field_8=new Date(newEd).toISOString();
+    if(newRm!==undefined) fields.field_17=newRm;
+    if(Object.keys(fields).length){
+      const ok=await spPatchItem(SP_LISTS.L6,j.spId,fields);
+      if(ok) showToast(`✅ แก้ไข ${prod} แล้ว`);
+      else   showToast(`❌ บันทึกไม่สำเร็จ: ${prod}`);
+    }
+  } else if(!graphToken){
+    showToast(`✅ แก้ไข ${prod} (local)`);
+  }
+  renderMachineSchedule();
+}
 async function saveJobSchedule(prod){
   const j=S.axJobs.find(j=>j.prod===prod);
   if(!j) return;
@@ -1484,6 +1602,60 @@ async function saveJobSchedule(prod){
 }
 
 function renderWorkQueue(){renderMachineSchedule();}
+
+// ── Export Master Plan to Excel ──────────────────────────────────
+function exportMasterPlanXLSX(){
+  const jobs=S.axJobs.filter(isActive);
+  if(!jobs.length){alert('ไม่มีข้อมูล — Load L6 ก่อน');return;}
+
+  // Sheet 1: ทุกใบงาน
+  const allRows=jobs.map(j=>({
+    'หมายเลขงาน':  j.prod||'',
+    'ประเภท':       jobType(j),
+    'ชื่องาน':      j.name||'',
+    'ความหนา(mm)': j.thick||'',
+    'จำนวน':        j.qty||'',
+    'เครื่องจักร':  j.machine||'',
+    'วันที่เริ่ม':  j.startDate?j.startDate.slice(0,10):'',
+    'วันที่จบ':     j.endDate?j.endDate.slice(0,10):'',
+    'สถานะ':        j.oseStatus||j.status||'',
+    'OFM คู่':      j.item||'',
+    'หมายเหตุ':     j.remarks||'',
+  }));
+
+  // Sheet 2: จัดกลุ่มตามเครื่อง
+  const machRows=[];
+  MACHINE_GROUPS.forEach(grp=>{
+    grp.machines.forEach(m=>{
+      const mJobs=jobs.filter(j=>j.machine===m);
+      if(!mJobs.length) return;
+      machRows.push({'กลุ่มเครื่อง':grp.label,'เครื่องจักร':m,'หมายเลขงาน':'','ประเภท':'','ชื่องาน':'','ความหนา':'','จำนวน':'','วันที่เริ่ม':'','วันที่จบ':'','สถานะ':'','หมายเหตุ':''});
+      mJobs.sort((a,b)=>(a.startDate||'').localeCompare(b.startDate||'')).forEach(j=>{
+        machRows.push({
+          'กลุ่มเครื่อง': grp.label,
+          'เครื่องจักร':  m,
+          'หมายเลขงาน':  j.prod||'',
+          'ประเภท':       jobType(j),
+          'ชื่องาน':      j.name||'',
+          'ความหนา':      j.thick?j.thick+'mm':'',
+          'จำนวน':        j.qty||'',
+          'วันที่เริ่ม':  j.startDate?j.startDate.slice(0,10):'',
+          'วันที่จบ':     j.endDate?j.endDate.slice(0,10):'',
+          'สถานะ':        j.oseStatus||j.status||'',
+          'หมายเหตุ':     j.remarks||'',
+        });
+      });
+    });
+  });
+
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(allRows),    'ทุกใบงาน');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(machRows),   'แยกตามเครื่อง');
+
+  const dateStr=new Date().toLocaleDateString('th-TH',{year:'numeric',month:'2-digit',day:'2-digit'}).replace(/\//g,'');
+  XLSX.writeFile(wb, `ZIGA_MasterPlan_${dateStr}.xlsx`);
+  showToast(`✅ Export Excel แล้ว — ${jobs.length} ใบงาน`);
+}
 
 // ── Monthly Plan Calculator ──────────────────────────────────────
 function initMonthlyPlan(){
