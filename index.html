@@ -1312,7 +1312,7 @@ async function applyPacking(){
         field_8:     c.coating ? String(c.coating).trim() : undefined,
         field_9:     c.pono    ? String(c.pono).trim()    : undefined,
         // MCIDStatus — custom column ใช้ display name เป็น internal name
-        MCIDStatus:  'ในคลัง',
+        MCIDStatus:  '1.stockในคลัง',
       };
       // ReceivedDate (field_10) — ISO format
       if(c.recDate){
@@ -1357,8 +1357,8 @@ async function loadL4FromSP(){
       recDate:  f.field_10||f.ReceivedDate||'',
       // OSENo และ MCIDStatus — ลอง display name ก่อน แล้ว fallback ไป field_N
       oseNo:    f.OSENo    ||f.field_11||'',
-      status:   f.MCIDStatus||f.field_12||'ในคลัง',
-      used:    (f.MCIDStatus||f.field_12||'')==='จ่ายแล้ว'||(f.MCIDStatus||f.field_12||'')==='สลิตแล้ว',
+      status:   f.MCIDStatus||f.field_12||'1.stockในคลัง',
+      used:    (f.MCIDStatus||f.field_12||'')==='2.pickเข้าใบงานOSE'||(f.MCIDStatus||f.field_12||'')==='3.slitแล้ว',
       wBefore:  parseFloat(f.WeightBefore||f.field_13)||0,
       wAfter:   parseFloat(f.WeightAfter ||f.field_14)||0,
       wScrap:   parseFloat(f.WeightScrap ||f.field_15)||0,
@@ -2425,7 +2425,7 @@ function renderOSEPending(){
   el.innerHTML=oses.map(o=>{
     const st=o.oseStatus||o.status||'';
     const stColor=OSE_STATUS_COLOR[st]||'p-gray';
-    const mcidCount=S.mcids.filter(m=>m.oseNo===o.prod&&m.status==='จ่ายแล้ว').length;
+    const mcidCount=S.mcids.filter(m=>m.oseNo===o.prod&&m.status==='2.pickเข้าใบงานOSE').length;
     const isActive=selOSEId===o.prod;
     return `
     <div class="ose-row ${isActive?'active':''}" onclick="selectOSE('${o.prod}')"
@@ -2451,7 +2451,7 @@ function selectOSE(prod){
   if(!job) return;
 
   // Check if already picked — pre-select MCIDs
-  const alreadyPicked=S.mcids.filter(c=>c.oseNo===prod&&c.status==='จ่ายแล้ว');
+  const alreadyPicked=S.mcids.filter(c=>c.oseNo===prod&&c.status==='2.pickเข้าใบงานOSE');
   alreadyPicked.forEach(c=>{ if(!selMCIDs.includes(c.serial)) selMCIDs.push(c.serial); });
 
   const st=job.oseStatus||job.status||'';
@@ -2618,7 +2618,7 @@ async function saveOSEPlan(){
     order:parseInt(document.getElementById('ose-order')?.value)||1,
     estimate:document.getElementById('ose-estimate')?.value||'',
     slitDone:false});
-  mcids.forEach(c=>{const mc=S.mcids.find(x=>x.serial===c.serial);if(mc){mc.used=true;mc.oseNo=selOSEId;mc.status='จ่ายแล้ว';}});
+  mcids.forEach(c=>{const mc=S.mcids.find(x=>x.serial===c.serial);if(mc){mc.used=true;mc.oseNo=selOSEId;mc.status='2.pickเข้าใบงานOSE';}});
 
   // Update job status locally
   if(job){ job.oseStatus=newStatus; job.status=newStatus; if(remark) job.remarks=remark; }
@@ -2666,7 +2666,7 @@ async function saveOSEPlan(){
         // OSENo, MCIDStatus คือ column ที่สร้างทีหลัง → ใช้ชื่อตรงๆ
         const ok=await spPatchItem(SP_LISTS.L4,c.spId,{
           OSENo:      selOSEId,
-          MCIDStatus: 'จ่ายแล้ว',
+          MCIDStatus: '2.pickเข้าใบงานOSE',
         });
         if(ok) l4ok++;
         else{ console.error('PATCH failed:',c.serial); l4skip++; }
