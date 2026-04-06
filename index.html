@@ -1560,8 +1560,9 @@ const S = {
 };
 
 // ── State persistence helpers ─────────────────────────────────────
+
 const STATE_KEY='ziga_app_state';
-const STATE_VER=3; // bump to invalidate old cache
+const STATE_VER=4; // bump → ล้าง cache เก่าที่มี axJobs ค่าผิด
 
 function saveState(){
   try{
@@ -1569,7 +1570,7 @@ function saveState(){
       v: STATE_VER,
       savedAt: Date.now(),
       mcids:   S.mcids,
-      axJobs:  S.axJobs,
+      // ไม่ save axJobs — โหลดจาก SP ทุกครั้งเพื่อให้ได้ค่าล่าสุดเสมอ
       osePlans:S.osePlans,
       ofmPlans:S.ofmPlans,
       slitData:S.slitData,
@@ -1585,17 +1586,17 @@ function loadState(){
     if(!raw) return false;
     const data=JSON.parse(raw);
     if(data.v!==STATE_VER){ localStorage.removeItem(STATE_KEY); return false; }
-    // ไม่ restore ถ้าข้อมูลเก่ากว่า 24 ชั่วโมง
-    if(Date.now()-data.savedAt > 24*60*60*1000){
+    // ไม่ restore ถ้าข้อมูลเก่ากว่า 4 ชั่วโมง
+    if(Date.now()-data.savedAt > 4*60*60*1000){
       localStorage.removeItem(STATE_KEY); return false;
     }
     if(data.mcids  ) S.mcids   = data.mcids;
-    if(data.axJobs ) S.axJobs  = data.axJobs;
+    // axJobs ไม่ restore จาก cache — ให้ Load L6 จาก SP ทุกครั้ง
     if(data.osePlans)S.osePlans= data.osePlans;
     if(data.ofmPlans)S.ofmPlans= data.ofmPlans;
     if(data.slitData)S.slitData= data.slitData;
     if(data.defects) S.defects = data.defects;
-    console.log(`✅ State restored: ${S.mcids.length} MCID · ${S.axJobs.length} jobs`);
+    console.log(`✅ State restored: ${S.mcids.length} MCID`);
     return true;
   }catch(e){ console.warn('loadState error:',e); return false; }
 }
@@ -2723,6 +2724,7 @@ async function loadL6FromSP(){
     showProgress('กำลังโหลด OSE/OFM จาก SharePoint L6...',0,1);
     const items=await spGetItems(SP_LISTS.L6,'',500);
     if(!items.length){hideProgress();return;}
+    // ← overwrite ทั้งหมดจาก SP เสมอ ไม่ merge กับ cache เก่า
     S.axJobs=items.map(f=>({
       prod:         f.Title||'',
       item:         f.OFMRef||f.field_1||'',        // OFMRef (จับคู่ OSE↔OFM)
