@@ -479,6 +479,9 @@ table.ax-t .ax-total{background:var(--green-lt);color:var(--green);font-weight:6
           style="padding:7px 14px;border:1px solid var(--blue-bd);border-radius:var(--rs);background:var(--blue-bg);color:var(--blue);font-size:13px;cursor:pointer;font-family:var(--sans)">🔄 Load L4</button>
         <button onclick="loadL6FromSP().then(()=>{renderSlitOSEList();showToast('✅ Load L6 แล้ว');})"
           style="padding:7px 14px;border:1px solid var(--blue-bd);border-radius:var(--rs);background:var(--blue-bg);color:var(--blue);font-size:13px;cursor:pointer;font-family:var(--sans)">🔄 Load L6</button>
+        <button onclick="exportSlitExcel()"
+          style="padding:7px 14px;border:1px solid var(--green-bd);border-radius:var(--rs);background:var(--green-bg);color:var(--green);font-size:13px;cursor:pointer;font-family:var(--sans);font-weight:500">📥 Export Excel</button>
+        <span id="slit-export-note" style="font-size:11px;color:#888">ส่งออกตามที่ filter ไว้</span>
       </div>
       <!-- OSE list (mobile single column) -->
       <div style="margin-bottom:12px">
@@ -2539,7 +2542,107 @@ function exportForAI(){
   showToast('✅ Export สำเร็จ — นำไฟล์นี้แนบให้ Claude คำนวณ Daily Plan ค่ะ');
 }
 
-// ── Date helpers dd/mm/yyyy ──────────────────────────────────────
+// ── Export Slit Weight Excel ─────────────────────────────────────
+function exportSlitExcel(){
+  if(typeof XLSX==='undefined'){showToast('⚠️ XLSX library ยังไม่โหลด');return;}
+  const q=(document.getElementById('slit-search')?.value||'').toLowerCase();
+  const f=document.getElementById('slit-filter')?.value||'all';
+  const isPicked=c=>c.oseNo&&(c.status==='ใช้แล้ว'||c.status==='3.slitแล้ว'||c.used);
+  const oseNos=[...new Set(S.mcids.filter(isPicked).map(c=>c.oseNo))];
+
+  // สร้าง plans เหมือน renderSlitOSEList
+  let plans=oseNos.map(oseNo=>{
+    const job=S.axJobs.find(j=>j.prod===oseNo)||{prod:oseNo,name:oseNo,remarks:''};
+    const mcids=S.mcids.filter(c=>c.oseNo===oseNo&&isPicked(c));
+    const allDone=mcids.length>0&&mcids.every(c=>S.slitData[c.serial]?.done);
+    return {oseNo,job,mcids,allDone};
+  });
+
+  // apply filter เดียวกับ renderSlitOSEList
+  if(q) plans=plans.filter(p=>(p.oseNo||'').toLowerCase().includes(q)||(p.job?.name||'').toLowerCase().includes(q));
+  if(f==='done')    plans=plans.filter(p=>p.allDone);
+  if(f==='pending') plans=plans.filter(p=>!p.allDone);
+
+  if(!plans.length){showToast('⚠️ ไม่มีข้อมูลที่จะ export');return;}
+
+  const wb=XLSX.utils.book_new();
+
+  // ── Sheet 1: รายละเอียดทุก MCID ──────────────────────────────
+  const rows=[];
+  plans.forEach(p=>{
+    const job=p.job;
+    p.mcids.forEach((c,idx)=>{
+      const d=S.slitData[c.serial]||{};
+      const mc=S.mcids.find(m=>m.serial===c.serial)||c;
+      const before=d.before||mc.wBefore||0;
+      const after =d.after ||mc.wAfter ||0;
+      const scrap =d.scrap ||mc.wScrap ||0;
+      const net   =d.net   ||(after-scrap)||0;
+      rows.push({
+        'เลขที่ใบงาน OSE': p.oseNo,
+        'SlitFormula':      job.name||'',
+        'Remarks/Batch':    job.remarks||'',
+        'ลำดับลูก':         idx+1,
+        'MCID (Serial)':    c.serial,
+        'GW คลัง (kg)':     mc.wt_kg||c.wt_kg||0,
+        'นน.ก่อนแกะ (kg)': before||'',
+        'นน.หลังแกะ (kg)': after||'',
+        'ขอบข้าง (kg)':    scrap||'',
+        'Net (kg)':         net||'',
+        'สถานะ':            d.done?'✅ บันทึกแล้ว':'⏳ ยังไม่บันทึก',
+      });
+    });
+    // summary row ต่อ OSE
+    const totalGW  =p.mcids.reduce((s,c)=>{const mc=S.mcids.find(m=>m.serial===c.serial)||c;return s+(mc.wt_kg||c.wt_kg||0);},0);
+    const totalBef =p.mcids.reduce((s,c)=>{const d=S.slitData[c.serial]||{};const mc=S.mcids.find(m=>m.serial===c.serial)||c;return s+(d.before||mc.wBefore||0);},0);
+    const totalAft =p.mcids.reduce((s,c)=>{const d=S.slitData[c.serial]||{};const mc=S.mcids.find(m=>m.serial===c.serial)||c;return s+(d.after||mc.wAfter||0);},0);
+    const totalScr =p.mcids.reduce((s,c)=>{const d=S.slitData[c.serial]||{};const mc=S.mcids.find(m=>m.serial===c.serial)||c;return s+(d.scrap||mc.wScrap||0);},0);
+    const totalNet =p.mcids.reduce((s,c)=>{const d=S.slitData[c.serial]||{};return s+(d.net||(d.after-d.scrap)||0);},0);
+    rows.push({
+      'เลขที่ใบงาน OSE': `รวม ${p.oseNo}`,
+      'SlitFormula': '',
+      'Remarks/Batch': '',
+      'ลำดับลูก': p.mcids.length+' ลูก',
+      'MCID (Serial)': '',
+      'GW คลัง (kg)': +totalGW.toFixed(3),
+      'นน.ก่อนแกะ (kg)': totalBef?+totalBef.toFixed(3):'',
+      'นน.หลังแกะ (kg)': totalAft?+totalAft.toFixed(3):'',
+      'ขอบข้าง (kg)':    totalScr?+totalScr.toFixed(3):'',
+      'Net (kg)':         totalNet?+totalNet.toFixed(3):'',
+      'สถานะ': '',
+    });
+    rows.push({'เลขที่ใบงาน OSE':''}); // blank row
+  });
+
+  const ws=XLSX.utils.json_to_sheet(rows);
+  ws['!cols']=[16,38,30,8,18,14,16,16,14,12,16].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb,'SlitWeight',ws);
+
+  // ── Sheet 2: สรุปต่อ OSE ─────────────────────────────────────
+  const sumRows=plans.map(p=>{
+    const totalGW =p.mcids.reduce((s,c)=>{const mc=S.mcids.find(m=>m.serial===c.serial)||c;return s+(mc.wt_kg||c.wt_kg||0);},0);
+    const totalNet=p.mcids.reduce((s,c)=>{const d=S.slitData[c.serial]||{};return s+(d.net||0);},0);
+    const done=p.mcids.filter(c=>S.slitData[c.serial]?.done).length;
+    return {
+      'OSE No.':         p.oseNo,
+      'SlitFormula':     p.job.name||'',
+      'Batch/Remarks':   p.job.remarks||'',
+      'จำนวน MCID':     p.mcids.length,
+      'บันทึกแล้ว':     done,
+      'GW รวม (kg)':    +totalGW.toFixed(3),
+      'Net รวม (kg)':   totalNet?+totalNet.toFixed(3):'',
+      'สถานะ':          p.allDone?'✅ เสร็จ':'⏳ กำลังดำเนินการ',
+    };
+  });
+  const ws2=XLSX.utils.json_to_sheet(sumRows);
+  ws2['!cols']=[16,38,30,10,10,14,14,20].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb,'Summary',ws2);
+
+  const date=new Date().toISOString().slice(0,10).replace(/-/g,'');
+  const label=f==='done'?'เสร็จ':f==='pending'?'pending':'ทั้งหมด';
+  XLSX.writeFile(wb,`ZIGA_SlitWeight_${label}_${date}.xlsx`);
+  showToast(`✅ Export ${rows.filter(r=>r['MCID (Serial)']).length} MCID จาก ${plans.length} ใบงาน`);
+}
 // Convert yyyy-mm-dd → dd/mm/yyyy for display
 function fmtDate(iso){
   if(!iso) return '';
