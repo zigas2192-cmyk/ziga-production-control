@@ -3565,17 +3565,18 @@ function renderOSEPlanned(){
 function renderSlitOSEList(){
   const el=document.getElementById('slit-ose-list');
 
-  // ดึง OSE ที่มี MCID status='ใช้แล้ว' (Pick แล้ว) จาก L4
+  // ดึง OSE ที่มี MCID status='ใช้แล้ว' หรือ '3.slitแล้ว' (Pick แล้ว) จาก L4
   // รวม osePlans + axJobs ที่ pick แล้ว
+  const isPicked=c=>c.oseNo&&(c.status==='ใช้แล้ว'||c.status==='3.slitแล้ว'||c.used);
   const oseNosWithMCID=[...new Set(S.mcids
-    .filter(c=>c.oseNo&&c.status==='ใช้แล้ว')
+    .filter(isPicked)
     .map(c=>c.oseNo))];
 
   let plans=[];
   oseNosWithMCID.forEach(oseNo=>{
     const existing=S.osePlans.find(p=>p.oseNo===oseNo);
     const job=S.axJobs.find(j=>j.prod===oseNo)||{prod:oseNo,name:oseNo};
-    const mcids=S.mcids.filter(c=>c.oseNo===oseNo&&c.status==='ใช้แล้ว');
+    const mcids=S.mcids.filter(c=>c.oseNo===oseNo&&isPicked(c));
     if(existing){
       existing.mcids=mcids; // อัป mcids
       plans.push(existing);
