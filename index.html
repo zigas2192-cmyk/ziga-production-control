@@ -522,43 +522,138 @@ table.ax-t .ax-total{background:var(--green-lt);color:var(--green);font-weight:6
 
     <!-- ⑥ OFM/PROD บันทึก -->
     <div class="page" id="page-prod">
-      <div class="pg-hd"><div class="pg-title">บันทึกผลผลิต</div>
-        <div class="pg-sub">เลือกงาน → กรอกผลจริง + พารามิเตอร์ + ของเสีย</div></div>
-      <div class="g2">
-        <div>
-          <div class="sec-lbl">งานที่ต้องกรอก</div>
-          <div id="prod-plan-list"><div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center;background:var(--panel);border-radius:var(--r)">ยังไม่มีแผนงาน</div></div>
+      <div class="pg-hd">
+        <div class="pg-title">บันทึกผลผลิต</div>
+        <div class="pg-sub">พนักงานเลือกใบงาน → กรอกผลจริง → บันทึกลง SP L7</div>
+      </div>
+
+      <!-- Header: วันที่ + กะ + Load -->
+      <div class="card" style="margin-bottom:12px">
+        <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+          <div class="ff" style="flex:1;min-width:130px;margin:0">
+            <label style="font-size:11px;color:var(--ink3);display:block;margin-bottom:4px">วันที่</label>
+            <input type="date" id="prod-date" class="fi" style="margin:0">
+          </div>
+          <div class="ff" style="flex:1;min-width:130px;margin:0">
+            <label style="font-size:11px;color:var(--ink3);display:block;margin-bottom:4px">กะ</label>
+            <select id="prod-shift" class="fi sel" style="margin:0">
+              <option value="เช้า">เช้า 08:00–17:00</option>
+              <option value="บ่าย">บ่าย 13:00–20:00</option>
+              <option value="OT">OT 17:30–20:00</option>
+              <option value="ดึก">ดึก 20:00–08:00</option>
+            </select>
+          </div>
+          <button onclick="loadProdJobs()" class="btn btn-p" style="padding:8px 16px;white-space:nowrap">🔄 โหลดใบงาน</button>
         </div>
+      </div>
+
+      <div class="g2" style="align-items:start">
+        <!-- Left: เลือกใบงาน -->
+        <div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <div class="sec-lbl" style="margin:0">เลือกใบงาน OFM / ORW</div>
+            <span id="prod-job-count" style="font-size:11px;color:var(--ink3)"></span>
+          </div>
+          <!-- Search -->
+          <input id="prod-search" placeholder="🔍 ค้นหาใบงาน..." oninput="renderProdJobList()"
+            style="width:100%;padding:7px 12px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:12px;outline:none;color:var(--ink);margin-bottom:8px;box-sizing:border-box">
+          <!-- Filter chips -->
+          <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px" id="prod-type-chips">
+            <span class="chip active" onclick="setProdTypeFilter('',this)">ทั้งหมด</span>
+            <span class="chip" onclick="setProdTypeFilter('OFM',this)">OFM</span>
+            <span class="chip" onclick="setProdTypeFilter('ORW',this)">ORW</span>
+          </div>
+          <div id="prod-job-list">
+            <div style="color:var(--ink3);font-size:12px;padding:24px;text-align:center;background:var(--panel);border-radius:var(--r)">
+              กด "โหลดใบงาน" เพื่อดึงข้อมูลจาก L6
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: ฟอร์มบันทึก -->
         <div id="prod-form-wrap" style="display:none">
           <div class="card">
-            <div id="prod-job-header" style="margin-bottom:11px"></div>
-            <div class="ff"><label>จำนวนที่ทำได้จริง</label>
-              <input class="fi fi-big" type="number" id="prod-actual" oninput="onProdChange()"></div>
+            <!-- Job header -->
+            <div id="prod-job-header" style="margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--b)"></div>
+
+            <!-- เครื่องจักร + ช่วงเวลา -->
+            <div class="g2">
+              <div class="ff"><label>เครื่องจักร</label>
+                <input class="fi" id="prod-machine" placeholder="เช่น RF_05, SL_02"></div>
+              <div class="ff"><label>ช่วงเวลา</label>
+                <input class="fi" id="prod-timerange" placeholder="08.00-17.00"></div>
+            </div>
+
+            <!-- ผลผลิต -->
+            <div class="sec-lbl">ผลผลิตจริง</div>
+            <div class="g2">
+              <div class="ff"><label>จำนวนตามแผน</label>
+                <input class="fi auto" id="prod-plan-qty" readonly placeholder="auto จาก L6"></div>
+              <div class="ff"><label>จำนวนที่ทำได้จริง</label>
+                <input class="fi fi-big" type="number" id="prod-actual" oninput="onProdChange()"></div>
+            </div>
             <div class="g2">
               <div class="ff"><label>สถานะ</label>
                 <select class="fi sel" id="prod-status">
-                  <option>เดินงานตามปกติ</option><option>SET UP</option><option>PM</option><option>แพ็คแบบเหมา</option>
+                  <option>เดินงานตามปกติ</option>
+                  <option>SET UP</option>
+                  <option>PM</option>
+                  <option>แพ็คแบบเหมา</option>
+                  <option>จบงาน</option>
                 </select></div>
-              <div class="ff"><label>ชั่วโมงเดินจริง</label><input class="fi" type="number" id="prod-hours" step="0.5"></div>
-              <div class="ff"><label>Breakdown (นาที)</label><input class="fi" type="number" id="prod-bd" placeholder="0"></div>
-              <div class="ff"><label>สาเหตุ</label><input class="fi" id="prod-bdr" placeholder="ถ้ามี"></div>
+              <div class="ff"><label>ชั่วโมงเดินจริง</label>
+                <input class="fi" type="number" id="prod-hours" step="0.5" placeholder="0.0"></div>
             </div>
-            <div class="divider"></div>
-            <div class="sec-lbl">พารามิเตอร์ (Supervisor กรอก)</div>
+
+            <!-- Breakdown -->
+            <div class="sec-lbl">Breakdown</div>
             <div class="g2">
-              <div class="ff"><label>ความเร็วจริง</label><input class="fi" id="prod-speed" placeholder="เช่น 50 เมตร/นาที"></div>
-              <div class="ff"><label>ค่าไฟที่ใช้ (หน่วย)</label><input class="fi" id="prod-elec" placeholder="หน่วยไฟฟ้า"></div>
+              <div class="ff"><label>ระยะเวลา (นาที)</label>
+                <input class="fi" type="number" id="prod-bd" placeholder="0"></div>
+              <div class="ff"><label>สาเหตุ</label>
+                <input class="fi" id="prod-bdr" placeholder="ถ้ามี"></div>
             </div>
-            <div class="divider"></div>
+
+            <!-- พารามิเตอร์ -->
+            <div class="sec-lbl">พารามิเตอร์</div>
+            <div class="g2">
+              <div class="ff"><label>ความเร็วจริง</label>
+                <input class="fi" id="prod-speed" placeholder="เช่น 50 เมตร/นาที"></div>
+              <div class="ff"><label>ค่าไฟ (หน่วย)</label>
+                <input class="fi" id="prod-elec" placeholder="หน่วยไฟฟ้า"></div>
+            </div>
+
+            <!-- Grade -->
             <div class="sec-lbl">ของดี / ของเสีย</div>
             <div class="g3">
-              <div class="ff"><label>Grade A (เส้น)</label><input class="fi" type="number" id="prod-ga" placeholder="0" oninput="calcProdGrade()"></div>
-              <div class="ff"><label>Grade B (เส้น)</label><input class="fi" type="number" id="prod-gb" placeholder="0" oninput="calcProdGrade()"></div>
-              <div class="ff"><label>Grade C (เส้น)</label><input class="fi" type="number" id="prod-gc" placeholder="0" oninput="calcProdGrade()"></div>
+              <div class="ff"><label>Grade A (เส้น)</label>
+                <input class="fi" type="number" id="prod-ga" placeholder="0" oninput="calcProdGrade()"></div>
+              <div class="ff"><label>Grade B (เส้น)</label>
+                <input class="fi" type="number" id="prod-gb" placeholder="0" oninput="calcProdGrade()"></div>
+              <div class="ff"><label>Grade C (เส้น)</label>
+                <input class="fi" type="number" id="prod-gc" placeholder="0" oninput="calcProdGrade()"></div>
             </div>
-            <div id="prod-grade-msg" style="display:none;margin-bottom:8px"></div>
-            <div class="ff"><label>หมายเหตุ</label><input class="fi" id="prod-note" placeholder="หมายเหตุ"></div>
-            <button class="btn btn-p btn-full" onclick="saveProd()">บันทึกผลผลิต</button>
+            <div id="prod-grade-msg" style="display:none;margin-bottom:8px;font-size:12px;color:var(--amber)"></div>
+
+            <div class="ff"><label>หมายเหตุ</label>
+              <input class="fi" id="prod-note" placeholder="หมายเหตุเพิ่มเติม"></div>
+
+            <!-- บันทึกโดย -->
+            <div class="ff"><label>พนักงานที่รับผิดชอบ</label>
+              <input class="fi" id="prod-by" placeholder="ชื่อพนักงาน"></div>
+
+            <div class="btn-row" style="margin-top:4px">
+              <button class="btn" onclick="closeProdForm()">ยกเลิก</button>
+              <button class="btn btn-p" style="flex:2" onclick="saveProd()">💾 บันทึกผลผลิต → SP</button>
+            </div>
+          </div>
+
+          <!-- ประวัติบันทึกล่าสุด -->
+          <div class="card" style="margin-top:12px">
+            <div class="card-title">ประวัติบันทึกวันนี้</div>
+            <div id="prod-history-list">
+              <div style="color:var(--ink3);font-size:12px;padding:16px;text-align:center">ยังไม่มีการบันทึก</div>
+            </div>
           </div>
         </div>
       </div>
@@ -566,38 +661,129 @@ table.ax-t .ax-total{background:var(--green-lt);color:var(--green);font-weight:6
 
     <!-- ⑦ QA FM-08 -->
     <div class="page" id="page-qa">
-      <div class="pg-hd"><div class="pg-title">รายงานของเสีย FM-QA-08</div>
-        <div class="pg-sub">QA — บันทึกเมื่อพบของเสีย พร้อม 4M และรูปภาพ</div></div>
+      <div class="pg-hd">
+        <div class="pg-title">รายงานของเสีย FM-QA-08</div>
+        <div class="pg-sub">QA — บันทึกเมื่อพบของเสีย พร้อมรูปภาพ และ 4M</div>
+      </div>
       <div class="stats">
         <div class="stat"><div class="sn s-red" id="qa-total">0</div><div class="sl">records รวม</div></div>
-        <div class="stat"><div class="sn s-green" id="qa-a">0</div><div class="sl">Grade A</div></div>
-        <div class="stat"><div class="sn s-amber" id="qa-b">0</div><div class="sl">Grade B</div></div>
-        <div class="stat"><div class="sn s-red" id="qa-c">0</div><div class="sl">Grade C</div></div>
+        <div class="stat"><div class="sn" id="qa-today" style="color:var(--teal)">0</div><div class="sl">วันนี้</div></div>
+        <div class="stat"><div class="sn s-amber" id="qa-pending">0</div><div class="sl">รอ sync SP</div></div>
       </div>
-      <div class="g2">
+
+      <div class="g2" style="align-items:start">
+        <!-- Left: ฟอร์มบันทึก -->
         <div class="card">
-          <div class="card-title">บันทึกของเสียใหม่</div>
-          <div class="ff"><label>JOB No.</label>
-            <select class="fi sel" id="qa-job"><option value="">-- เลือก JOB --</option></select></div>
-          <div class="ff"><label>วันที่พบ</label><input class="fi" type="date" id="qa-date"></div>
-          <div class="sec-lbl">ลักษณะของเสีย</div>
-          <div class="def-type-grid" id="def-grid"></div>
-          <div id="qa-sel-type" style="display:none;margin:6px 0;padding:7px 10px;border-radius:var(--rs);font-size:12px;font-weight:500"></div>
-          <div class="ff" style="margin-top:8px"><label>จำนวน (เส้น/ชิ้น)</label><input class="fi" type="number" id="qa-qty"></div>
-          <div class="divider"></div>
-          <div class="sec-lbl">4M</div>
-          <div class="g2">
-            <div class="ff"><label>MAN</label><input class="fi" id="qa-man" placeholder="สาเหตุจากคน"></div>
-            <div class="ff"><label>Machine</label><input class="fi" id="qa-machine" placeholder="สาเหตุจากเครื่อง"></div>
-            <div class="ff"><label>Method</label><input class="fi" id="qa-method" placeholder="วิธีการ"></div>
-            <div class="ff"><label>Material</label><input class="fi" id="qa-material" placeholder="วัตถุดิบ"></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <div class="card-title" style="margin:0">บันทึกของเสียใหม่</div>
+            <button onclick="loadDefectCauses()" style="font-size:11px;padding:4px 10px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);cursor:pointer;color:var(--ink3)">🔄 โหลดสาเหตุ</button>
           </div>
-          <div class="ff"><label>รูปภาพ</label><input class="fi" type="file" accept="image/*" style="padding:5px"></div>
-          <div class="btn-row"><button class="btn btn-p" onclick="saveQA()">บันทึกของเสีย</button></div>
+
+          <!-- JOB + วันที่ -->
+          <div class="g2">
+            <div class="ff"><label>JOB No. / OFM</label>
+              <select class="fi sel" id="qa-job">
+                <option value="">-- เลือก JOB --</option>
+              </select>
+            </div>
+            <div class="ff"><label>วันที่พบ</label>
+              <input class="fi" type="date" id="qa-date">
+            </div>
+          </div>
+
+          <!-- สาเหตุของเสีย จาก SP L10 -->
+          <div class="ff">
+            <label>สาเหตุของเสีย
+              <span id="qa-cause-loading" style="color:var(--ink3);font-size:10px;margin-left:6px"></span>
+            </label>
+            <select class="fi sel" id="qa-cause" onchange="onQACauseChange()">
+              <option value="">-- เลือกสาเหตุ --</option>
+            </select>
+          </div>
+
+          <!-- แสดง Grade + รายละเอียดของสาเหตุที่เลือก -->
+          <div id="qa-cause-detail" style="display:none;margin-bottom:10px;padding:8px 12px;background:var(--panel);border-radius:var(--rs);border-left:3px solid var(--amber)">
+            <div style="font-size:11px;color:var(--ink3);margin-bottom:2px">สาเหตุที่เลือก</div>
+            <div id="qa-cause-label" style="font-size:13px;font-weight:600;color:var(--ink)"></div>
+            <div id="qa-cause-grade" style="font-size:11px;margin-top:2px"></div>
+          </div>
+
+          <div class="g2">
+            <div class="ff"><label>จำนวน (เส้น/ชิ้น)</label>
+              <input class="fi" type="number" id="qa-qty" placeholder="0" min="1">
+            </div>
+            <div class="ff"><label>เครื่องจักร</label>
+              <input class="fi" id="qa-machine-no" placeholder="เช่น RF_05">
+            </div>
+          </div>
+
+          <!-- 4M -->
+          <div class="sec-lbl">4M — วิเคราะห์สาเหตุ</div>
+          <div class="g2">
+            <div class="ff"><label>👤 MAN (คน)</label>
+              <input class="fi" id="qa-man" placeholder="สาเหตุจากคน"></div>
+            <div class="ff"><label>⚙️ Machine (เครื่อง)</label>
+              <input class="fi" id="qa-machine-4m" placeholder="สาเหตุจากเครื่อง"></div>
+            <div class="ff"><label>📋 Method (วิธีการ)</label>
+              <input class="fi" id="qa-method" placeholder="วิธีการ / ขั้นตอน"></div>
+            <div class="ff"><label>🧱 Material (วัตถุดิบ)</label>
+              <input class="fi" id="qa-material" placeholder="วัตถุดิบ / วัสดุ"></div>
+          </div>
+
+          <div class="ff"><label>หมายเหตุ</label>
+            <input class="fi" id="qa-note" placeholder="หมายเหตุเพิ่มเติม"></div>
+
+          <!-- รูปภาพ — มือถือ -->
+          <div class="ff">
+            <label>📷 รูปภาพ (มือถือ)</label>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <!-- ปุ่มถ่ายรูป / เลือกรูป -->
+              <div style="display:flex;gap:8px">
+                <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;border:1px dashed var(--b2);border-radius:var(--rs);cursor:pointer;font-size:13px;color:var(--ink2);background:var(--panel)">
+                  <input type="file" id="qa-photo-input" accept="image/*" capture="environment" multiple
+                    style="display:none" onchange="onQAPhotoSelect(this)">
+                  📷 ถ่ายรูป
+                </label>
+                <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;border:1px dashed var(--b2);border-radius:var(--rs);cursor:pointer;font-size:13px;color:var(--ink2);background:var(--panel)">
+                  <input type="file" id="qa-gallery-input" accept="image/*" multiple
+                    style="display:none" onchange="onQAPhotoSelect(this)">
+                  🖼 เลือกรูป
+                </label>
+              </div>
+              <!-- Preview รูป -->
+              <div id="qa-photo-preview" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+              <div id="qa-photo-count" style="font-size:11px;color:var(--ink3)"></div>
+            </div>
+          </div>
+
+          <div class="btn-row" style="margin-top:8px">
+            <button class="btn" onclick="clearQAForm()">ล้างฟอร์ม</button>
+            <button class="btn btn-p" style="flex:2" onclick="saveQA()">💾 บันทึก → SP</button>
+          </div>
         </div>
-        <div class="card">
-          <div class="card-title">รายการของเสีย</div>
-          <div id="qa-list"><div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center">ยังไม่มีข้อมูล</div></div>
+
+        <!-- Right: รายการของเสีย -->
+        <div>
+          <div class="card" style="margin-bottom:12px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+              <div class="card-title" style="margin:0">รายการของเสีย</div>
+              <button onclick="loadQAFromSP()" style="font-size:11px;padding:4px 10px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);cursor:pointer;color:var(--ink3)">🔄 Load SP</button>
+            </div>
+            <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">
+              <input id="qa-list-search" placeholder="🔍 ค้นหา..." oninput="renderQAList()"
+                style="flex:1;min-width:120px;padding:6px 10px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:12px;outline:none;color:var(--ink)">
+              <select id="qa-list-filter" onchange="renderQAList()"
+                style="padding:6px 8px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:12px;outline:none;color:var(--ink)">
+                <option value="">ทุก Grade</option>
+                <option value="A">Grade A</option>
+                <option value="B">Grade B</option>
+                <option value="C">Grade C</option>
+              </select>
+            </div>
+            <div id="qa-list">
+              <div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center">ยังไม่มีข้อมูล</div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -1563,7 +1749,15 @@ function navigate(id){
   if(id==='ax') renderAX();
   if(id==='ofm-plan'){buildOFMJobSelect();renderOFMPlanList();}
   if(id==='prod') renderProdList();
-  if(id==='qa'){renderQAJobSelect();renderQAList();updateQAStats();}
+  if(id==='prod'){
+    const t=new Date().toISOString().slice(0,10);
+    const d=document.getElementById('prod-date');if(d&&!d.value)d.value=t;
+    if(!prodJobs.length && S.axJobs.length) loadProdJobs();
+  }
+  if(id==='qa'){
+    renderQAJobSelect();renderQAList();updateQAStats();
+    if(!qaDefectCauses.length) loadDefectCauses();
+  }
   if(id==='master-plan'){initMasterPlan();}
   if(id==='dash') renderDash();
   if(id==='admin'){ renderAdminRolesTable(); }
@@ -3627,141 +3821,432 @@ function renderOFMPlanList(){
     </div>`).join('')||'<div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center">ยังไม่มีแผน</div>';
 }
 
-// ─── PROD บันทึก ──────────────────────────────────────────────────
-function renderProdList(){
-  const el=document.getElementById('prod-plan-list');
-  if(!S.ofmPlans.length){el.innerHTML='<div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center;background:var(--panel);border-radius:var(--r)">ยังไม่มีแผน OFM</div>';return;}
-  el.innerHTML=S.ofmPlans.map(p=>`
-    <div class="ose-row ${S.selectedOFMPlan===p.id?'active':''}" style="border-left:3px solid var(--purple);cursor:pointer" onclick="selectProd(${p.id})">
-      <div style="display:flex;align-items:center;justify-content:space-between">
-        <div class="ose-no" style="font-size:12px">${p.job.prod}</div>
-        ${p.actual?'<span class="pill p-ok">✓</span>':'<span class="pill p-amber">รอ</span>'}
+// ─── PROD บันทึก — ดึงจาก L6 ──────────────────────────────────────
+let prodTypeFilter = '';
+let prodJobs = []; // cache jobs โหลดจาก L6
+let prodHistory = []; // บันทึกวันนี้ (local + SP)
+
+function setProdTypeFilter(type, el){
+  prodTypeFilter = type;
+  document.querySelectorAll('#prod-type-chips .chip').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+  renderProdJobList();
+}
+
+async function loadProdJobs(){
+  // ดึงจาก S.axJobs (L6 cache) ก่อน ถ้าไม่มีค่อย load จาก SP
+  if(!S.axJobs.length){
+    if(!graphToken){ showToast('⚠️ Login ก่อนค่ะ'); return; }
+    showToast('⏳ กำลัง Load ใบงานจาก L6...');
+    await loadL6FromSP();
+  }
+  // filter เฉพาะ OFM/ORW (ไม่เอา OSE)
+  prodJobs = S.axJobs.filter(j => j.prod && (j.prod.startsWith('OFM') || j.prod.startsWith('ORW')));
+  renderProdJobList();
+  showToast(`✅ โหลด ${prodJobs.length} ใบงาน`);
+}
+
+function renderProdJobList(){
+  const el = document.getElementById('prod-job-list');
+  const search = (document.getElementById('prod-search')?.value||'').toLowerCase();
+  let jobs = prodJobs;
+  if(prodTypeFilter) jobs = jobs.filter(j=>j.prod.startsWith(prodTypeFilter));
+  if(search) jobs = jobs.filter(j=>
+    j.prod.toLowerCase().includes(search) ||
+    (j.name||'').toLowerCase().includes(search) ||
+    (j.machine||'').toLowerCase().includes(search)
+  );
+  document.getElementById('prod-job-count').textContent = `${jobs.length} ใบงาน`;
+  if(!jobs.length){
+    el.innerHTML='<div style="color:var(--ink3);font-size:12px;padding:24px;text-align:center;background:var(--panel);border-radius:var(--r)">ไม่พบใบงาน</div>';
+    return;
+  }
+  el.innerHTML = jobs.map(j=>`
+    <div class="ose-row" style="border-left:3px solid ${j.prod.startsWith('OFM')?'var(--blue)':'var(--teal)'};cursor:pointer;margin-bottom:6px"
+      onclick="selectProdJob('${j.prod}')">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px">
+        <div class="mono" style="font-size:12px;color:${j.prod.startsWith('OFM')?'var(--blue)':'var(--teal)'}">${j.prod}</div>
+        <span class="pill ${j.prod.startsWith('OFM')?'p-blue':'p-teal'}" style="font-size:9px">${j.prod.slice(0,3)}</span>
       </div>
-      <div class="ose-sub">${p.machine} · ${p.time||''}</div>
-      <div style="font-size:11px;color:var(--ink3);margin-top:3px">${p.job.name.slice(0,50)}</div>
+      <div style="font-size:11px;color:var(--ink2);line-height:1.4">${(j.name||'').slice(0,55)}</div>
+      ${j.machine?`<div style="font-size:10px;color:var(--ink3);margin-top:2px">⚙️ ${j.machine}</div>`:''}
     </div>`).join('');
 }
-function selectProd(id){
-  S.selectedOFMPlan=id;
-  const p=S.ofmPlans.find(x=>x.id===id);
+
+function selectProdJob(prodNo){
+  const j = prodJobs.find(x=>x.prod===prodNo);
+  if(!j) return;
+  S.selectedOFMPlan = prodNo;
+  // fill form
   document.getElementById('prod-form-wrap').style.display='block';
+  document.getElementById('prod-machine').value = j.machine||'';
+  document.getElementById('prod-plan-qty').value = j.planQty||'';
   document.getElementById('prod-job-header').innerHTML=`
-    <div style="background:var(--purple-bg);border:1px solid var(--purple-bd);border-radius:var(--rs);padding:9px 12px">
-      <div style="font-family:var(--mono);font-size:14px;color:var(--purple)">${p.job.prod}</div>
-      <div style="font-size:11px;color:var(--ink3);margin-top:2px">${p.job.name.slice(0,60)}</div>
-      <div style="font-size:11px;margin-top:3px">${p.machine} · ตามแผน: <strong>${p.planQty||'-'}</strong></div>
+    <div style="background:var(--blue-bg);border:1px solid var(--blue-bd);border-radius:var(--rs);padding:10px 14px">
+      <div style="font-family:var(--mono);font-size:15px;font-weight:700;color:var(--blue)">${j.prod}</div>
+      <div style="font-size:11px;color:var(--ink2);margin-top:3px;line-height:1.5">${j.name||''}</div>
+      <div style="font-size:11px;color:var(--ink3);margin-top:4px;display:flex;gap:12px;flex-wrap:wrap">
+        ${j.machine?`<span>⚙️ ${j.machine}</span>`:''}
+        ${j.planQty?`<span>📋 แผน: <strong>${j.planQty}</strong></span>`:''}
+        ${j.brand?`<span>🏷 ${j.brand}</span>`:''}
+      </div>
     </div>`;
-  if(p.actual){
-    const a=p.actual;
-    document.getElementById('prod-actual').value=a.actual||'';
-    document.getElementById('prod-status').value=a.status||'เดินงานตามปกติ';
-    document.getElementById('prod-hours').value=a.hours||'';
-    document.getElementById('prod-bd').value=a.bd||'';
-    document.getElementById('prod-bdr').value=a.bdr||'';
-    document.getElementById('prod-speed').value=a.speed||'';
-    document.getElementById('prod-elec').value=a.elec||'';
-    document.getElementById('prod-ga').value=a.ga||'';
-    document.getElementById('prod-gb').value=a.gb||'';
-    document.getElementById('prod-gc').value=a.gc||'';
-    document.getElementById('prod-note').value=a.note||'';
-  } else {
-    ['prod-actual','prod-hours','prod-bd','prod-bdr','prod-speed','prod-elec','prod-ga','prod-gb','prod-gc','prod-note'].forEach(x=>{const el=document.getElementById(x);if(el)el.value='';});
-    document.getElementById('prod-grade-msg').style.display='none';
-  }
-  renderProdList();
+  // set today & pre-fill operator name
+  document.getElementById('prod-by').value = S.user?.name||'';
+  // clear previous values
+  ['prod-actual','prod-hours','prod-bd','prod-bdr','prod-speed','prod-elec',
+   'prod-ga','prod-gb','prod-gc','prod-note','prod-timerange'].forEach(id=>{
+    const el=document.getElementById(id); if(el&&el.type!=='select-one') el.value='';
+  });
+  document.getElementById('prod-grade-msg').style.display='none';
+  document.getElementById('prod-form-wrap').scrollIntoView({behavior:'smooth',block:'start'});
 }
-function onProdChange(){calcProdGrade();}
+
+function closeProdForm(){
+  document.getElementById('prod-form-wrap').style.display='none';
+  S.selectedOFMPlan=null;
+}
+
+function onProdChange(){ calcProdGrade(); }
+
 function calcProdGrade(){
   const total=parseInt(document.getElementById('prod-actual').value)||0;
   const ga=parseInt(document.getElementById('prod-ga').value)||0;
   const gb=parseInt(document.getElementById('prod-gb').value)||0;
   const gc=parseInt(document.getElementById('prod-gc').value)||0;
-  const sum=ga+gb+gc;const el=document.getElementById('prod-grade-msg');
+  const sum=ga+gb+gc;
+  const el=document.getElementById('prod-grade-msg');
   if(total>0||sum>0){
     el.style.display='block';
     if(sum===total&&total>0){el.className='alert a-ok';el.textContent=`✓ A+B+C = ${sum} ตรงกัน`;}
-    else if(sum>total){el.className='alert a-err';el.textContent=`A+B+C = ${sum} > จำนวนจริง ${total}`;}
-    else{el.className='alert a-warn';el.textContent=`A+B+C = ${sum} ≠ ${total}`;}
+    else if(sum>total){el.className='alert a-err';el.textContent=`⚠️ A+B+C = ${sum} > จำนวนจริง ${total}`;}
+    else{el.className='alert a-warn';el.textContent=`A+B+C = ${sum} ≠ จำนวนจริง ${total}`;}
   } else el.style.display='none';
 }
-function saveProd(){
-  const p=S.ofmPlans.find(x=>x.id===S.selectedOFMPlan);
-  if(!p){alert('เลือกงานก่อน');return;}
-  const actual=parseInt(document.getElementById('prod-actual').value)||0;
-  if(!actual){alert('กรุณากรอกจำนวนจริง');return;}
-  p.actual={actual,status:document.getElementById('prod-status').value,
-    hours:document.getElementById('prod-hours').value,bd:document.getElementById('prod-bd').value,
-    bdr:document.getElementById('prod-bdr').value,speed:document.getElementById('prod-speed').value,
-    elec:document.getElementById('prod-elec').value,ga:document.getElementById('prod-ga').value,
-    gb:document.getElementById('prod-gb').value,gc:document.getElementById('prod-gc').value,
-    note:document.getElementById('prod-note').value};
-  renderProdList();renderDash();
-  document.getElementById('prod-form-wrap').style.display='none';
-  S.selectedOFMPlan=null;
-  alert(`✓ บันทึก ${p.job.prod} เรียบร้อย`);
+
+async function saveProd(){
+  const prodNo = S.selectedOFMPlan;
+  if(!prodNo){ showToast('⚠️ เลือกใบงานก่อนค่ะ'); return; }
+  const actual = parseInt(document.getElementById('prod-actual').value)||0;
+  if(!actual){ showToast('⚠️ กรุณากรอกจำนวนจริง'); return; }
+
+  const record = {
+    OFMNo:      prodNo,
+    ProdDate:   document.getElementById('prod-date').value,
+    Shift:      document.getElementById('prod-shift').value,
+    Machine:    document.getElementById('prod-machine').value,
+    TimeRange:  document.getElementById('prod-timerange').value,
+    PlanQty:    document.getElementById('prod-plan-qty').value,
+    ActualQty:  actual,
+    Status:     document.getElementById('prod-status').value,
+    HoursRun:   parseFloat(document.getElementById('prod-hours').value)||0,
+    BDMinutes:  parseInt(document.getElementById('prod-bd').value)||0,
+    BDReason:   document.getElementById('prod-bdr').value,
+    Speed:      document.getElementById('prod-speed').value,
+    Electric:   document.getElementById('prod-elec').value,
+    GradeA:     parseInt(document.getElementById('prod-ga').value)||0,
+    GradeB:     parseInt(document.getElementById('prod-gb').value)||0,
+    GradeC:     parseInt(document.getElementById('prod-gc').value)||0,
+    Note:       document.getElementById('prod-note').value,
+    RecordBy:   document.getElementById('prod-by').value,
+    Title:      `${prodNo}_${document.getElementById('prod-date').value}`,
+  };
+
+  // POST to SP L7
+  if(graphToken){
+    try{
+      const siteId = await getSiteId();
+      const listId = await getListId(SP_LISTS.L7);
+      const resp = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`,{
+        method:'POST',
+        headers:{ Authorization:`Bearer ${graphToken}`, 'Content-Type':'application/json' },
+        body: JSON.stringify({ fields: record })
+      });
+      if(!resp.ok) throw new Error(await resp.text());
+      showToast(`✅ บันทึก ${prodNo} ลง SP แล้วค่ะ`);
+    }catch(e){
+      showToast('⚠️ SP error: '+e.message+' (บันทึก local ไว้ก่อน)');
+    }
+  } else {
+    showToast('⚠️ ไม่ได้ login — บันทึก local เท่านั้น');
+  }
+
+  // บันทึก local history
+  prodHistory.unshift({...record, savedAt: new Date().toLocaleTimeString('th-TH')});
+  renderProdHistory();
+  closeProdForm();
 }
 
-// ─── QA FM-08 ─────────────────────────────────────────────────────
-function initDefGrid(){
-  const el=document.getElementById('def-grid');
-  el.innerHTML=DEFECT_TYPES.map(d=>`
-    <div class="dt dt-${d.g.toLowerCase()}" id="dt-${d.code}" onclick="selDefType('${d.code}')">
-      <span class="dt-code">${d.code}</span>${d.lbl}
+function renderProdHistory(){
+  const el = document.getElementById('prod-history-list');
+  if(!prodHistory.length){
+    el.innerHTML='<div style="color:var(--ink3);font-size:12px;padding:16px;text-align:center">ยังไม่มีการบันทึก</div>';
+    return;
+  }
+  el.innerHTML = prodHistory.slice(0,10).map(r=>`
+    <div style="padding:8px 10px;border-bottom:1px solid var(--b);font-size:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
+        <span class="mono" style="color:var(--blue);font-size:11px">${r.OFMNo}</span>
+        <span class="pill p-ok">✓ ${r.ActualQty}</span>
+      </div>
+      <div style="color:var(--ink3);font-size:10px">${r.Machine} · ${r.Shift} · ${r.savedAt}</div>
     </div>`).join('');
 }
-function selDefType(code){
-  document.querySelectorAll('.dt').forEach(d=>d.classList.remove('sel'));
-  document.getElementById('dt-'+code)?.classList.add('sel');
-  S.selectedDefType=DEFECT_TYPES.find(d=>d.code===code);
-  const el=document.getElementById('qa-sel-type');
-  if(S.selectedDefType){
-    el.style.display='block';
-    el.className=`alert a-${S.selectedDefType.g==='A'?'ok':S.selectedDefType.g==='B'?'warn':'err'}`;
-    el.textContent=`เลือก: ${code} — ${S.selectedDefType.lbl} (Grade ${S.selectedDefType.g})`;
+
+function renderProdList(){ renderProdJobList(); } // compat
+
+// ─── QA FM-08 ─────────────────────────────────────────────────────
+let qaDefectCauses = []; // จาก SP L10
+let qaPhotos = [];       // รูปที่เลือก [{file, dataUrl}]
+let qaRecords = [];      // บันทึกทั้งหมด
+
+async function loadDefectCauses(){
+  const loading = document.getElementById('qa-cause-loading');
+  const sel = document.getElementById('qa-cause');
+  if(loading) loading.textContent = '⏳ กำลังโหลด...';
+  try{
+    if(graphToken){
+      const items = await spGetItems('L10_DefectCauses','',200);
+      if(items.length){
+        qaDefectCauses = items.map(i=>({
+          id: i.id,
+          code: i.fields?.Code||i.fields?.Title||'',
+          label: i.fields?.Label||i.fields?.Title||'',
+          grade: i.fields?.Grade||'B',
+          group: i.fields?.Group||'',
+        }));
+      }
+    }
+    // fallback: ใช้ DEFECT_TYPES hardcode ถ้า SP ไม่มี
+    if(!qaDefectCauses.length){
+      qaDefectCauses = DEFECT_TYPES.map(d=>({code:d.code, label:d.lbl, grade:d.g, group:d.g}));
+    }
+    // render dropdown
+    const groups = [...new Set(qaDefectCauses.map(d=>d.grade))].sort();
+    sel.innerHTML = '<option value="">-- เลือกสาเหตุ --</option>' +
+      groups.map(g=>`
+        <optgroup label="Grade ${g}">
+          ${qaDefectCauses.filter(d=>d.grade===g).map(d=>
+            `<option value="${d.code}" data-grade="${d.grade}" data-label="${d.label}">${d.code} — ${d.label}</option>`
+          ).join('')}
+        </optgroup>`).join('');
+    if(loading) loading.textContent = `✅ ${qaDefectCauses.length} สาเหตุ`;
+  }catch(e){
+    if(loading) loading.textContent = '❌ โหลดไม่ได้';
+    // fallback
+    qaDefectCauses = DEFECT_TYPES.map(d=>({code:d.code, label:d.lbl, grade:d.g}));
+    sel.innerHTML = '<option value="">-- เลือกสาเหตุ --</option>' +
+      qaDefectCauses.map(d=>`<option value="${d.code}" data-grade="${d.grade}" data-label="${d.label}">${d.code} — ${d.label}</option>`).join('');
   }
 }
+
+function onQACauseChange(){
+  const sel = document.getElementById('qa-cause');
+  const opt = sel.options[sel.selectedIndex];
+  const detail = document.getElementById('qa-cause-detail');
+  if(!sel.value){ detail.style.display='none'; return; }
+  detail.style.display='block';
+  const grade = opt.dataset.grade||'';
+  const label = opt.dataset.label||'';
+  document.getElementById('qa-cause-label').textContent = `${sel.value} — ${label}`;
+  const gradeEl = document.getElementById('qa-cause-grade');
+  gradeEl.innerHTML = `<span class="pill ${grade==='A'?'p-ok':grade==='B'?'p-amber':'p-red'}">Grade ${grade}</span>`;
+}
+
+function onQAPhotoSelect(input){
+  const files = Array.from(input.files);
+  files.forEach(file=>{
+    if(qaPhotos.length >= 5){ showToast('⚠️ แนบรูปได้สูงสุด 5 รูป'); return; }
+    const reader = new FileReader();
+    reader.onload = e=>{
+      qaPhotos.push({ file, dataUrl: e.target.result, name: file.name });
+      renderPhotoPreview();
+    };
+    reader.readAsDataURL(file);
+  });
+  input.value=''; // reset so same file can be selected again
+}
+
+function renderPhotoPreview(){
+  const wrap = document.getElementById('qa-photo-preview');
+  const countEl = document.getElementById('qa-photo-count');
+  wrap.innerHTML = qaPhotos.map((p,i)=>`
+    <div style="position:relative;width:72px;height:72px">
+      <img src="${p.dataUrl}" style="width:72px;height:72px;object-fit:cover;border-radius:6px;border:1px solid var(--b2)">
+      <div onclick="removePhoto(${i})" style="position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1">×</div>
+    </div>`).join('');
+  countEl.textContent = qaPhotos.length ? `${qaPhotos.length} รูป (สูงสุด 5)` : '';
+}
+
+function removePhoto(i){
+  qaPhotos.splice(i,1);
+  renderPhotoPreview();
+}
+
+function clearQAForm(){
+  document.getElementById('qa-job').value='';
+  document.getElementById('qa-cause').value='';
+  document.getElementById('qa-cause-detail').style.display='none';
+  document.getElementById('qa-qty').value='';
+  document.getElementById('qa-machine-no').value='';
+  document.getElementById('qa-man').value='';
+  document.getElementById('qa-machine-4m').value='';
+  document.getElementById('qa-method').value='';
+  document.getElementById('qa-material').value='';
+  document.getElementById('qa-note').value='';
+  qaPhotos=[];
+  renderPhotoPreview();
+}
+
+async function saveQA(){
+  const job = document.getElementById('qa-job').value;
+  if(!job){ showToast('⚠️ เลือก JOB ก่อนค่ะ'); return; }
+  const causeCode = document.getElementById('qa-cause').value;
+  if(!causeCode){ showToast('⚠️ เลือกสาเหตุของเสีย'); return; }
+  const qty = parseInt(document.getElementById('qa-qty').value)||0;
+  if(!qty){ showToast('⚠️ กรอกจำนวน'); return; }
+
+  const cause = qaDefectCauses.find(d=>d.code===causeCode);
+  const fields = {
+    Title:      `${job}_${document.getElementById('qa-date').value}_${causeCode}`,
+    OFMNo:      job,
+    DefectDate: document.getElementById('qa-date').value,
+    CauseCode:  causeCode,
+    CauseLabel: cause?.label||'',
+    Grade:      cause?.grade||'',
+    Quantity:   qty,
+    MachineNo:  document.getElementById('qa-machine-no').value,
+    Man4M:      document.getElementById('qa-man').value,
+    Machine4M:  document.getElementById('qa-machine-4m').value,
+    Method4M:   document.getElementById('qa-method').value,
+    Material4M: document.getElementById('qa-material').value,
+    Note:       document.getElementById('qa-note').value,
+    RecordBy:   S.user?.name||'',
+    PhotoCount: qaPhotos.length,
+  };
+
+  let savedId = null;
+  if(graphToken){
+    try{
+      const siteId = await getSiteId();
+      const listId = await getListId(SP_LISTS.L8);
+      const resp = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`,{
+        method:'POST',
+        headers:{ Authorization:`Bearer ${graphToken}`, 'Content-Type':'application/json' },
+        body: JSON.stringify({ fields })
+      });
+      if(!resp.ok) throw new Error(await resp.text());
+      const newItem = await resp.json();
+      savedId = newItem.id;
+
+      // upload รูปเป็น attachment ไปที่ item นั้น
+      if(qaPhotos.length && savedId){
+        for(const p of qaPhotos){
+          try{
+            const b64 = p.dataUrl.split(',')[1];
+            const bin = Uint8Array.from(atob(b64), c=>c.charCodeAt(0));
+            await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${savedId}/attachments`,{
+              method:'POST',
+              headers:{
+                Authorization:`Bearer ${graphToken}`,
+                'Content-Type':'application/json',
+              },
+              body: JSON.stringify({
+                name: p.name||`photo_${Date.now()}.jpg`,
+                contentBytes: b64,
+              })
+            });
+          }catch(e){ console.warn('upload photo error:',e); }
+        }
+      }
+      showToast(`✅ บันทึก + แนบ ${qaPhotos.length} รูป ลง SP แล้วค่ะ`);
+    }catch(e){
+      showToast('⚠️ SP error: '+e.message);
+    }
+  } else {
+    showToast('⚠️ ไม่ได้ login — บันทึก local เท่านั้น');
+  }
+
+  // เก็บ local
+  qaRecords.unshift({...fields, photos: qaPhotos.map(p=>p.dataUrl), savedAt: new Date().toLocaleString('th-TH')});
+  updateQAStats();
+  renderQAList();
+  clearQAForm();
+}
+
+async function loadQAFromSP(){
+  if(!graphToken){ showToast('⚠️ Login ก่อนค่ะ'); return; }
+  showToast('⏳ Load QA จาก SP...');
+  try{
+    const items = await spGetItems(SP_LISTS.L8,'',100);
+    qaRecords = items.map(i=>({
+      OFMNo:      i.fields?.OFMNo||'',
+      DefectDate: i.fields?.DefectDate||'',
+      CauseCode:  i.fields?.CauseCode||'',
+      CauseLabel: i.fields?.CauseLabel||'',
+      Grade:      i.fields?.Grade||'',
+      Quantity:   i.fields?.Quantity||0,
+      Man4M:      i.fields?.Man4M||'',
+      RecordBy:   i.fields?.RecordBy||'',
+      PhotoCount: i.fields?.PhotoCount||0,
+      savedAt:    i.fields?.Modified||'',
+    }));
+    updateQAStats();
+    renderQAList();
+    showToast(`✅ Load ${qaRecords.length} records`);
+  }catch(e){
+    showToast('❌ Load ไม่ได้: '+e.message);
+  }
+}
+
+function updateQAStats(){
+  const today = new Date().toISOString().slice(0,10);
+  document.getElementById('qa-total').textContent = qaRecords.length;
+  document.getElementById('qa-today').textContent = qaRecords.filter(d=>d.DefectDate===today).length;
+  document.getElementById('qa-pending').textContent = qaRecords.filter(d=>!d.id).length;
+}
+
+function renderQAList(){
+  const el = document.getElementById('qa-list');
+  const search = (document.getElementById('qa-list-search')?.value||'').toLowerCase();
+  const gradeFilter = document.getElementById('qa-list-filter')?.value||'';
+  let records = [...qaRecords];
+  if(search) records = records.filter(r=>
+    (r.OFMNo||'').toLowerCase().includes(search)||
+    (r.CauseCode||'').toLowerCase().includes(search)||
+    (r.CauseLabel||'').toLowerCase().includes(search)
+  );
+  if(gradeFilter) records = records.filter(r=>r.Grade===gradeFilter);
+  if(!records.length){
+    el.innerHTML='<div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center">ไม่มีข้อมูล</div>';
+    return;
+  }
+  el.innerHTML = records.slice(0,30).map(r=>`
+    <div style="border-left:3px solid ${r.Grade==='A'?'var(--green)':r.Grade==='B'?'var(--amber)':'var(--red)'};padding:8px 10px;margin-bottom:6px;background:var(--panel);border-radius:0 var(--rs) var(--rs) 0">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px">
+        <span class="mono" style="font-size:11px;color:var(--blue)">${r.OFMNo}</span>
+        <div style="display:flex;gap:4px">
+          <span class="pill ${r.Grade==='A'?'p-ok':r.Grade==='B'?'p-amber':'p-red'}">Grade ${r.Grade}</span>
+          <span class="pill p-gray">${r.Quantity} เส้น</span>
+          ${r.PhotoCount?`<span class="pill p-purple">📷${r.PhotoCount}</span>`:''}
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--ink2)">${r.CauseCode} — ${r.CauseLabel}</div>
+      <div style="font-size:10px;color:var(--ink3);margin-top:2px">${r.DefectDate} · ${r.RecordBy}</div>
+    </div>`).join('');
+}
+
 function renderQAJobSelect(){
-  const sel=document.getElementById('qa-job');
-  const jobs=[...S.axJobs,...S.osePlans.map(p=>({prod:p.oseNo,name:p.job.name}))];
-  sel.innerHTML='<option value="">-- เลือก JOB --</option>'+
+  const sel = document.getElementById('qa-job');
+  if(!sel) return;
+  const jobs = [...S.axJobs,...S.osePlans.map(p=>({prod:p.oseNo,name:p.job?.name||''}))];
+  sel.innerHTML = '<option value="">-- เลือก JOB --</option>'+
     jobs.map(j=>`<option value="${j.prod}">${j.prod} — ${(j.name||'').slice(0,40)}</option>`).join('');
 }
-function saveQA(){
-  const job=document.getElementById('qa-job').value;
-  if(!job){alert('เลือก JOB');return;}
-  if(!S.selectedDefType){alert('เลือกลักษณะของเสีย');return;}
-  const qty=parseInt(document.getElementById('qa-qty').value)||0;
-  if(!qty){alert('กรอกจำนวน');return;}
-  S.defects.push({job,date:document.getElementById('qa-date').value,type:S.selectedDefType,qty,
-    man:document.getElementById('qa-man').value,machine:document.getElementById('qa-machine').value,
-    method:document.getElementById('qa-method').value,material:document.getElementById('qa-material').value,
-    by:S.user?.name,savedAt:new Date().toLocaleString('th-TH')});
-  renderQAList();updateQAStats();
-  ['qa-job','qa-qty','qa-man','qa-machine','qa-method','qa-material'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-  document.querySelectorAll('.dt').forEach(d=>d.classList.remove('sel'));
-  document.getElementById('qa-sel-type').style.display='none';
-  S.selectedDefType=null;
-  alert('✓ บันทึกของเสียแล้ว');
-}
-function updateQAStats(){
-  document.getElementById('qa-total').textContent=S.defects.length;
-  document.getElementById('qa-a').textContent=S.defects.filter(d=>d.type.g==='A').length;
-  document.getElementById('qa-b').textContent=S.defects.filter(d=>d.type.g==='B').length;
-  document.getElementById('qa-c').textContent=S.defects.filter(d=>d.type.g==='C').length;
-}
-function renderQAList(){
-  const el=document.getElementById('qa-list');
-  el.innerHTML=[...S.defects].reverse().slice(0,15).map(d=>`
-    <div style="border-left:3px solid ${d.type.g==='A'?'var(--green)':d.type.g==='B'?'var(--amber)':'var(--red)'};padding:8px 10px;margin-bottom:5px;background:var(--panel);border-radius:0 var(--rs) var(--rs) 0">
-      <div style="display:flex;gap:6px;align-items:center;margin-bottom:3px">
-        <span class="mono" style="font-size:12px">${d.job}</span>
-        <span class="pill ${d.type.g==='A'?'p-ok':d.type.g==='B'?'p-amber':'p-red'}">Grade ${d.type.g}</span>
-        <span class="pill p-gray">${d.qty} เส้น</span>
-      </div>
-      <div style="font-size:11px;color:var(--ink3)">${d.type.code} — ${d.type.lbl}</div>
-      <div style="font-size:10px;color:var(--ink4);margin-top:2px">${d.date} · ${d.by}</div>
-    </div>`).join('')||'<div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center">ยังไม่มีข้อมูล</div>';
-}
+
+function initDefGrid(){ /* ไม่ใช้ grid แล้ว — ใช้ dropdown */ }
+
+
 
 // ─── ADMIN — UserRoles L9 ─────────────────────────────────────────
 let adminRoleItems = []; // cache จาก SP
