@@ -2292,12 +2292,12 @@ function renderUnassigned(){
   const typeF=document.getElementById('mp-ua-type')?.value||'';
   const unOnly=document.getElementById('mp-ua-unassigned-only')?.checked||false;
 
-  let jobs=S.axJobs.filter(isActive);
+  let jobs=S.axJobs; // แสดงทุก status — ไม่ filter End/Cancel ออก
   if(unOnly) jobs=jobs.filter(j=>!j.machine);
   if(q) jobs=jobs.filter(j=>(j.prod||'').toLowerCase().includes(q)||(j.name||'').toLowerCase().includes(q));
   if(typeF) jobs=jobs.filter(j=>jobType(j)===typeF);
   jobs.sort((a,b)=>(a.machine?1:0)-(b.machine?1:0)||(a.prod||'').localeCompare(b.prod||''));
-  if(cnt) cnt.textContent=`${jobs.length} ใบ · ยังไม่ลงเครื่อง: ${jobs.filter(j=>!j.machine).length}`;
+  if(cnt) cnt.textContent=`${jobs.length} ใบ · ยังไม่ลงเครื่อง: ${jobs.filter(j=>!j.machine).length} · เสร็จ/ยกเลิก: ${jobs.filter(j=>!isActive(j)).length}`;
 
   if(!jobs.length){el.innerHTML='<div style="color:#888;font-size:14px;padding:30px;text-align:center">ไม่มีใบงาน</div>';return;}
 
@@ -2352,7 +2352,8 @@ function renderUnassigned(){
           : '<span style="color:#bbb">—</span>';
       }
 
-      return `<tr style="${!hasM?'background:var(--amber-bg)':''}">
+      const isDone = !isActive(j);
+      return `<tr style="${isDone?'opacity:.55;':''}${!hasM&&!isDone?'background:var(--amber-bg)':''}">
         <td><div style="font-family:var(--mono);font-size:13px;font-weight:700;color:${tc}">${j.prod}</div><span style="font-size:11px;color:#666">${jt}</span></td>
         <td style="font-size:13px;color:#111;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${j.name||''}">${j.name||'—'}</td>
         <td style="font-size:13px;text-align:center;color:#111">${j.thick?j.thick+'mm':'—'}</td>
