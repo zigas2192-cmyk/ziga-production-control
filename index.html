@@ -292,10 +292,6 @@ table.ax-t .ax-total{background:var(--green-lt);color:var(--green);font-weight:6
     <div class="nav-brand">ZIGA <span>·</span> Factory</div>
     <div class="nav-tabs" id="nav-tabs"></div>
     <div style="display:flex;align-items:center;gap:6px">
-      <div onclick="clearCacheOnly()" title="ล้างข้อมูลใบงานใน app (ไม่กระทบ SP)"
-        style="padding:5px 10px;border-radius:6px;font-size:11px;cursor:pointer;color:#aaa;border:1px solid #444;background:transparent">
-        🗑 ล้าง cache
-      </div>
       <div class="nav-user" onclick="logout()" id="nav-user-btn"></div>
     </div>
   </nav>
@@ -757,6 +753,94 @@ table.ax-t .ax-total{background:var(--green-lt);color:var(--green);font-weight:6
       </div>
     </div>
 
+    <!-- ⑧ ADMIN — จัดการ UserRoles (mgmt only) -->
+    <div class="page" id="page-admin">
+      <div class="pg-hd">
+        <div class="pg-title">⚙️ จัดการสิทธิ์ผู้ใช้งาน</div>
+        <div class="pg-sub">ตุ้ย (CTO) — แก้ไข Role และสิทธิ์เข้าถึง Module ของแต่ละคน</div>
+      </div>
+
+      <!-- SP List Setup Guide -->
+      <div class="card" style="border-left:3px solid var(--blue)">
+        <div class="card-title">📋 SP List: PrdCtrl_L9_UserRoles — Columns ที่ต้องสร้าง</div>
+        <div style="font-size:12px;color:var(--ink2);line-height:1.8;font-family:var(--mono)">
+          <div>Title &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;→ ชื่อผู้ใช้ (Single line)</div>
+          <div>Email &nbsp;&nbsp;&nbsp;&nbsp;→ อีเมล @ziga.co.th (Single line)</div>
+          <div>Role &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;→ mgmt / ap / as / ir / slit / qa / ofm / supervisor (Choice)</div>
+          <div>Active &nbsp;&nbsp;&nbsp;→ ใช้งาน / ระงับ (Yes/No)</div>
+          <div>Modules &nbsp;&nbsp;→ หมายเหตุ module เพิ่มเติม (Multi-line, optional)</div>
+          <div>Remark &nbsp;&nbsp;&nbsp;→ หมายเหตุ (Single line, optional)</div>
+        </div>
+        <button class="btn" style="margin-top:10px;font-size:11px" onclick="createL9List()">🔧 สร้าง L9 List อัตโนมัติ (ถ้ายังไม่มี)</button>
+      </div>
+
+      <!-- Current UserRoles from SP -->
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div class="card-title" style="margin:0">👥 รายชื่อ User Roles ปัจจุบัน</div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-s" onclick="loadUserRoles()">🔄 Load จาก SP</button>
+            <button class="btn btn-s btn-p" onclick="syncUserRolesToSP()">☁️ Sync ขึ้น SP</button>
+          </div>
+        </div>
+        <div id="admin-roles-table">
+          <div style="text-align:center;padding:24px;color:var(--ink3);font-size:12px">กด "Load จาก SP" เพื่อดูข้อมูลปัจจุบัน</div>
+        </div>
+      </div>
+
+      <!-- Add/Edit User -->
+      <div class="card">
+        <div class="card-title">➕ เพิ่ม / แก้ไข User Role</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+          <div>
+            <label style="font-size:11px;color:var(--ink3);display:block;margin-bottom:4px">ชื่อผู้ใช้</label>
+            <input id="admin-name" type="text" placeholder="ตุ้ย / Duke" style="width:100%;padding:8px 10px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:12px;font-family:var(--sans);color:var(--ink);outline:none">
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--ink3);display:block;margin-bottom:4px">Email (@ziga.co.th)</label>
+            <input id="admin-email" type="email" placeholder="name@ziga.co.th" style="width:100%;padding:8px 10px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:12px;font-family:var(--sans);color:var(--ink);outline:none">
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px">
+          <div>
+            <label style="font-size:11px;color:var(--ink3);display:block;margin-bottom:4px">Role</label>
+            <select id="admin-role" style="width:100%;padding:8px 10px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:12px;font-family:var(--sans);color:var(--ink);outline:none">
+              <option value="mgmt">mgmt — ผู้บริหาร</option>
+              <option value="ap">ap — จนท.AP (Duke)</option>
+              <option value="as">as — จนท.AS (แป๋ม)</option>
+              <option value="ir">ir — คลัง IR (จอย)</option>
+              <option value="slit">slit — Slitter (สุภาพ)</option>
+              <option value="qa">qa — QA</option>
+              <option value="ofm">ofm — พนักงานผลิต</option>
+              <option value="supervisor">supervisor</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--ink3);display:block;margin-bottom:4px">สถานะ</label>
+            <select id="admin-active" style="width:100%;padding:8px 10px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:12px;font-family:var(--sans);color:var(--ink);outline:none">
+              <option value="true">✅ ใช้งาน</option>
+              <option value="false">🔴 ระงับ</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--ink3);display:block;margin-bottom:4px">หมายเหตุ</label>
+            <input id="admin-remark" type="text" placeholder="เพิ่มเติม..." style="width:100%;padding:8px 10px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:12px;font-family:var(--sans);color:var(--ink);outline:none">
+          </div>
+        </div>
+        <input type="hidden" id="admin-edit-id">
+        <div class="btn-row">
+          <button class="btn btn-p" onclick="saveUserRole()">💾 บันทึกลง SP</button>
+          <button class="btn" onclick="clearAdminForm()">ล้างฟอร์ม</button>
+        </div>
+      </div>
+
+      <!-- Role → Tabs mapping reference -->
+      <div class="card">
+        <div class="card-title">📌 Role → Tab access (อ้างอิง)</div>
+        <div id="admin-role-ref" style="font-size:11px"></div>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -822,7 +906,23 @@ const AZURE_CONFIG = {
   redirectUri: window.location.origin + window.location.pathname,
 };
 const SP_SITE_PATH = 'zigainnovation.sharepoint.com:/sites/msteams_1fdd76:';
-const SP_LISTS = { L4: 'PrdCtrl_M4_Mcoil_Inventory', L6: 'PrdCtrl_M6_OSE_Production', L7: 'ProdCtrl_L7_DailyPlan_OFM', L8: 'ProdCtrl_L8_Defect_FMQA08' };
+const SP_LISTS = { L4: 'PrdCtrl_M4_Mcoil_Inventory', L6: 'PrdCtrl_M6_OSE_Production', L7: 'ProdCtrl_L7_DailyPlan_OFM', L8: 'ProdCtrl_L8_Defect_FMQA08', L9: 'L9_EmployeeZiGA' };
+
+// ── L9 UserRoles — Fallback hardcode (ใช้ถ้า SP fetch ไม่ได้) ──────
+// admin แก้ได้ที่ SP list โดยตรง ไม่ต้อง redeploy app
+const USER_ROLES_FALLBACK = [
+  { email:'maetinee@ziga.co.th',    name:'เมทินี (ตุ้ย)',      role:'mgmt',  active:true },
+  { email:'tanida@ziga.co.th',      name:'ธนิดา (แข)',         role:'mgmt',  active:true },
+  { email:'thippayanet@ziga.co.th', name:'ทิพยเนตร (เนตร)',   role:'mgmt',  active:true },
+  { email:'tapanee@ziga.co.th',     name:'ฐปนี (แอน)',         role:'mgmt',  active:true },
+  { email:'jaturon@ziga.co.th',     name:'จตุรณ (Duke)',       role:'ap',    active:true },
+  { email:'suwipha@ziga.co.th',     name:'สุวิภา (แป๋ม)',      role:'as',    active:true },
+  { email:'sunisa@ziga.co.th',      name:'สุนิสา',             role:'as',    active:true },
+  { email:'nutthakul@ziga.co.th',   name:'ณัฏฐากุญช์ (จอย)',   role:'ir',    active:true },
+  { email:'suparp@ziga.co.th',      name:'สุภาพ/เอกภพ',        role:'slit',  active:true },
+  { email:'wanrada@ziga.co.th',     name:'วรรณรดา (QA)',       role:'qa',    active:true },
+  { email:'woraya@ziga.co.th',      name:'วรายา (ตาล)',         role:'mgmt',  active:true },
+];
 const SP_LIST_IDS = {
   L4: '33b438fa-216b-4be0-8685-1d6e42ac2f8d',
   L6: '166c31c7-0d07-4058-b38f-216fcc929058',
@@ -833,6 +933,56 @@ const SP_LIST_IDS = {
 let msalInstance = null;
 let graphToken = null;
 let spSiteId = null;
+
+// ── fetch role จาก SP L9 UserRoles ──────────────────────────────────
+// Map ชื่อ role จาก L9 → role id ใน app
+const ROLE_MAP = {
+  'admin':  'mgmt',
+  'mgmt':   'mgmt',
+  'PLN':    'as',      // Planning = AS (แป๋ม/สุนิสา)
+  'pln':    'as',
+  'ir':     'ir',
+  'IR':     'ir',
+  'slit':   'slit',
+  'Slit':   'slit',
+  'prod':   'prod',
+  'Prod':   'prod',
+  'PROD':   'prod',
+  'QA':     'qa',
+  'qa':     'qa',
+  'ofm':    'ofm',
+  'OFM':    'ofm',
+  'office': 'prod',    // office ไม่มี module พิเศษ → prod (บันทึกผลิต)
+  'supervisor': 'supervisor',
+};
+async function fetchUserRoleFromSP(email){
+  try{
+    const siteId = await getSiteId();
+    // L9 ใช้ column ชื่อ 'email' (lowercase)
+    const filter = encodeURIComponent(`fields/email eq '${email}'`);
+    const url = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${SP_LISTS.L9}/items?$expand=fields&$filter=${filter}&$top=1&$select=id,fields`;
+    const resp = await fetch(url, {
+      headers:{ Authorization:`Bearer ${graphToken}`, Prefer:'HonorNonIndexedQueriesWarningMayFailRandomly' }
+    });
+    if(!resp.ok) return null;
+    const data = await resp.json();
+    const item = data.value?.[0]?.fields;
+    if(!item) return null;
+    if(!item.Active) return null; // ว่าง / false / null = ไม่มีสิทธิ์
+    const rawRole = item.ROLE || item.Role || '';
+    const mappedRole = ROLE_MAP[rawRole] || rawRole.toLowerCase();
+    return { role: mappedRole, name: item.EmployeeName || item.Title || email, rawRole };
+  }catch(e){
+    console.warn('fetchUserRoleFromSP error:', e);
+    return null;
+  }
+}
+
+// ── ใช้ fallback hardcode ถ้า SP ไม่ตอบ ──────────────────────────────
+function getUserRoleFallback(email){
+  const lower = email.toLowerCase();
+  return USER_ROLES_FALLBACK.find(u => u.email.toLowerCase() === lower && u.active) || null;
+}
 
 async function doMSLogin(){
   const errEl=document.getElementById('ms-login-err');
@@ -850,36 +1000,73 @@ async function doMSLogin(){
     errEl.style.display='none';
     if(btn) btn.textContent='⏳ กำลัง login...';
     const account=await msalLogin();
-    if(account){
-      // Match MS account to employee list
-      const email=account.username.toLowerCase();
-      const emp=EMPLOYEES.find(e=>(e.email||'').toLowerCase()===email||(e.email||'').toLowerCase().split('@')[0]===email.split('@')[0]);
-      if(emp){
-        const role=ROLES.find(r=>r.id===emp.role);
-        if(role){
-          S.selectedRole={...role};
-          S.user={...emp,roleConfig:S.selectedRole};
-          saveSession(); // ← บันทึก session
-          document.getElementById('login-overlay').style.display='none';
-          buildNav();initDefGrid();setToday();
-          navigate(S.selectedRole.tabs[0]);
-          setTimeout(()=>loadL4FromSP(),800);
-          return;
-        }
-      }
-      // MS login OK but no auto-match — show role selector
-      document.getElementById('login-step0').style.display='none';
-      document.getElementById('login-step1').style.display='block';
-      document.getElementById('login-sub').textContent='เลือกประเภทงานของคุณ';
-    } else {
+    if(!account){
       errEl.textContent='Login ไม่สำเร็จ กรุณาลองใหม่';
       errEl.style.display='block';
-      const b=document.querySelector('#login-step0 button');if(b)b.innerHTML='<svg width="18" height="18" viewBox="0 0 21 21" fill="none"><rect x="1" y="1" width="9" height="9" fill="#F25022"/><rect x="11" y="1" width="9" height="9" fill="#7FBA00"/><rect x="1" y="11" width="9" height="9" fill="#00A4EF"/><rect x="11" y="11" width="9" height="9" fill="#FFB900"/></svg> เข้าสู่ระบบด้วย Microsoft';
+      const b=document.querySelector('#login-step0 button');
+      if(b)b.innerHTML='<svg width="18" height="18" viewBox="0 0 21 21" fill="none"><rect x="1" y="1" width="9" height="9" fill="#F25022"/><rect x="11" y="1" width="9" height="9" fill="#7FBA00"/><rect x="1" y="11" width="9" height="9" fill="#00A4EF"/><rect x="11" y="11" width="9" height="9" fill="#FFB900"/></svg> เข้าสู่ระบบด้วย Microsoft';
+      return;
     }
+
+    const email = account.username.toLowerCase();
+    if(btn) btn.textContent='⏳ กำลังดึงสิทธิ์...';
+
+    // 1) ลอง SP L9 UserRoles ก่อน
+    let userRoleData = await fetchUserRoleFromSP(email);
+    let roleSource = 'SharePoint L9';
+
+    // 2) Fallback → hardcode
+    if(!userRoleData){
+      userRoleData = getUserRoleFallback(email);
+      roleSource = 'Fallback (hardcode)';
+    }
+
+    if(!userRoleData){
+      // ไม่พบ email ใน L9 หรือ fallback → แสดง role picker
+      document.getElementById('login-step0').style.display='none';
+      document.getElementById('login-step1').style.display='block';
+      document.getElementById('login-sub').textContent=`${email} — เลือกประเภทงาน (ไม่พบสิทธิ์ใน UserRoles)`;
+      return;
+    }
+
+    const roleConfig = ROLES.find(r => r.id === userRoleData.role);
+    if(!roleConfig){
+      errEl.textContent=`ไม่พบ role "${userRoleData.role}" ในระบบ — แจ้ง Admin`;
+      errEl.style.display='block';
+      const b=document.querySelector('#login-step0 button');
+      if(b)b.innerHTML='<svg width="18" height="18" viewBox="0 0 21 21" fill="none"><rect x="1" y="1" width="9" height="9" fill="#F25022"/><rect x="11" y="1" width="9" height="9" fill="#7FBA00"/><rect x="1" y="11" width="9" height="9" fill="#00A4EF"/><rect x="11" y="11" width="9" height="9" fill="#FFB900"/></svg> เข้าสู่ระบบด้วย Microsoft';
+      return;
+    }
+    // Block office / no-access roles
+    if(!roleConfig.tabs || roleConfig.tabs.length === 0){
+      errEl.textContent=`บัญชีนี้ (${email}) ไม่มีสิทธิ์เข้าใช้ระบบ Production Control — ติดต่อ Admin`;
+      errEl.style.display='block';
+      const b=document.querySelector('#login-step0 button');
+      if(b)b.innerHTML='<svg width="18" height="18" viewBox="0 0 21 21" fill="none"><rect x="1" y="1" width="9" height="9" fill="#F25022"/><rect x="11" y="1" width="9" height="9" fill="#7FBA00"/><rect x="1" y="11" width="9" height="9" fill="#00A4EF"/><rect x="11" y="11" width="9" height="9" fill="#FFB900"/></svg> เข้าสู่ระบบด้วย Microsoft';
+      return;
+    }
+
+    // Match employee record เพิ่มเติม (ถ้ามี)
+    const emp = EMPLOYEES.find(e=>(e.email||'').toLowerCase()===email) || {
+      id: email, name: userRoleData.name || email,
+      position: roleConfig.title, dept:'', role: userRoleData.role, email
+    };
+
+    S.selectedRole = {...roleConfig};
+    S.user = {...emp, roleConfig: S.selectedRole, roleSource};
+    saveSession();
+    document.getElementById('login-overlay').style.display='none';
+    buildNav(); initDefGrid(); setToday();
+    navigate(S.selectedRole.tabs[0]);
+    console.log(`✅ Login: ${email} → role=${userRoleData.role} (source: ${roleSource})`);
+    setTimeout(()=>loadL4FromSP(),800);
+    setTimeout(()=>loadL6FromSP(),1200);
+
   }catch(e){
     errEl.textContent='Error: '+e.message;
     errEl.style.display='block';
-    const b=document.querySelector('#login-step0 button');if(b)b.innerHTML='<svg width="18" height="18" viewBox="0 0 21 21" fill="none"><rect x="1" y="1" width="9" height="9" fill="#F25022"/><rect x="11" y="1" width="9" height="9" fill="#7FBA00"/><rect x="1" y="11" width="9" height="9" fill="#00A4EF"/><rect x="11" y="11" width="9" height="9" fill="#FFB900"/></svg> เข้าสู่ระบบด้วย Microsoft';
+    const b=document.querySelector('#login-step0 button');
+    if(b)b.innerHTML='<svg width="18" height="18" viewBox="0 0 21 21" fill="none"><rect x="1" y="1" width="9" height="9" fill="#F25022"/><rect x="11" y="1" width="9" height="9" fill="#7FBA00"/><rect x="1" y="11" width="9" height="9" fill="#00A4EF"/><rect x="11" y="11" width="9" height="9" fill="#FFB900"/></svg> เข้าสู่ระบบด้วย Microsoft';
   }
 }
 function skipMSLogin(){
@@ -1072,7 +1259,20 @@ async function debugL4Sample(){
 // ─── EMPLOYEES ────────────────────────────────────────────────────
 const EMPLOYEES = [{"id":"ZZ41050601","name":"นาย ศุภกิจ งามจิตรเจริญ","position":"Chief Executive Officer - CEO","dept":"บริหาร","role":"mgmt"},{"id":"ZZ44030101","name":"นางสาว เมทินี งามจิตรเจริญ","position":"Chief Innovation Officer-CIO","dept":"บริหาร","role":"mgmt","email":"maetinee@ziga.co.th"},{"id":"ZZ53060701","name":"นางสาว ธนิดา เกรียงพานิช","position":"Managing Director – Factory Division","dept":"บริหาร","role":"mgmt","email":"tanida@ziga.co.th"},{"id":"ZZ55020101","name":"นางสาว วราลักษณ์ งามจิตรเจริญ","position":"Chief Marketing Officer-CMO","dept":"บริหาร","role":"mgmt"},{"id":"ZZ65101702","name":"นางสาว ศิริพิมพ์ เชื้อเจ็ดตน","position":"IT Support Officer","dept":"แผนก IT & Bitcoin","role":"mgmt"},{"id":"ZZ66080101","name":"นาย สมคิด อังกุโร","position":"IT & Bitcoin Manager","dept":"แผนก IT & Bitcoin","role":"mgmt"},{"id":"ZZ58090101","name":"นาย จตุรณ เพ็งเอี่ยม","position":"เจ้าหน้าที่วางแผนผลิต-AP","dept":"แผนกPlanning Resource","role":"ap","email":"jaturon@ziga.co.th"},{"id":"ZZ61010305","name":"นางสาว สุวิภา ปานประชาติ","position":"เจ้าหน้าที่วางแผนผลิต-AP","dept":"แผนกPlanning Resource","role":"as","email":"suwipha@ziga.co.th"},{"id":"ZZ65070101","name":"นางสาว บุณยานุช อุปสุข","position":"QMR และจป.วิชาชีพ","dept":"แผนกQMRและจป.วิชาชีพ","role":"mgmt"},{"id":"ZZ68081201","name":"นางสาว ณัฏฐากุญช์ กอบแก้ว","position":"เจ้าหน้าที่คลัง-สลิทและวัสดุสิ้นเปลือง","dept":"แผนกคลังสลิทและวัสดุสิ้นเปลือง","role":"ir","email":"nutthakul@ziga.co.th"},{"id":"ZZ68111701","name":"นาย ทวีศักดิ์ วรรณาลัย","position":"เจ้าหน้าที่คลัง-สลิทและวัสดุสิ้นเปลือง","dept":"แผนกคลังสลิทและวัสดุสิ้นเปลือง","role":"ir","email":"nutthakul@ziga.co.th"},{"id":"ZZ62041703","name":"นาย กิตติพงษ์ โสภณกิตติพัฒน์","position":"เจ้าหน้าที่คลังจัดส่ง","dept":"แผนกคลังสินค้าและจัดส่ง","role":"mgmt"},{"id":"ZZ66020102","name":"นางสาว จีระนันท์ มีคำ","position":"เจ้าหน้าที่ธุรการคลังจัดส่ง","dept":"แผนกคลังสินค้าและจัดส่ง","role":"mgmt"},{"id":"ZZ66062201","name":"นางสาว พีชญา สมประสงค์","position":"เจ้าหน้าที่เช็คเกอร์","dept":"แผนกคลังสินค้าและจัดส่ง","role":"mgmt"},{"id":"ZZ66082501","name":"นาย สิทธานนท์ นันทวงศ์สาร","position":"เจ้าหน้าที่คลังจัดส่ง","dept":"แผนกคลังสินค้าและจัดส่ง","role":"mgmt"},{"id":"ZZ68010201","name":"นาย อิทธิพล วิไลรัตน์","position":"เจ้าหน้าที่คลังจัดส่ง","dept":"แผนกคลังสินค้าและจัดส่ง","role":"mgmt"},{"id":"ZZ59020401","name":"นางสาว ณิชาดา อ๊อตจังหรีด","position":"หัวหน้าแผนกบัญชี","dept":"แผนกบัญชีและการเงิน","role":"mgmt"},{"id":"ZZ63021702","name":"นางสาว บุษกร เพชรคง","position":"เจ้าหน้าที่บัญชีเจ้าหนี้","dept":"แผนกบัญชีและการเงิน","role":"mgmt"},{"id":"ZZ66050801","name":"นางสาว ไพลิน มีชัยโย","position":"ผู้ช่วยผู้จัดการฝ่ายบัญชี","dept":"แผนกบัญชีและการเงิน","role":"mgmt"},{"id":"ZZ66053001","name":"นาย อดิศักดิ์ วงศ์ก้อม","position":"เจ้าหน้าที่ประกันคุณภาพ","dept":"แผนกประกันคุณภาพ","role":"qa"},{"id":"ZZ68021401","name":"นาย อภินันท์ บุญสม","position":"เจ้าหน้าที่ประกันคุณภาพ","dept":"แผนกประกันคุณภาพ","role":"qa"},{"id":"ZZ68022001","name":"นางสาว วรรณรดา สุวรรณกาญจน์","position":"QA Supervisor","dept":"แผนกประกันคุณภาพ","role":"qa"},{"id":"ZZ69032301","name":"นางสาว สุกานดา งามสวย","position":"เจ้าหน้าที่ประกันคุณภาพ","dept":"แผนกประกันคุณภาพ","role":"qa"},{"id":"ZZ55061101","name":"นาย สุรเชษฐ์ สุดศิลา","position":"หัวหน้าควบคุมเครื่องรีดต่อคอยล์","dept":"แผนกผลิต - เครื่องรีด ทีม1","role":"ofm"},{"id":"ZZ57102101","name":"นาย สงวน สุดแก้ว","position":"หัวหน้าทีมผลิต-เครื่องรีด","dept":"แผนกผลิต - เครื่องรีด ทีม1","role":"ofm"},{"id":"ZZ58110201","name":"นาย อุเทน กองสิงห์","position":"เจ้าหน้าที่คุมเครื่องรีดต่อคอยล์","dept":"แผนกผลิต - เครื่องรีด ทีม1","role":"ofm"},{"id":"ZZ60062401","name":"นาย ภูษิต บัวชุม","position":"หัวหน้าควบคุมเครื่องรีดต่อคอยล์","dept":"แผนกผลิต - เครื่องรีด ทีม1","role":"ofm"},{"id":"ZZ67082101","name":"นาย สงบ การบรรจง","position":"เจ้าหน้าที่ควบคุมเครื่องรีดต่อคอลย์","dept":"แผนกผลิต - เครื่องรีด ทีม1","role":"ofm"},{"id":"ZZ58010801","name":"นาย ภูมินทร์ มั่นศักดิ์","position":"หัวหน้าควบคุมเครื่องรีดต่อคอยล์","dept":"แผนกผลิต - เครื่องรีด ทีม2","role":"ofm"},{"id":"ZZ63021701","name":"นาย วิชัย ด่านมะณี","position":"เจ้าหน้าที่ผลิต-เกลียว","dept":"แผนกผลิต - ตัด ลบคม ทำเกลียว","role":"ofm"},{"id":"ZZ66021403","name":"นาย วิทัต วุฒิวิมล","position":"เจ้าหน้าที่ผลิต-ข้อต่อ","dept":"แผนกผลิต - ตัด ลบคม ทำเกลียว","role":"ofm"},{"id":"ZZ67062101","name":"นาย นาราภัทร สายจันดี","position":"เจ้าหน้าที่ผลิต-ลบคม","dept":"แผนกผลิต - ตัด ลบคม ทำเกลียว","role":"ofm"},{"id":"ZZ68020302","name":"นาย ศิวะกรณ์ สุขเจริญ","position":"พนักงานคุมเครื่องลบคมทำเกลียว","dept":"แผนกผลิต - ตัด ลบคม ทำเกลียว","role":"ofm"},{"id":"ZZ68070201","name":"นาย กิตติพร เกษประเสริฐ","position":"พนักงานคุมเครื่องลบคมทำเกลียว","dept":"แผนกผลิต - ตัด ลบคม ทำเกลียว","role":"ofm"},{"id":"ZZ57060801","name":"นาย รุ่งโรจน์ วามะลุน","position":"เจ้าหน้าที่ผลิต-ท่อโค้งและข้อต่อ","dept":"แผนกผลิต - ท่อโค้ง","role":"ofm"},{"id":"ZZ55062101","name":"นาย ธัณพิสิฐ น้อมนุช","position":"หัวหน้าคุมเครื่อง-แพ็คกิ้ง","dept":"แผนกผลิต - แพ็คกิ้ง","role":"ofm"},{"id":"ZZ66050201","name":"นาย เอกภพ ภู่ศรีพงษ์","position":"เจ้าหน้าที่ผลิต-สลิทเตอร์","dept":"แผนกสลิทเหล็ก","role":"slit","email":"suparp@ziga.co.th"},{"id":"ZZ68010801","name":"นาย สุภาพ เม่นแก้ว","position":"พนักงานผลิต-สลิทเตอร์","dept":"แผนกสลิทเหล็ก","role":"slit","email":"suparp@ziga.co.th"},{"id":"ZZ69010601","name":"นาย สามารถ ดาสม","position":"เจ้าหน้าที่ผลิต-สลิทเตอร์","dept":"แผนกสลิทเหล็ก","role":"slit"},{"id":"ZZ41050602","name":"นางสาว ฐปนี ตรีมุทธาพงศ์","position":"Financial Controller","dept":"ฝ่ายบัญชีและการเงิน (AFM)","role":"mgmt","email":"tapanee@ziga.co.th"},{"id":"ZZ69020201","name":"นาย ทิพยเนตร เจี้ยงรักษา","position":"Production Supervisor","dept":"ส่วนผลิตและควบคุมอุปทานการผลิต","role":"supervisor"},{"id":"ZZ69020202","name":"นาย มนตรี รักเสมอวงค์","position":"รองหัวหน้าแผนกผลิต","dept":"ส่วนผลิตและควบคุมอุปทานการผลิต","role":"supervisor"}];
 
-const ROLES = [{"id": "mgmt", "icon": "👑", "title": "ผู้บริหาร / บัญชี", "sub": "ดูภาพรวมทุก module", "tabs": ["dash", "ose-plan", "master-plan", "packing", "ofm-plan", "prod", "qa", "slit"]}, {"id": "ap", "icon": "📊", "title": "จนท. AP", "sub": "Duke — สั่งสลิท / ดู L4", "tabs": ["ose-plan", "master-plan", "dash"]}, {"id": "as", "icon": "📅", "title": "จนท. AS", "sub": "แป๋ม — วางแผน OFM / ลำดับงาน", "tabs": ["ose-plan", "ofm-plan", "master-plan", "dash"]}, {"id": "ir", "icon": "🏭", "title": "จนท. คลัง IR", "sub": "จอย — รับเหล็กม้วน / เลือก MCID", "tabs": ["packing", "ose-plan"]}, {"id": "slit", "icon": "⚙️", "title": "จนท. Slitter", "sub": "สุภาพ / เอกภพ / สามารถ — บันทึกสลิท", "tabs": ["slit", "packing"]}, {"id": "ofm", "icon": "🔧", "title": "พนักงานผลิต", "sub": "เครื่องรีด / ลบคม / เกลียว / แพ็ค", "tabs": ["prod"]}, {"id": "qa", "icon": "🔍", "title": "จนท. QA", "sub": "บันทึกของเสีย FM-QA-08", "tabs": ["qa", "dash"]}, {"id": "supervisor", "icon": "👷", "title": "Production Supervisor", "sub": "ตรวจสอบพารามิเตอร์", "tabs": ["prod", "dash"]}];
+const ALL_TABS = ['dash','ose-plan','master-plan','packing','ofm-plan','prod','qa','slit','admin'];
+const MAIN_TABS = ['dash','ose-plan','master-plan','packing','ofm-plan','prod','qa','slit'];
+
+const ROLES = [
+  {"id":"mgmt",       "icon":"👑", "title":"ผู้บริหาร / MD",      "sub":"ดูและแก้ไขได้ทุก module",          "tabs": ALL_TABS},
+  {"id":"ap",         "icon":"📊", "title":"จนท. AP (Duke)",       "sub":"วางแผน OSE / OFM / ดูทุก module",  "tabs": ALL_TABS},
+  {"id":"as",         "icon":"📅", "title":"จนท. AS (แป๋ม)",       "sub":"วางแผน OFM / ลำดับงาน / ดูทุก module", "tabs": ALL_TABS},
+  {"id":"ir",         "icon":"🏭", "title":"จนท. คลัง IR (จอย)",   "sub":"รับเหล็กม้วน / เลือก MCID",       "tabs": ["packing","ose-plan","dash"]},
+  {"id":"slit",       "icon":"⚙️", "title":"จนท. Slitter",         "sub":"สุภาพ / เอกภพ — บันทึกสลิท",      "tabs": ["slit","packing","dash"]},
+  {"id":"prod",       "icon":"🔧", "title":"พนักงานผลิต",           "sub":"เครื่องรีด / ลบคม / เกลียว / แพ็ค","tabs": ["prod"]},
+  {"id":"qa",         "icon":"🔍", "title":"จนท. QA",              "sub":"บันทึกของเสีย FM-QA-08",           "tabs": ["qa","dash"]},
+  {"id":"supervisor", "icon":"👷", "title":"Production Supervisor", "sub":"ตรวจสอบภาพรวมการผลิต",            "tabs": ["prod","dash","ose-plan"]},
+  {"id":"office",     "icon":"🚫", "title":"สำนักงาน (ไม่มีสิทธิ์)","sub":"ไม่มีสิทธิ์เข้าใช้ระบบนี้",       "tabs": []},
+];
 
 const SHIFTS = [
   {label:'07:00-12:00', hours:5},
@@ -1138,6 +1338,7 @@ const TABS_CONFIG = [
   {id:'prod',        label:'บันทึกผลิต'},
   {id:'qa',          label:'FM-08 ของเสีย'},
   {id:'dash',        label:'รายงาน'},
+  {id:'admin',       label:'⚙️ Admin'},
 ];
 
 // ─── STATE ────────────────────────────────────────────────────────
@@ -1335,12 +1536,19 @@ function logout(){
 function buildNav(){
   const role=S.selectedRole||S.user?.roleConfig;
   const tabs=(role?.tabs)||['dash'];
-  console.log('buildNav tabs:', tabs, 'role:', role?.id);
+  // CTO/mgmt ได้ tab admin เพิ่ม
+  const allTabs = (role?.id==='mgmt') ? [...tabs,'admin'] : tabs;
   document.getElementById('nav-tabs').innerHTML=TABS_CONFIG
-    .filter(t=>tabs.includes(t.id))
+    .filter(t=>allTabs.includes(t.id))
     .map(t=>`<div class="nav-tab" id="tab-${t.id}" onclick="navigate('${t.id}')">${t.label}</div>`)
     .join('');
-  document.getElementById('nav-user-btn').innerHTML=`${S.user.name} <span style="opacity:.4;font-size:10px">ออก</span>`;
+  const src = S.user?.roleSource;
+  const srcBadge = src==='SharePoint L9'
+    ? '<span style="color:var(--teal);font-size:9px;margin-left:4px">●SP</span>'
+    : src==='Fallback (hardcode)'
+    ? '<span style="color:var(--amber);font-size:9px;margin-left:4px">●FB</span>'
+    : '';
+  document.getElementById('nav-user-btn').innerHTML=`${S.user.name}${srcBadge} <span style="opacity:.4;font-size:10px">ออก</span>`;
 }
 function navigate(id){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -1358,6 +1566,7 @@ function navigate(id){
   if(id==='qa'){renderQAJobSelect();renderQAList();updateQAStats();}
   if(id==='master-plan'){initMasterPlan();}
   if(id==='dash') renderDash();
+  if(id==='admin'){ renderAdminRolesTable(); }
 }
 function setToday(){
   const t=new Date().toISOString().slice(0,10);
@@ -3553,6 +3762,207 @@ function renderQAList(){
       <div style="font-size:10px;color:var(--ink4);margin-top:2px">${d.date} · ${d.by}</div>
     </div>`).join('')||'<div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center">ยังไม่มีข้อมูล</div>';
 }
+
+// ─── ADMIN — UserRoles L9 ─────────────────────────────────────────
+let adminRoleItems = []; // cache จาก SP
+
+async function loadUserRoles(){
+  if(!graphToken){ showToast('⚠️ Login ก่อนค่ะ'); return; }
+  showToast('⏳ กำลัง Load UserRoles จาก SP...');
+  try{
+    const items = await spGetItems(SP_LISTS.L9,'',100);
+    adminRoleItems = items.map(i=>({
+      id: i.id,
+      name: i.fields?.Title || '',
+      email: i.fields?.Email || '',
+      role: i.fields?.Role || '',
+      active: i.fields?.Active !== false,
+      remark: i.fields?.Remark || '',
+    }));
+    renderAdminRolesTable();
+    showToast(`✅ Load แล้ว ${adminRoleItems.length} records`);
+  }catch(e){
+    showToast('❌ Load ไม่ได้: '+e.message);
+  }
+}
+
+function renderAdminRolesTable(){
+  const el = document.getElementById('admin-roles-table');
+  if(!adminRoleItems.length){
+    el.innerHTML='<div style="text-align:center;padding:24px;color:var(--ink3);font-size:12px">ไม่มีข้อมูลใน SP — กด Sync เพื่อสร้างข้อมูลเริ่มต้น</div>';
+    return;
+  }
+  el.innerHTML=`<table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead><tr style="border-bottom:1px solid var(--b2);color:var(--ink3)">
+      <th style="text-align:left;padding:6px 8px">ชื่อ</th>
+      <th style="text-align:left;padding:6px 8px">Email</th>
+      <th style="text-align:left;padding:6px 8px">Role</th>
+      <th style="text-align:center;padding:6px 8px">สถานะ</th>
+      <th style="text-align:right;padding:6px 8px">แก้ไข</th>
+    </tr></thead>
+    <tbody>${adminRoleItems.map(u=>`
+      <tr style="border-bottom:1px solid var(--b);${!u.active?'opacity:.45':''}">
+        <td style="padding:7px 8px;font-weight:500">${u.name}</td>
+        <td style="padding:7px 8px;font-family:var(--mono);font-size:11px;color:var(--teal)">${u.email}</td>
+        <td style="padding:7px 8px"><span class="pill p-blue" style="font-size:10px">${u.role}</span></td>
+        <td style="padding:7px 8px;text-align:center">${u.active?'✅':'🔴'}</td>
+        <td style="padding:7px 8px;text-align:right">
+          <button onclick="editUserRole('${u.id}')" style="font-size:11px;padding:3px 8px;border:1px solid var(--b2);border-radius:4px;background:var(--panel);cursor:pointer;color:var(--ink)">✏️</button>
+        </td>
+      </tr>`).join('')}
+    </tbody>
+  </table>`;
+
+  // render role reference
+  const ref = document.getElementById('admin-role-ref');
+  if(ref) ref.innerHTML = ROLES.map(r=>`
+    <div style="display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:1px solid var(--b)">
+      <span style="font-size:13px">${r.icon}</span>
+      <div>
+        <span style="font-family:var(--mono);font-size:11px;color:var(--blue)">${r.id}</span>
+        <span style="color:var(--ink3);margin:0 6px">→</span>
+        <span style="font-size:11px;color:var(--ink2)">${r.tabs.join(', ')}</span>
+      </div>
+    </div>`).join('');
+}
+
+function editUserRole(id){
+  const u = adminRoleItems.find(x=>x.id===id);
+  if(!u) return;
+  document.getElementById('admin-edit-id').value = id;
+  document.getElementById('admin-name').value = u.name;
+  document.getElementById('admin-email').value = u.email;
+  document.getElementById('admin-role').value = u.role;
+  document.getElementById('admin-active').value = u.active ? 'true' : 'false';
+  document.getElementById('admin-remark').value = u.remark;
+  document.getElementById('admin-name').scrollIntoView({behavior:'smooth',block:'center'});
+}
+
+function clearAdminForm(){
+  document.getElementById('admin-edit-id').value='';
+  document.getElementById('admin-name').value='';
+  document.getElementById('admin-email').value='';
+  document.getElementById('admin-role').value='mgmt';
+  document.getElementById('admin-active').value='true';
+  document.getElementById('admin-remark').value='';
+}
+
+async function saveUserRole(){
+  if(!graphToken){ showToast('⚠️ Login ก่อนค่ะ'); return; }
+  const editId = document.getElementById('admin-edit-id').value;
+  const name   = document.getElementById('admin-name').value.trim();
+  const email  = document.getElementById('admin-email').value.trim().toLowerCase();
+  const role   = document.getElementById('admin-role').value;
+  const active = document.getElementById('admin-active').value === 'true';
+  const remark = document.getElementById('admin-remark').value.trim();
+
+  if(!email || !role){ showToast('⚠️ กรุณาใส่ Email และ Role'); return; }
+
+  const fields = { Title: name, Email: email, Role: role, Active: active, Remark: remark };
+  const siteId = await getSiteId();
+
+  try{
+    if(editId){
+      // PATCH existing
+      const listId = await getListId(SP_LISTS.L9);
+      const resp = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${editId}/fields`,{
+        method:'PATCH',
+        headers:{ Authorization:`Bearer ${graphToken}`, 'Content-Type':'application/json' },
+        body: JSON.stringify(fields)
+      });
+      if(!resp.ok) throw new Error(await resp.text());
+      const idx = adminRoleItems.findIndex(x=>x.id===editId);
+      if(idx>=0) adminRoleItems[idx]={...adminRoleItems[idx],...fields,active};
+      showToast('✅ อัพเดต UserRole แล้ว');
+    } else {
+      // POST new
+      const listId = await getListId(SP_LISTS.L9);
+      const resp = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`,{
+        method:'POST',
+        headers:{ Authorization:`Bearer ${graphToken}`, 'Content-Type':'application/json' },
+        body: JSON.stringify({ fields })
+      });
+      if(!resp.ok) throw new Error(await resp.text());
+      const newItem = await resp.json();
+      adminRoleItems.push({ id: newItem.id, name, email, role, active, remark });
+      showToast('✅ เพิ่ม UserRole แล้ว');
+    }
+    clearAdminForm();
+    renderAdminRolesTable();
+    // อัพเดต fallback hardcode ให้ตรงกับ SP ด้วย
+    USER_ROLES_FALLBACK.forEach(f=>{
+      const sp=adminRoleItems.find(x=>x.email.toLowerCase()===f.email.toLowerCase());
+      if(sp){ f.role=sp.role; f.active=sp.active; }
+    });
+  }catch(e){
+    showToast('❌ บันทึกไม่ได้: '+e.message);
+  }
+}
+
+async function syncUserRolesToSP(){
+  if(!graphToken){ showToast('⚠️ Login ก่อนค่ะ'); return; }
+  if(!confirm(`Sync ${USER_ROLES_FALLBACK.length} users ขึ้น SP L9?\n\n(จะ POST เฉพาะที่ยังไม่มีใน SP)`)) return;
+  showToast('⏳ กำลัง Sync...');
+  const existing = await spGetItems(SP_LISTS.L9,'',100);
+  const existEmails = existing.map(i=>(i.fields?.Email||'').toLowerCase());
+  const siteId = await getSiteId();
+  const listId = await getListId(SP_LISTS.L9);
+  let added=0;
+  for(const u of USER_ROLES_FALLBACK){
+    if(existEmails.includes(u.email.toLowerCase())) continue;
+    const fields = { Title: u.name, Email: u.email, Role: u.role, Active: u.active, Remark:'' };
+    const resp = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`,{
+      method:'POST',
+      headers:{ Authorization:`Bearer ${graphToken}`, 'Content-Type':'application/json' },
+      body: JSON.stringify({ fields })
+    });
+    if(resp.ok) added++;
+  }
+  showToast(`✅ Sync เสร็จ — เพิ่ม ${added} records`);
+  loadUserRoles();
+}
+
+async function createL9List(){
+  if(!graphToken){ showToast('⚠️ Login ก่อนค่ะ'); return; }
+  if(!confirm('สร้าง List PrdCtrl_L9_UserRoles ใน SharePoint?\n\n(ถ้ามีอยู่แล้วจะ skip)')) return;
+  showToast('⏳ กำลังสร้าง List...');
+  try{
+    const siteId = await getSiteId();
+    // สร้าง list
+    const listResp = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists`,{
+      method:'POST',
+      headers:{ Authorization:`Bearer ${graphToken}`, 'Content-Type':'application/json' },
+      body: JSON.stringify({ displayName:'PrdCtrl_L9_UserRoles', list:{ template:'genericList' } })
+    });
+    if(!listResp.ok){
+      const e=await listResp.text();
+      if(e.includes('already exists')||e.includes('duplicate')){showToast('ℹ️ List มีอยู่แล้ว');return;}
+      throw new Error(e);
+    }
+    const listData=await listResp.json();
+    const listId=listData.id;
+    // สร้าง columns: Email, Role, Active, Remark
+    const cols=[
+      {name:'Email', type:{text:{}}},
+      {name:'Role',  type:{choice:{ choices:['mgmt','ap','as','ir','slit','qa','ofm','supervisor'], displayAs:'dropDownMenu' }}},
+      {name:'Active',type:{boolean:{}}},
+      {name:'Remark',type:{text:{}}},
+    ];
+    for(const c of cols){
+      await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/columns`,{
+        method:'POST',
+        headers:{ Authorization:`Bearer ${graphToken}`, 'Content-Type':'application/json' },
+        body: JSON.stringify({ name:c.name, ...c.type })
+      });
+    }
+    showToast('✅ สร้าง L9 List เสร็จแล้ว — กด Sync เพื่อเพิ่ม users');
+  }catch(e){
+    showToast('❌ สร้างไม่ได้: '+e.message);
+  }
+}
+
+// navigate admin
+// (ต่อใน navigate function ด้านล่าง)
 
 // ─── DASHBOARD ────────────────────────────────────────────────────
 function renderDash(){
