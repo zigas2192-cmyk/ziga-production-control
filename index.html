@@ -2436,10 +2436,14 @@ async function saveJobSchedule(prod){
   if(!graphToken){showToast('⚠️ login ก่อน');return;}
   if(!j.spId){showToast('⚠️ ไม่พบ spId — Load L6 ก่อน');return;}
   const fields={};
-  if(j.machine)          fields.field_6 =j.machine;
-  if(j.startDate)        fields.field_7 =new Date(j.startDate).toISOString();
-  if(j.endDate)          fields.field_8 =new Date(j.endDate).toISOString();
-  if(j.oseStatus||j.status) fields.field_10=j.oseStatus||j.status;
+  if(j.machine)             fields.OSEStatus  = undefined; // placeholder
+  if(j.machine)             fields.MachineName = j.machine;
+  if(j.machine)             fields.field_6    = j.machine;
+  if(j.startDate)           fields.field_7    = new Date(j.startDate).toISOString();
+  if(j.endDate)             fields.field_8    = new Date(j.endDate).toISOString();
+  if(j.oseStatus||j.status){ fields.OSEStatus = j.oseStatus||j.status; fields.field_10 = j.oseStatus||j.status; }
+  // ลบ key ที่ undefined ออก
+  Object.keys(fields).forEach(k=>{ if(fields[k]===undefined) delete fields[k]; });
   const ok=await spPatchItem(SP_LISTS.L6,j.spId,fields);
   if(ok){
     showToast(`✅ บันทึก ${prod} → ${j.machine||'?'} | ${(j.oseStatus||'').slice(0,20)}`);
@@ -2477,8 +2481,8 @@ async function saveSchEdit(prod){
   // PATCH SP
   if(graphToken && j.spId){
     const fields={};
-    if(newSt)           fields.field_10=newSt;
-    if(newMach)         fields.field_6=newMach;
+    if(newSt){           fields.OSEStatus=newSt; fields.field_10=newSt; }
+    if(newMach){         fields.MachineName=newMach; fields.field_6=newMach; }
     if(parseDMY(newSd)) fields.field_7=new Date(parseDMY(newSd)).toISOString();
     if(parseDMY(newEd)) fields.field_8=new Date(parseDMY(newEd)).toISOString();
     if(newRm!==undefined) fields.field_17=newRm;
@@ -2721,27 +2725,28 @@ async function loadL6FromSP(){
     if(!items.length){hideProgress();return;}
     S.axJobs=items.map(f=>({
       prod:         f.Title||'',
-      item:         f.field_1||'',        // OFMRef (จับคู่ OSE↔OFM)
-      itemCode:     f.Itemnumber||'',     // Item code สินค้า เช่น NASLF00280F001
-      name:         f.field_2||'',
-      thick:        parseFloat(f.field_3)||0,
+      item:         f.OFMRef||f.field_1||'',        // OFMRef (จับคู่ OSE↔OFM)
+      itemCode:     f.Itemnumber||f.field_13||'',   // Item code สินค้า
+      name:         f.SlitFormula||f.field_2||'',
+      thick:        parseFloat(f.ThicknessMM||f.field_3)||0,
       width:        parseFloat(f.field_4)||0,
       qtyCoils:     parseFloat(f.field_5)||0,
-      machine:      f.field_6||'',
-      startDate:    f.field_7||'',
-      endDate:      f.field_8||'',
+      machine:      f.MachineName||f.field_6||'',
+      startDate:    f.StartDate||f.field_7||'',
+      endDate:      f.EndDate||f.field_8||'',
       capMinPerCoil:parseFloat(f.field_9)||0,
-      oseStatus:    f.field_10||'',
-      status:       f.field_10||'',
-      priority:     parseFloat(f.field_11)||0,
-      qty:          parseFloat(f.field_12)||0,
+      oseStatus:    f.OSEStatus||f.field_10||'',   // ← รับทั้ง column name และ field_10
+      status:       f.OSEStatus||f.field_10||'',
+      priority:     parseFloat(f.Priority||f.field_11)||0,
+      qty:          parseFloat(f.QTYLine||f.field_12)||0,
       qtyActual:    parseFloat(f.field_13)||0,
       gradeA:       parseFloat(f.field_14)||0,
       gradeB:       parseFloat(f.field_15)||0,
       gradeC:       parseFloat(f.field_16)||0,
-      remarks:      f.field_17||'',
+      remarks:      f.Remarks||f.field_17||'',
       gradeAminus:  parseFloat(f.GradeAminus)||0,
       jobType:      f.JobType||'',
+      brand:        f.Brand||f.field_18||'',
       spId:         f.id||'',
       used:         false,
     }));
