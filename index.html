@@ -2621,7 +2621,7 @@ function exportSlitExcel(oseNoFilter){
 
   const ws=XLSX.utils.json_to_sheet(rows);
   ws['!cols']=[16,38,30,8,18,14,16,16,14,12,16].map(w=>({wch:w}));
-  XLSX.utils.book_append_sheet(wb,'SlitWeight',ws);
+  XLSX.utils.book_append_sheet(wb,ws,'SlitWeight');
 
   // ── Sheet 2: สรุปต่อ OSE ─────────────────────────────────────
   const sumRows=plans.map(p=>{
@@ -2629,22 +2629,22 @@ function exportSlitExcel(oseNoFilter){
     const totalNet=p.mcids.reduce((s,c)=>{const d=S.slitData[c.serial]||{};return s+(d.net||0);},0);
     const done=p.mcids.filter(c=>S.slitData[c.serial]?.done).length;
     return {
-      'OSE No.':         p.oseNo,
-      'SlitFormula':     p.job.name||'',
-      'Batch/Remarks':   p.job.remarks||'',
-      'จำนวน MCID':     p.mcids.length,
-      'บันทึกแล้ว':     done,
-      'GW รวม (kg)':    +totalGW.toFixed(3),
-      'Net รวม (kg)':   totalNet?+totalNet.toFixed(3):'',
-      'สถานะ':          p.allDone?'✅ เสร็จ':'⏳ กำลังดำเนินการ',
+      'OSE No.':       p.oseNo,
+      'SlitFormula':   p.job.name||'',
+      'Batch/Remarks': p.job.remarks||'',
+      'MCID ทั้งหมด': p.mcids.length,
+      'บันทึกแล้ว':   done,
+      'GW รวม (kg)':  +totalGW.toFixed(3),
+      'Net รวม (kg)': totalNet?+totalNet.toFixed(3):'',
+      'สถานะ':        p.allDone?'เสร็จ':'กำลังดำเนินการ',
     };
   });
   const ws2=XLSX.utils.json_to_sheet(sumRows);
   ws2['!cols']=[16,38,30,10,10,14,14,20].map(w=>({wch:w}));
-  XLSX.utils.book_append_sheet(wb,'Summary',ws2);
+  XLSX.utils.book_append_sheet(wb,ws2,'Summary');
 
   const date=new Date().toISOString().slice(0,10).replace(/-/g,'');
-  const label=f==='done'?'เสร็จ':f==='pending'?'pending':'ทั้งหมด';
+  const label=oseNoFilter?oseNoFilter:f==='done'?'done':f==='pending'?'pending':'all';
   XLSX.writeFile(wb,`ZIGA_SlitWeight_${label}_${date}.xlsx`);
   showToast(`✅ Export ${rows.filter(r=>r['MCID (Serial)']).length} MCID จาก ${plans.length} ใบงาน`);
 }
@@ -2805,8 +2805,8 @@ function exportMasterPlanXLSX(){
   });
 
   const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(allRows),    'ทุกใบงาน');
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(machRows),   'แยกตามเครื่อง');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(allRows),    'AllJobs');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(machRows),   'ByMachine');
 
   const dateStr=new Date().toLocaleDateString('th-TH',{year:'numeric',month:'2-digit',day:'2-digit'}).replace(/\//g,'');
   XLSX.writeFile(wb, `ZIGA_MasterPlan_${dateStr}.xlsx`);
