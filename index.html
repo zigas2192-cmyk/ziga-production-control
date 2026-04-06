@@ -843,6 +843,8 @@ table.ax-t .ax-total{background:var(--green-lt);color:var(--green);font-weight:6
         <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
           <button onclick="exportMasterPlanXLSX()"
             style="padding:6px 14px;border:1px solid var(--green-bd);border-radius:var(--rs);background:var(--green-bg);color:var(--green);font-size:13px;cursor:pointer;font-family:var(--sans);font-weight:500">📥 Export Excel</button>
+          <button onclick="exportForAI()"
+            style="padding:6px 14px;border:1px solid var(--purple-bd);border-radius:var(--rs);background:var(--purple-bg);color:var(--purple);font-size:13px;cursor:pointer;font-family:var(--sans);font-weight:500">🤖 Export for AI</button>
           <button onclick="loadL6FromSP().then(()=>{initMasterPlan();showToast('✅ Load L6: '+S.axJobs.length+' jobs');})"
             style="padding:6px 14px;border:1px solid var(--blue-bd);border-radius:var(--rs);background:var(--blue-bg);color:var(--blue);font-size:13px;cursor:pointer;font-family:var(--sans);font-weight:500">🔄 Load L6</button>
           <span id="mp-summary-badge" style="font-size:12px;color:var(--ink3)"></span>
@@ -882,8 +884,9 @@ table.ax-t .ax-total{background:var(--green-lt);color:var(--green);font-weight:6
 
       <!-- ② ลงเครื่องจักร -->
       <div id="mp-unassigned" class="mp-content" style="display:none">
-        <div style="font-size:13px;color:var(--ink3);margin-bottom:10px">
-          AS — เลือกเครื่อง + วันเริ่ม + วันจบ ต่อใบงาน แล้วกด 💾 บันทึกลง L6
+        <div style="font-size:13px;color:var(--ink3);margin-bottom:10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <span>AS — เลือกเครื่อง + วันเริ่ม + วันจบ + เส้นทางหลังเครื่อง แล้วกด 💾 บันทึกลง L6</span>
+          <button onclick="exportForAI()" style="padding:6px 16px;background:#00B894;color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600;white-space:nowrap">📥 Export for AI</button>
         </div>
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
           <input id="mp-ua-search" placeholder="🔍 ค้นหา..." oninput="renderUnassigned()"
@@ -2324,20 +2327,31 @@ function renderUnassigned(){
     '</optgroup>').join('');
 
   const iStyle='padding:5px 7px;border:1px solid var(--b2);border-radius:4px;background:#fff;font-size:13px;outline:none;color:#111;width:100%';
+  // dropdown options สำหรับเส้นทาง
+  const chOpts = ['','CH_A02','CH_A03','CH_A05','CH_A06','TA_A03','TA_A04','TA_A05','TA_A06']
+    .map(m=>`<option value="${m}">${m||'— ไม่มี —'}</option>`).join('');
+  const paOpts = ['','LO_R01+PA_M01','LO_R04','LO_R05+PA_M05','LO_R06+PA_M06','LO_R08+PA_M08','PA_EL01','PA_EL02']
+    .map(m=>`<option value="${m}">${m||'— ไม่มี —'}</option>`).join('');
+  const orwOpts = ['','CU_BL01','ข้อต่อ-เกลียว','ข้อต่อ-ชุบ','ดันตะเข็บ']
+    .map(m=>`<option value="${m}">${m||'— ไม่มี —'}</option>`).join('');
+
   const stOpts=OSE_STATUS.map(s=>`<option value="${s}">${s}</option>`).join('');
 
-  el.innerHTML=`<div class="tbl-wrap"><table class="ft" style="min-width:1160px">
+  el.innerHTML=`<div class="tbl-wrap"><table class="ft" style="min-width:1500px">
     <thead><tr>
       <th style="width:130px">หมายเลขงาน</th>
       <th>ชื่องาน</th>
       <th style="width:60px">ความหนา</th>
       <th style="width:80px">จำนวน</th>
       <th style="width:110px">OSE คู่</th>
-      <th style="width:175px">เครื่องจักร</th>
+      <th style="width:160px">เครื่องต้นทาง</th>
       <th style="width:115px">วันที่เริ่ม</th>
       <th style="width:115px">วันที่จบ</th>
-      <th style="width:210px">สถานะ</th>
-      <th style="width:58px">บันทึก</th>
+      <th style="width:155px">→ ลบคม/เกลียว</th>
+      <th style="width:175px">→ แพ็คกิ้ง</th>
+      <th style="width:140px">→ ข้อต่อ/อื่นๆ</th>
+      <th style="width:195px">สถานะ</th>
+      <th style="width:58px">💾</th>
     </tr></thead>
     <tbody>
     ${jobs.map(j=>{
@@ -2348,8 +2362,7 @@ function renderUnassigned(){
       const curSt=j.oseStatus||j.status||'';
       const stOptsSelected=curSt?stOpts.replace(`value="${curSt}"`,`value="${curSt}" selected`):stOpts;
 
-      // หา OSE คู่: ถ้าเป็น OFM → หา OSE ที่มี item === j.prod
-      //             ถ้าเป็น OSE → ดู j.item (OFM คู่)
+      // หา OSE คู่
       let oseRef='<span style="color:#bbb">—</span>';
       if(jt==='OFM'){
         const paired=S.axJobs.filter(x=>jobType(x)==='OSE'&&x.item===j.prod);
@@ -2369,10 +2382,15 @@ function renderUnassigned(){
           : '<span style="color:#bbb">—</span>';
       }
 
+      // เส้นทาง dropdown ที่เลือกไว้แล้ว
+      const selCH = chOpts.replace(`value="${j.routeCH||''}"`,`value="${j.routeCH||''}" selected`);
+      const selPA = paOpts.replace(`value="${j.routePA||''}"`,`value="${j.routePA||''}" selected`);
+      const selORW = orwOpts.replace(`value="${j.routeORW||''}"`,`value="${j.routeORW||''}" selected`);
+
       const isDone = !isActive(j);
       return `<tr style="${isDone?'opacity:.55;':''}${!hasM&&!isDone?'background:var(--amber-bg)':''}">
         <td><div style="font-family:var(--mono);font-size:13px;font-weight:700;color:${tc}">${j.prod}</div><span style="font-size:11px;color:#666">${jt}</span></td>
-        <td style="font-size:13px;color:#111;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${j.name||''}">${j.name||'—'}</td>
+        <td style="font-size:12px;color:#111;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${j.name||''}">${j.name||'—'}</td>
         <td style="font-size:13px;text-align:center;color:#111">${j.thick?j.thick+'mm':'—'}</td>
         <td style="font-family:var(--mono);font-size:13px;text-align:right;color:#111">${j.qty?Number(j.qty).toLocaleString():'—'}</td>
         <td>${oseRef}</td>
@@ -2383,6 +2401,9 @@ function renderUnassigned(){
         <td><input type="text" value="${fmtDate(j.endDate)}" placeholder="dd/mm/yyyy" maxlength="10"
           style="${iStyle};width:108px;font-family:var(--mono)" oninput="fmtDateInput(this)"
           onblur="updateJobEndDate('${j.prod}',this.value)"></td>
+        <td><select style="${iStyle};background:#f0fff4" onchange="updateJobRoute('${j.prod}','CH',this.value)">${selCH}</select></td>
+        <td><select style="${iStyle};background:#f0f4ff" onchange="updateJobRoute('${j.prod}','PA',this.value)">${selPA}</select></td>
+        <td><select style="${iStyle};background:#fff8f0" onchange="updateJobRoute('${j.prod}','ORW',this.value)">${selORW}</select></td>
         <td><select style="${iStyle}" onchange="updateJobStatus('${j.prod}',this.value)">
           <option value="">— ไม่เปลี่ยน —</option>${stOptsSelected}
         </select></td>
@@ -2396,6 +2417,104 @@ function renderUnassigned(){
 function updateJobMachine(prod,val){const j=S.axJobs.find(j=>j.prod===prod);if(j)j.machine=val;}
 function updateJobEndDate(prod,val){const j=S.axJobs.find(j=>j.prod===prod);if(j)j.endDate=parseDMY(val);}
 function updateJobStatus(prod,val){if(!val)return;const j=S.axJobs.find(j=>j.prod===prod);if(j){j.oseStatus=val;j.status=val;}}
+function updateJobRoute(prod,type,val){
+  const j=S.axJobs.find(j=>j.prod===prod);
+  if(!j) return;
+  if(type==='CH') j.routeCH=val;
+  if(type==='PA') j.routePA=val;
+  if(type==='ORW') j.routeORW=val;
+}
+
+// ── Export for AI — สร้าง Excel พร้อม CapTable สำหรับส่ง Claude ──
+function exportForAI(){
+  if(!S.axJobs.length){ showToast('⚠️ Load L6 ก่อนค่ะ'); return; }
+  if(typeof XLSX==='undefined'){ showToast('⚠️ XLSX library ยังไม่โหลด'); return; }
+
+  const today = new Date().toLocaleDateString('th-TH',{year:'numeric',month:'2-digit',day:'2-digit'});
+  const wb = XLSX.utils.book_new();
+
+  // ── Sheet 1: Jobs ──────────────────────────────────────────────
+  const jobRows = S.axJobs.map(j=>({
+    'JOB No.':          j.prod||'',
+    'ประเภท':           jobType(j),
+    'ชื่องาน':          j.name||'',
+    'ความหนา(mm)':      j.thick||'',
+    'จำนวน(เส้น)':      j.qty||'',
+    'OSE/OFM คู่':      j.item||'',
+    'เครื่องต้นทาง':    j.machine||'',
+    'วันที่เริ่ม':      j.startDate?j.startDate.slice(0,10):'',
+    'วันที่จบ':         j.endDate?j.endDate.slice(0,10):'',
+    '→ ลบคม/เกลียว':   j.routeCH||'',
+    '→ แพ็คกิ้ง':       j.routePA||'',
+    '→ ข้อต่อ/อื่นๆ':   j.routeORW||'',
+    'สถานะ':            j.oseStatus||j.status||'',
+    'หมายเหตุ':         j.remarks||'',
+  }));
+  const wsJobs = XLSX.utils.json_to_sheet(jobRows);
+  wsJobs['!cols'] = [14,8,38,10,10,12,14,12,12,16,18,14,28,20].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb, wsJobs, 'Jobs');
+
+  // ── Sheet 2: CapTable ──────────────────────────────────────────
+  const capRows = [
+    {แผนก:'สลิทเตอร์',เครื่อง:'SL_01/SL_02',ขนาด:'0.9-1.1mm','Cap(เส้น/นาที)':10,'Cap8hr':8,'Cap10hr':10,'Cap12hr':12,หมายเหตุ:'Mcoil/วัน'},
+    {แผนก:'สลิทเตอร์',เครื่อง:'SL_01/SL_02',ขนาด:'1.3-2.8mm','Cap(เส้น/นาที)':10,'Cap8hr':10,'Cap10hr':12,'Cap12hr':14,หมายเหตุ:'Mcoil/วัน'},
+    {แผนก:'เครื่องรีด',เครื่อง:'RF_05',ขนาด:'1/2"-1"','Cap(เส้น/นาที)':10,'Cap8hr':4350,'Cap10hr':5700,'Cap12hr':6300,หมายเหตุ:''},
+    {แผนก:'เครื่องรีด',เครื่อง:'RF_05',ขนาด:'1-1/4"-2"','Cap(เส้น/นาที)':8.33,'Cap8hr':3625,'Cap10hr':4750,'Cap12hr':5250,หมายเหตุ:''},
+    {แผนก:'เครื่องรีด',เครื่อง:'RF_05',ขนาด:'ZUPER/HZO 1-1/4"-2"','Cap(เส้น/นาที)':4.17,'Cap8hr':1813,'Cap10hr':2375,'Cap12hr':2625,หมายเหตุ:''},
+    {แผนก:'เครื่องรีด',เครื่อง:'RF_07/RF_08',ขนาด:'1/2"-1" ปกติ','Cap(เส้น/นาที)':12.5,'Cap8hr':5438,'Cap10hr':7125,'Cap12hr':7875,หมายเหตุ:''},
+    {แผนก:'เครื่องรีด',เครื่อง:'RF_07/RF_08',ขนาด:'1/2"-1" BSM','Cap(เส้น/นาที)':10,'Cap8hr':4350,'Cap10hr':5700,'Cap12hr':6300,หมายเหตุ:''},
+    {แผนก:'เครื่องรีด',เครื่อง:'RF_07/RF_08',ขนาด:'1-1/4"-2"','Cap(เส้น/นาที)':8.33,'Cap8hr':3625,'Cap10hr':4750,'Cap12hr':5250,หมายเหตุ:''},
+    {แผนก:'ลบคม',เครื่อง:'CH_A02-A06 (EMT)',ขนาด:'1/2"','Cap(เส้น/นาที)':21,'Cap8hr':4515,'Cap10hr':'','Cap12hr':'',หมายเหตุ:''},
+    {แผนก:'ลบคม',เครื่อง:'CH_A02-A06 (EMT)',ขนาด:'3/4"','Cap(เส้น/นาที)':15,'Cap8hr':3225,'Cap10hr':'','Cap12hr':'',หมายเหตุ:''},
+    {แผนก:'ลบคม',เครื่อง:'CH_A02-A06 (EMT)',ขนาด:'1"','Cap(เส้น/นาที)':9,'Cap8hr':1935,'Cap10hr':'','Cap12hr':'',หมายเหตุ:''},
+    {แผนก:'ลบคม',เครื่อง:'CH_A02-A06 (EMT)',ขนาด:'1-1/4"-1-1/2"','Cap(เส้น/นาที)':4,'Cap8hr':860,'Cap10hr':'','Cap12hr':'',หมายเหตุ:''},
+    {แผนก:'ลบคม',เครื่อง:'CH_A02-A06 (IMC/RSC)',ขนาด:'1/2"','Cap(เส้น/นาที)':21,'Cap8hr':4515,'Cap10hr':'','Cap12hr':'',หมายเหตุ:''},
+    {แผนก:'ลบคม',เครื่อง:'CH_A02-A06 (IMC/RSC)',ขนาด:'3/4"','Cap(เส้น/นาที)':10,'Cap8hr':2150,'Cap10hr':'','Cap12hr':'',หมายเหตุ:''},
+    {แผนก:'ทำเกลียว',เครื่อง:'TA_A03-A06',ขนาด:'1/2"-3/4"','Cap(เส้น/นาที)':6,'Cap8hr':'~2880','Cap10hr':'','Cap12hr':'',หมายเหตุ:'ดูตาม spec'},
+    {แผนก:'ทำเกลียว',เครื่อง:'TA_A03-A06',ขนาด:'1"-2"','Cap(เส้น/นาที)':6,'Cap8hr':'~2880','Cap10hr':'','Cap12hr':'',หมายเหตุ:''},
+    {แผนก:'แพ็คกิ้ง',เครื่อง:'LO+PA Ziga',ขนาด:'1/2"','Cap(เส้น/นาที)':9.15,'Cap8hr':4394,'Cap10hr':'','Cap12hr':'',หมายเหตุ:''},
+    {แผนก:'แพ็คกิ้ง',เครื่อง:'LO+PA Ziga',ขนาด:'3/4"','Cap(เส้น/นาที)':9,'Cap8hr':4318,'Cap10hr':'','Cap12hr':'',หมายเหตุ:''},
+    {แผนก:'แพ็คกิ้ง',เครื่อง:'LO+PA Ziga',ขนาด:'1"','Cap(เส้น/นาที)':8.9,'Cap8hr':4368,'Cap10hr':'','Cap12hr':'',หมายเหตุ:''},
+    {แผนก:'แพ็คกิ้ง',เครื่อง:'LO+PA Ziga',ขนาด:'1-1/4"','Cap(เส้น/นาที)':8.13,'Cap8hr':3904,'Cap10hr':'','Cap12hr':'',หมายเหตุ:''},
+    {แผนก:'แพ็คกิ้ง',เครื่อง:'LO+PA Ziga',ขนาด:'1-1/2"','Cap(เส้น/นาที)':5.86,'Cap8hr':2816,'Cap10hr':'','Cap12hr':'',หมายเหตุ:''},
+    {แผนก:'แพ็คกิ้ง',เครื่อง:'LO+PA Ziga',ขนาด:'2"','Cap(เส้น/นาที)':4.93,'Cap8hr':2368,'Cap10hr':'','Cap12hr':'',หมายเหตุ:''},
+    {แผนก:'แพ็คกิ้ง',เครื่อง:'PA_EL01/02 Daiwa EMT',ขนาด:'1/2"','Cap(เส้น/นาที)':17.78,'Cap8hr':'','Cap10hr':'','Cap12hr':'',หมายเหตุ:''},
+    {แผนก:'ข้อต่อ',เครื่อง:'CU_BL01',ขนาด:'2-1/2"','Cap(เส้น/นาที)':1,'Cap8hr':405,'Cap10hr':'','Cap12hr':'',หมายเหตุ:'ชิ้น/นาที'},
+    {แผนก:'ข้อต่อ',เครื่อง:'ข้อต่อ-เกลียว',ขนาด:'1/2"','Cap(เส้น/นาที)':4,'Cap8hr':1800,'Cap10hr':'','Cap12hr':'',หมายเหตุ:''},
+    {แผนก:'ข้อต่อ',เครื่อง:'ข้อต่อ-ชุบ',ขนาด:'1/2"','Cap(เส้น/นาที)':8.3,'Cap8hr':3700,'Cap10hr':'','Cap12hr':'',หมายเหตุ:''},
+  ];
+  const wsCap = XLSX.utils.json_to_sheet(capRows);
+  wsCap['!cols'] = [14,22,22,14,12,12,12,24].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb, wsCap, 'CapTable');
+
+  // ── Sheet 3: Prompt ────────────────────────────────────────────
+  const promptRows = [
+    {คำแนะนำ:'📋 ZIGA AI Daily Plan Prompt — Copy ข้อความด้านล่างแนบไฟล์นี้ให้ Claude'},
+    {คำแนะนำ:''},
+    {คำแนะนำ:'วันที่: [ใส่วันที่]'},
+    {คำแนะนำ:'Shift: [เช่น 08:00-20:00]'},
+    {คำแนะนำ:'เครื่องที่ใช้วันนี้: [เช่น RF_05, RF_07, CH_A02, LO_R04]'},
+    {คำแนะนำ:''},
+    {คำแนะนำ:'---'},
+    {คำแนะนำ:'คุณคือผู้ช่วยวางแผนการผลิต ZIGA'},
+    {คำแนะนำ:'จากไฟล์ Excel ที่แนบมา (sheet Jobs และ CapTable) กรุณา:'},
+    {คำแนะนำ:'1. อ่านใบงานทุกรายการใน Jobs ที่มีเครื่องต้นทาง'},
+    {คำแนะนำ:'2. คำนวณเวลาที่ใช้ต่อเครื่อง = จำนวนเส้น ÷ Cap(เส้น/นาที) จาก CapTable'},
+    {คำแนะนำ:'3. จัด Queue แต่ละเครื่องไม่ให้ทับซ้อน เรียงต่อ 08:00'},
+    {คำแนะนำ:'4. งานที่ช่อง → ว่าง = ไม่ต้องจัด downstream สำหรับเครื่องนั้น'},
+    {คำแนะนำ:'5. แสดงผลเป็นตาราง: เครื่อง | JOB No. | ชื่องาน | ช่วงเวลา | ชม. | จำนวนตามแผน | สถานะ'},
+    {คำแนะนำ:'6. สรุปท้าย: เครื่องไหนทำกี่ชม. / งานไหน overflow ไปวันถัดไป'},
+    {คำแนะนำ:'Output: ตาราง Markdown + สรุปภาษาไทย'},
+  ];
+  const wsPrompt = XLSX.utils.json_to_sheet(promptRows);
+  wsPrompt['!cols'] = [{wch:100}];
+  XLSX.utils.book_append_sheet(wb, wsPrompt, 'AI_Prompt');
+
+  // Download
+  const date = new Date().toISOString().slice(0,10).replace(/-/g,'');
+  XLSX.writeFile(wb, `ZIGA_AIInput_${date}.xlsx`);
+  showToast('✅ Export สำเร็จ — นำไฟล์นี้แนบให้ Claude คำนวณ Daily Plan ค่ะ');
+}
 
 // ── Date helpers dd/mm/yyyy ──────────────────────────────────────
 // Convert yyyy-mm-dd → dd/mm/yyyy for display
@@ -2437,10 +2556,14 @@ async function saveJobSchedule(prod){
   if(!graphToken){showToast('⚠️ login ก่อน');return;}
   if(!j.spId){showToast('⚠️ ไม่พบ spId — Load L6 ก่อน');return;}
   const fields={};
-  if(j.machine){   fields.field_6 = j.machine; }
-  if(j.startDate){ fields.field_7 = new Date(j.startDate).toISOString(); }
-  if(j.endDate){   fields.field_8 = new Date(j.endDate).toISOString(); }
+  if(j.machine){             fields.field_6  = j.machine; }
+  if(j.startDate){           fields.field_7  = new Date(j.startDate).toISOString(); }
+  if(j.endDate){             fields.field_8  = new Date(j.endDate).toISOString(); }
   if(j.oseStatus||j.status){ fields.field_10 = j.oseStatus||j.status; }
+  // เส้นทางหลังเครื่อง
+  if(j.routeCH  !== undefined){ fields.RouteCH  = j.routeCH||''; }
+  if(j.routePA  !== undefined){ fields.RoutePA  = j.routePA||''; }
+  if(j.routeORW !== undefined){ fields.RouteORW = j.routeORW||''; }
   if(!Object.keys(fields).length){ showToast('⚠️ ไม่มีข้อมูลที่ต้องบันทึก'); return; }
   const ok=await spPatchItem(SP_LISTS.L6,j.spId,fields);
   if(ok){
@@ -2732,6 +2855,9 @@ async function loadL6FromSP(){
       gradeAminus:  parseFloat(f.GradeAminus)||0,
       jobType:      f.JobType||'',
       brand:        f.Brand||f.field_18||'',
+      routeCH:      f.RouteCH||'',   // เส้นทาง → ลบคม/เกลียว
+      routePA:      f.RoutePA||'',   // เส้นทาง → แพ็คกิ้ง
+      routeORW:     f.RouteORW||'',  // เส้นทาง → ข้อต่อ/อื่นๆ
       spId:         f.id||'',
       used:         false,
     }));
@@ -4496,12 +4622,16 @@ function renderDash(){
 function saveSession(){
   try{
     localStorage.setItem('ziga_session', JSON.stringify({
-      userId:    S.user?.id||'',
-      roleId:    S.selectedRole?.id||S.user?.roleConfig?.id||'',
-      savedAt:   Date.now(),
+      userId:     S.user?.id||'',
+      email:      S.user?.email||'',
+      name:       S.user?.name||'',
+      roleId:     S.selectedRole?.id||S.user?.roleConfig?.id||'',
+      roleSource: S.user?.roleSource||'',
+      savedAt:    Date.now(),
     }));
   }catch(e){console.warn('saveSession error:',e);}
 }
+
 function restoreSession(){
   try{
     const raw=localStorage.getItem('ziga_session');
@@ -4512,10 +4642,22 @@ function restoreSession(){
       localStorage.removeItem('ziga_session');
       return false;
     }
-    const emp=EMPLOYEES.find(e=>e.id===sess.userId);
     const role=ROLES.find(r=>r.id===sess.roleId);
-    if(!emp||!role) return false;
-    S.user={...emp, roleConfig:role};
+    if(!role) return false;
+
+    // ลอง match employee จาก id หรือ email
+    const emp = EMPLOYEES.find(e=>e.id===sess.userId)
+              || EMPLOYEES.find(e=>(e.email||'').toLowerCase()===(sess.email||'').toLowerCase())
+              || {
+                  id:       sess.userId||sess.email,
+                  name:     sess.name||sess.email||'User',
+                  email:    sess.email||'',
+                  role:     sess.roleId,
+                  position: role.title,
+                  dept:     '',
+                };
+
+    S.user={...emp, roleConfig:role, roleSource:sess.roleSource||'Session'};
     S.selectedRole=role;
     return true;
   }catch(e){ return false; }
@@ -4569,10 +4711,20 @@ window.addEventListener('load', async function(){
       showToast(`✅ โหลดข้อมูลจาก cache: ${S.mcids.length} MCID · ${S.axJobs.length} jobs`);
     }
 
-    // ลอง re-acquire token — ไม่เปิด popup อัตโนมัติ (จะถูก block)
-    // ให้ user กด Load L4/L6 เองซึ่งจะ trigger login popup เมื่อพร้อม
+    // ลอง re-acquire token
     if(!graphToken){
-      showToast('⚠️ Session คืนมาแล้ว — กด Load L6 เพื่อ connect SharePoint');
+      // แสดง toast พร้อมปุ่ม reconnect สำหรับมือถือ
+      showToast('🔑 กด Load L6 เพื่อ connect SharePoint');
+      // แสดง reconnect banner ถ้ายังไม่มี token
+      const banner = document.createElement('div');
+      banner.id = 'reconnect-banner';
+      banner.style.cssText = 'position:fixed;top:52px;left:0;right:0;background:#1259A5;color:#fff;text-align:center;padding:10px 16px;font-size:13px;z-index:500;display:flex;align-items:center;justify-content:center;gap:12px';
+      banner.innerHTML = `<span>⚠️ ยังไม่ได้ connect SharePoint</span>
+        <button onclick="doMSLogin().then(()=>{document.getElementById('reconnect-banner')?.remove();loadL4FromSP();loadL6FromSP();})"
+          style="background:#fff;color:#1259A5;border:none;border-radius:6px;padding:5px 14px;font-size:12px;cursor:pointer;font-weight:600">
+          🔑 Connect
+        </button>`;
+      document.body.appendChild(banner);
     } else {
       // Token ยังอยู่ใน memory — load data ต่อเลย
       setTimeout(()=>loadL4FromSP(),600);
