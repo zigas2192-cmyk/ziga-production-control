@@ -2033,6 +2033,19 @@ async function loadL4FromSP(){
       spId:     f.id||'',
     }));
     hideProgress();
+    // ── Restore slitData จากค่าน้ำหนักที่ load มาจาก L4 ──────────
+    S.mcids.forEach(mc=>{
+      if(mc.wBefore && mc.wAfter && mc.status==='3.slitแล้ว'){
+        S.slitData[mc.serial]={
+          before: mc.wBefore,
+          after:  mc.wAfter,
+          scrap:  mc.wScrap||0,
+          net:    mc.wNet||(mc.wAfter-mc.wScrap),
+          done:   true,
+          oseNo:  mc.oseNo||'',
+        };
+      }
+    });
     renderPackingList();updatePackingStats();saveState();
     console.log(`✅ Loaded ${S.mcids.length} MCID from L4`);
     saveState();
@@ -3702,6 +3715,7 @@ function renderSlitMCIDForms(plan,formula){
   if(!el) return;
   el.innerHTML=plan.mcids.map((c,idx)=>{
     const d=S.slitData[c.serial]||{};
+    const mc=S.mcids.find(m=>m.serial===c.serial)||c;
     return `<div style="background:${d.done?'#f0faf0':'#fff'};border:${d.done?'2px solid #1a7a1a':'1px solid var(--b)'};border-radius:var(--r);padding:14px;margin-bottom:12px">
       <div style="font-family:var(--mono);font-size:14px;font-weight:700;color:${d.done?'#1a7a1a':'#222'};margin-bottom:6px">
         ${idx+1}. ${c.serial}
@@ -3722,12 +3736,15 @@ function renderSlitMCIDForms(plan,formula){
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
           <div><div style="font-size:12px;color:#555;margin-bottom:4px;font-weight:600">ก่อนแกะ (kg)</div>
             <input type="number" step="0.001" id="sl-before-${c.serial}" placeholder="0.000"
+              value="${d.before||mc.wBefore||''}"
               style="width:100%;padding:10px 8px;border:1.5px solid var(--b2);border-radius:var(--rs);font-size:16px;outline:none;color:#111;text-align:right;font-family:var(--mono)"></div>
           <div><div style="font-size:12px;color:#555;margin-bottom:4px;font-weight:600">หลังแกะ (kg)</div>
             <input type="number" step="0.001" id="sl-after-${c.serial}" placeholder="0.000"
+              value="${d.after||mc.wAfter||''}"
               style="width:100%;padding:10px 8px;border:1.5px solid var(--b2);border-radius:var(--rs);font-size:16px;outline:none;color:#111;text-align:right;font-family:var(--mono)"></div>
           <div><div style="font-size:12px;color:#555;margin-bottom:4px;font-weight:600">ขอบข้าง (kg)</div>
             <input type="number" step="0.001" id="sl-scrap-${c.serial}" placeholder="0.000"
+              value="${d.scrap||mc.wScrap||''}"
               style="width:100%;padding:10px 8px;border:1.5px solid var(--b2);border-radius:var(--rs);font-size:16px;outline:none;color:#111;text-align:right;font-family:var(--mono)"></div>
         </div>
         <button onclick="saveSlitWeight('${c.serial}','${plan.oseNo}')"
