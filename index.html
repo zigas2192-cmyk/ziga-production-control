@@ -482,7 +482,17 @@ table.ax-t .ax-total{background:var(--green-lt);color:var(--green);font-weight:6
       </div>
       <!-- OSE list (mobile single column) -->
       <div style="margin-bottom:12px">
-        <div style="font-size:13px;font-weight:600;color:#444;margin-bottom:8px">เลือกใบงาน OSE</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+          <div style="font-size:13px;font-weight:600;color:#444">เลือกใบงาน OSE</div>
+          <input id="slit-search" placeholder="🔍 ค้นหา OSE..." oninput="renderSlitOSEList()"
+            style="flex:1;min-width:140px;padding:6px 10px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:12px;outline:none;color:var(--ink)">
+          <select id="slit-filter" onchange="renderSlitOSEList()"
+            style="padding:6px 10px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:12px;outline:none;color:var(--ink)">
+            <option value="all">ทั้งหมด</option>
+            <option value="pending">⏳ ยังไม่เสร็จ</option>
+            <option value="done">✅ เสร็จแล้ว</option>
+          </select>
+        </div>
         <div id="slit-ose-list"><div style="color:#888;font-size:13px;padding:20px;text-align:center">ยังไม่มีแผน OSE — Load L6 ก่อน</div></div>
       </div>
       <!-- Detail panel (appears below on mobile) -->
@@ -3589,6 +3599,13 @@ function renderSlitOSEList(){
     return aDone-bDone;
   });
 
+  // filter และ search
+  const q=(document.getElementById('slit-search')?.value||'').toLowerCase();
+  const f=document.getElementById('slit-filter')?.value||'all';
+  if(q) plans=plans.filter(p=>(p.oseNo||'').toLowerCase().includes(q)||(p.job?.name||'').toLowerCase().includes(q));
+  if(f==='done')    plans=plans.filter(p=>p.mcids.every(c=>S.slitData[c.serial]?.done)&&p.mcids.length>0);
+  if(f==='pending') plans=plans.filter(p=>!p.mcids.every(c=>S.slitData[c.serial]?.done)||p.mcids.length===0);
+
   el.innerHTML=plans.map(p=>{
     const done=p.mcids.filter(c=>S.slitData[c.serial]?.done).length;
     const total=p.mcids.length;
@@ -3606,6 +3623,7 @@ function renderSlitOSEList(){
         </div>
       </div>
       <div style="font-size:13px;color:${allDone?'#aaa':'#444'};margin-top:3px">${p.job.name||p.job.prod||''}</div>
+      ${p.job.remarks?`<div style="font-size:11px;color:var(--teal);margin-top:3px">📦 ${p.job.remarks}</div>`:''}
       ${allDone?`<div style="font-size:11px;color:var(--green);margin-top:4px">บันทึกน้ำหนักครบแล้ว · ${total} ลูก</div>`:''}
     </div>`;
   }).join('');
