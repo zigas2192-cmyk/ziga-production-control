@@ -2543,14 +2543,16 @@ function exportForAI(){
 }
 
 // ── Export Slit Weight Excel ─────────────────────────────────────
-function exportSlitExcel(){
-  if(typeof XLSX==='undefined'){showToast('⚠️ XLSX library ยังไม่โหลด');return;}
-  const q=(document.getElementById('slit-search')?.value||'').toLowerCase();
-  const f=document.getElementById('slit-filter')?.value||'all';
+function exportSlitExcel(oseNoFilter){
+  if(typeof XLSX==='undefined'){
+    showToast('⚠️ กรุณา upload xlsx.full.min.js ใน repo ก่อนค่ะ');return;
+  }
+  const q = oseNoFilter ? '' : (document.getElementById('slit-search')?.value||'').toLowerCase();
+  const f = oseNoFilter ? 'all' : (document.getElementById('slit-filter')?.value||'all');
   const isPicked=c=>c.oseNo&&(c.status==='ใช้แล้ว'||c.status==='3.slitแล้ว'||c.used);
   const oseNos=[...new Set(S.mcids.filter(isPicked).map(c=>c.oseNo))];
 
-  // สร้าง plans เหมือน renderSlitOSEList
+  // สร้าง plans
   let plans=oseNos.map(oseNo=>{
     const job=S.axJobs.find(j=>j.prod===oseNo)||{prod:oseNo,name:oseNo,remarks:''};
     const mcids=S.mcids.filter(c=>c.oseNo===oseNo&&isPicked(c));
@@ -2558,10 +2560,13 @@ function exportSlitExcel(){
     return {oseNo,job,mcids,allDone};
   });
 
-  // apply filter เดียวกับ renderSlitOSEList
-  if(q) plans=plans.filter(p=>(p.oseNo||'').toLowerCase().includes(q)||(p.job?.name||'').toLowerCase().includes(q));
-  if(f==='done')    plans=plans.filter(p=>p.allDone);
-  if(f==='pending') plans=plans.filter(p=>!p.allDone);
+  // filter
+  if(oseNoFilter) plans=plans.filter(p=>p.oseNo===oseNoFilter);
+  else {
+    if(q) plans=plans.filter(p=>(p.oseNo||'').toLowerCase().includes(q)||(p.job?.name||'').toLowerCase().includes(q));
+    if(f==='done')    plans=plans.filter(p=>p.allDone);
+    if(f==='pending') plans=plans.filter(p=>!p.allDone);
+  }
 
   if(!plans.length){showToast('⚠️ ไม่มีข้อมูลที่จะ export');return;}
 
@@ -3793,7 +3798,13 @@ async function selectSlitOSE(oseNo){
   const info=document.getElementById('slit-ose-info');
   const done=plan.mcids.filter(c=>S.slitData[c.serial]?.done).length;
   info.innerHTML=`
-    <div style="font-family:var(--mono);font-size:16px;font-weight:700;color:#1a7a1a;margin-bottom:4px">${plan.oseNo}</div>
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:4px">
+      <div style="font-family:var(--mono);font-size:16px;font-weight:700;color:#1a7a1a">${plan.oseNo}</div>
+      <button onclick="exportSlitExcel('${plan.oseNo}')"
+        style="padding:5px 12px;border:1px solid var(--green-bd);border-radius:var(--rs);background:var(--green-bg);color:var(--green);font-size:12px;cursor:pointer;white-space:nowrap;font-family:var(--sans);font-weight:500">
+        📥 Export ใบนี้
+      </button>
+    </div>
     <div style="font-size:14px;color:#333;margin-bottom:8px">${plan.job.name||''}</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
       ${plan.job.thick?`<span class="pill p-gray">${plan.job.thick}mm</span>`:''}
