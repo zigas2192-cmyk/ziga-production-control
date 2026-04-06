@@ -4,8 +4,24 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>ZIGA · Factory Operations</title>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<!-- Favicon inline SVG — ไม่ต้องมีไฟล์แยก -->
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%230d0f14'/><text y='24' x='4' font-size='22' font-family='monospace' fill='%233d7fff'>Z</text></svg>">
+
+<!-- Fonts: preconnect ก่อน + display=swap ให้ fallback ทันที -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"></noscript>
+
+<!-- XLSX: โหลดจาก local repo แทน CDN (วาง xlsx.full.min.js ไว้ใน root ของ repo) -->
+<script src="./xlsx.full.min.js"></script>
+<!-- Fallback: ถ้า local ไม่มี ค่อย load จาก CDN -->
+<script>
+if(typeof XLSX === 'undefined'){
+  document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"><\/script>');
+}
+</script>
 <script>
 // ── Lightweight MSAL shim (no external CDN needed) ───────────────
 // Uses OAuth2 Authorization Code + PKCE flow via popup
@@ -4563,28 +4579,12 @@ window.addEventListener('load', async function(){
       showToast(`✅ โหลดข้อมูลจาก cache: ${S.mcids.length} MCID · ${S.axJobs.length} jobs`);
     }
 
-    // ลอง re-acquire token แบบ silent ถ้ายังไม่มี
-    if(!graphToken && ready){
-      showToast('🔄 กำลัง refresh token... (อาจต้อง login ใหม่ถ้า token หมดอายุ)');
-      // ถ้า session storage ยังมี token จาก MSAL cache ให้ดึงมาใช้
-      try{
-        const resp = await msalInstance.loginPopup({
-          scopes:['User.Read','Sites.ReadWrite.All','Chat.ReadWrite'],
-          prompt:'none' // silent — ไม่แสดง popup ถ้า session ยังอยู่
-        });
-        if(resp?.accessToken){
-          graphToken=resp.accessToken;
-          showToast('✅ Token refresh สำเร็จ');
-          setTimeout(()=>loadL4FromSP(),500);
-          setTimeout(()=>loadL6FromSP(),900);
-        }
-      }catch(e){
-        // Silent fail → ยังใช้ได้ในโหมด local ไม่ต้อง login ใหม่
-        console.log('Silent token failed — using local mode:', e.message);
-        showToast('⚠️ ใช้งานได้แต่ยังไม่ได้ connect SP — กด Load L6 เพื่อ login ใหม่');
-      }
-    } else if(graphToken){
-      // Token ยังอยู่ — load data ต่อเลย
+    // ลอง re-acquire token — ไม่เปิด popup อัตโนมัติ (จะถูก block)
+    // ให้ user กด Load L4/L6 เองซึ่งจะ trigger login popup เมื่อพร้อม
+    if(!graphToken){
+      showToast('⚠️ Session คืนมาแล้ว — กด Load L6 เพื่อ connect SharePoint');
+    } else {
+      // Token ยังอยู่ใน memory — load data ต่อเลย
       setTimeout(()=>loadL4FromSP(),600);
       setTimeout(()=>loadL6FromSP(),1000);
     }
