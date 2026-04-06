@@ -2586,7 +2586,11 @@ function exportSlitExcel(oseNoFilter){
       rows.push({
         'เลขที่ใบงาน OSE': p.oseNo,
         'SlitFormula':      job.name||'',
-        'Remarks/Batch':    job.remarks||'',
+        'รหัสสินค้า':       mc.item||c.item||'',
+        'Batch No.':        mc.batch||c.batch||'',
+        'โรงงาน':          mc.factory||c.factory||'',
+        'Coating':          mc.coating||c.coating||'',
+        'Remarks':          job.remarks||'',
         'ลำดับลูก':         idx+1,
         'MCID (Serial)':    c.serial,
         'GW คลัง (kg)':     mc.wt_kg||c.wt_kg||0,
@@ -2594,7 +2598,7 @@ function exportSlitExcel(oseNoFilter){
         'นน.หลังแกะ (kg)': after||'',
         'ขอบข้าง (kg)':    scrap||'',
         'Net (kg)':         net||'',
-        'สถานะ':            d.done?'✅ บันทึกแล้ว':'⏳ ยังไม่บันทึก',
+        'สถานะ':            d.done?'บันทึกแล้ว':'ยังไม่บันทึก',
       });
     });
     // summary row ต่อ OSE
@@ -2606,7 +2610,11 @@ function exportSlitExcel(oseNoFilter){
     rows.push({
       'เลขที่ใบงาน OSE': `รวม ${p.oseNo}`,
       'SlitFormula': '',
-      'Remarks/Batch': '',
+      'รหัสสินค้า': '',
+      'Batch No.': '',
+      'โรงงาน': '',
+      'Coating': '',
+      'Remarks': '',
       'ลำดับลูก': p.mcids.length+' ลูก',
       'MCID (Serial)': '',
       'GW คลัง (kg)': +totalGW.toFixed(3),
@@ -2620,7 +2628,7 @@ function exportSlitExcel(oseNoFilter){
   });
 
   const ws=XLSX.utils.json_to_sheet(rows);
-  ws['!cols']=[16,38,30,8,18,14,16,16,14,12,16].map(w=>({wch:w}));
+  ws['!cols']=[16,35,18,16,18,10,28,8,20,13,14,14,13,12,14].map(w=>({wch:w}));
   XLSX.utils.book_append_sheet(wb,ws,'SlitWeight');
 
   // ── Sheet 2: สรุปต่อ OSE ─────────────────────────────────────
