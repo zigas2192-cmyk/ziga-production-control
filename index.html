@@ -2676,9 +2676,31 @@ function exportSlitExcel(oseNoFilter){
   ws2['!cols']=[16,12,35,28,10,10,13,13,18].map(w=>({wch:w}));
   XLSX.utils.book_append_sheet(wb,ws2,'Summary');
 
-  const date=new Date().toISOString().slice(0,10).replace(/-/g,'');
-  const label=oseNoFilter?oseNoFilter:f==='done'?'done':f==='pending'?'pending':'all';
-  xlsxDownload(wb,`ZIGA_SlitWeight_${label}_${date}.xlsx`);
+  // ── ชื่อไฟล์ format: OSENo-StartDate หรือ all/done/pending-วันที่ ──
+  let filename;
+  if(oseNoFilter){
+    // export ใบเดียว — ใช้ OSE No + start date
+    const p0=plans[0];
+    const sd=p0?.startDate||p0?.job?.startDate||'';
+    const sdFmt=sd?fmtDate(sd.slice(0,10)).replace(/\//g,'-'):'';
+    filename=sdFmt
+      ? `SlitWeight_${oseNoFilter}_${sdFmt}.xlsx`
+      : `SlitWeight_${oseNoFilter}.xlsx`;
+  } else if(plans.length===1){
+    // filter เหลือใบเดียว
+    const p0=plans[0];
+    const sd=p0?.startDate||p0?.job?.startDate||'';
+    const sdFmt=sd?fmtDate(sd.slice(0,10)).replace(/\//g,'-'):'';
+    filename=sdFmt
+      ? `SlitWeight_${p0.oseNo}_${sdFmt}.xlsx`
+      : `SlitWeight_${p0.oseNo}.xlsx`;
+  } else {
+    // หลายใบ — ใช้ label + วันที่วันนี้
+    const today=fmtDate(new Date().toISOString().slice(0,10)).replace(/\//g,'-');
+    const label=f==='done'?'done':f==='pending'?'pending':'all';
+    filename=`SlitWeight_${label}_${today}.xlsx`;
+  }
+  xlsxDownload(wb, filename);
   showToast(`✅ Export ${rows.filter(r=>r['MCID (Serial)']).length} MCID จาก ${plans.length} ใบงาน`);
 }
 // Convert yyyy-mm-dd → dd/mm/yyyy for display
