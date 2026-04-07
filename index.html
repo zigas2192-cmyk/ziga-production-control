@@ -610,9 +610,23 @@ table.ax-t .ax-total{background:var(--green-lt);color:var(--green);font-weight:6
             <!-- เครื่องจักร + ช่วงเวลา -->
             <div class="g2">
               <div class="ff"><label>เครื่องจักร</label>
-                <input class="fi" id="prod-machine" placeholder="เช่น RF_05, SL_02"></div>
+                <select class="fi sel" id="prod-machine">
+                  <option value="">— เลือกเครื่อง —</option>
+                </select>
+              </div>
               <div class="ff"><label>ช่วงเวลา</label>
-                <input class="fi" id="prod-timerange" placeholder="08.00-17.00"></div>
+                <select class="fi sel" id="prod-timerange">
+                  <option value="">— เลือกช่วงเวลา —</option>
+                  <option>08.00-12.00</option>
+                  <option>13.00-17.00</option>
+                  <option>17.30-20.00</option>
+                  <option>08.00-17.00</option>
+                  <option>08.00-20.00</option>
+                  <option>07.00-17.00</option>
+                  <option>07.00-19.00</option>
+                  <option>20.00-08.00</option>
+                </select>
+              </div>
             </div>
 
             <!-- ผลผลิต -->
@@ -1144,6 +1158,7 @@ const SP_LISTS = {
   L7_3:'ProdCtrl_L7_3_SetupLog',      // Setup/Changeover log
   L8:  'ProdCtrl_L8_Defect_FMQA08',
   L9:  'L9_EmployeeZiGA',
+  MACH:'ProdCtrl_Machine',            // รายชื่อเครื่องจักร
 };
 
 // ── L9 UserRoles — Fallback hardcode (ใช้ถ้า SP fetch ไม่ได้) ──────
@@ -1807,6 +1822,8 @@ function navigate(id){
     const t=new Date().toISOString().slice(0,10);
     const d=document.getElementById('prod-date');if(d&&!d.value)d.value=t;
     if(!prodJobs.length && S.axJobs.length) loadProdJobs();
+    if(!machineList.length) loadMachineList();
+    else populateMachineDropdowns();
   }
   if(id==='qa'){
     renderQAJobSelect();renderQAList();updateQAStats();
@@ -4193,6 +4210,63 @@ function renderOFMPlanList(){
 let prodTypeFilter = '';
 let prodJobs = []; // cache jobs โหลดจาก L6
 let prodHistory = []; // บันทึกวันนี้ (local + SP)
+let machineList = []; // รายชื่อเครื่องจักรจาก SP ProdCtrl_Machine
+
+// Fallback machine list ถ้า SP ไม่มี
+const MACHINE_LIST_FALLBACK = [
+  {g:'สลิทเตอร์',    m:['SL_01','SL_02']},
+  {g:'เครื่องรีด',   m:['RF_04','RF_05','RF_06','RF_07','RF_08']},
+  {g:'ลบคม/เกลียว', m:['CH_A02 (B9)','CH_A03 (B10)','CH_A05 (B12)','CH_A06 (B14)','TA_A03 (A11)','TA_A04 (A12)','TA_A05 (A14)','TA_A06 (A15)','TA_M01 (A1)','TA_M02 (A2)','TA_A02']},
+  {g:'แพ็คกิ้ง/โลโก้',m:['LO_R01+PA_M01 (F1P1)','LO_R02+PA_M02 (F2P2)','LO_R03 (F3)','LO_R04 (F4)','LO_R05+PA_M05 (F5P5)','LO_R06+PA_M06 (F6P6)','LO_R08+PA_M08 (F8P8)','PA_EL01 (P4-ราง1)','PA_EL02 (P4-ราง2)','PA_EL03 (P4-ราง3)']},
+  {g:'ข้อต่อ/อื่นๆ', m:['CU_BL01','CU_BL02','CU_HS01','CU_HS02','CU_HS03 (E6)','CU_HS04 (E7)','CU_HS05 (ตัดท่อโค้ง)','ข้อต่อ-อัด','ข้อต่อ-ลบคม','ข้อต่อ-เกลียว','ข้อต่อ-ล้าง','ข้อต่อ-ชุบน้ำยากันสนิม','ดันตะเข็บ','WT_01']},
+];
+
+async function loadMachineList(){
+  try{
+    if(graphToken){
+      const items = await spGetItems(SP_LISTS.MACH,'',100);
+      if(items.length){
+        machineList = items.map(i=>i.MachineNO||i.field_1||i.Title||'').filter(Boolean).sort();
+      }
+    }
+  }catch(e){ console.warn('loadMachineList fallback:',e); }
+  populateMachineDropdowns();
+}
+
+function populateMachineDropdowns(){
+  // สร้าง options สำหรับทุก dropdown machine ใน app
+  const selIds = ['prod-machine','sch-machine-filter'];
+  selIds.forEach(id=>{
+    const sel = document.getElementById(id);
+    if(!sel) return;
+    const cur = sel.value;
+    if(machineList.length){
+      // จาก SP — แบ่งกลุ่มจาก prefix
+      const groups = {
+        '🪙 สลิทเตอร์':[], '🔧 เครื่องรีด':[], '⚙️ ลบคม/เกลียว':[],
+        '📦 แพ็คกิ้ง/โลโก้':[], '🔩 ข้อต่อ/อื่นๆ':[]
+      };
+      machineList.forEach(m=>{
+        if(m.startsWith('SL')) groups['🪙 สลิทเตอร์'].push(m);
+        else if(m.startsWith('RF')) groups['🔧 เครื่องรีด'].push(m);
+        else if(m.startsWith('CH')||m.startsWith('TA')) groups['⚙️ ลบคม/เกลียว'].push(m);
+        else if(m.startsWith('LO')||m.startsWith('PA')) groups['📦 แพ็คกิ้ง/โลโก้'].push(m);
+        else groups['🔩 ข้อต่อ/อื่นๆ'].push(m);
+      });
+      sel.innerHTML = `<option value="">— เลือกเครื่อง —</option>`+
+        Object.entries(groups).filter(([,arr])=>arr.length).map(([g,arr])=>
+          `<optgroup label="${g}">${arr.map(m=>`<option value="${m}">${m}</option>`).join('')}</optgroup>`
+        ).join('');
+    } else {
+      // fallback hardcode
+      sel.innerHTML = `<option value="">— เลือกเครื่อง —</option>`+
+        MACHINE_LIST_FALLBACK.map(g=>
+          `<optgroup label="${g.g}">${g.m.map(m=>`<option value="${m}">${m}</option>`).join('')}</optgroup>`
+        ).join('');
+    }
+    if(cur) sel.value = cur;
+  });
+}
 
 function setProdTypeFilter(type, el){
   prodTypeFilter = type;
@@ -4229,16 +4303,22 @@ function renderProdJobList(){
     el.innerHTML='<div style="color:var(--ink3);font-size:12px;padding:24px;text-align:center;background:var(--panel);border-radius:var(--r)">ไม่พบใบงาน</div>';
     return;
   }
-  el.innerHTML = jobs.map(j=>`
+  el.innerHTML = jobs.map(j=>{
+    const sd = j.startDate ? fmtDate(j.startDate.slice(0,10)) : '';
+    return `
     <div class="ose-row" style="border-left:3px solid ${j.prod.startsWith('OFM')?'var(--blue)':'var(--teal)'};cursor:pointer;margin-bottom:6px"
       onclick="selectProdJob('${j.prod}')">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px">
         <div class="mono" style="font-size:12px;color:${j.prod.startsWith('OFM')?'var(--blue)':'var(--teal)'}">${j.prod}</div>
-        <span class="pill ${j.prod.startsWith('OFM')?'p-blue':'p-teal'}" style="font-size:9px">${j.prod.slice(0,3)}</span>
+        <div style="display:flex;gap:5px;align-items:center">
+          ${sd?`<span style="font-size:10px;color:var(--ink3);font-family:var(--mono)">📅 ${sd}</span>`:''}
+          <span class="pill ${j.prod.startsWith('OFM')?'p-blue':'p-teal'}" style="font-size:9px">${j.prod.slice(0,3)}</span>
+        </div>
       </div>
       <div style="font-size:11px;color:var(--ink2);line-height:1.4">${(j.name||'').slice(0,55)}</div>
       ${j.machine?`<div style="font-size:10px;color:var(--ink3);margin-top:2px">⚙️ ${j.machine}</div>`:''}
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 function selectProdJob(prodNo){
@@ -4248,6 +4328,7 @@ function selectProdJob(prodNo){
   // fill form
   document.getElementById('prod-form-wrap').style.display='block';
   document.getElementById('prod-machine').value = j.machine||'';
+  document.getElementById('prod-timerange').value = '';
   document.getElementById('prod-plan-qty').value = j.planQty||'';
   document.getElementById('prod-job-header').innerHTML=`
     <div style="background:var(--blue-bg);border:1px solid var(--blue-bd);border-radius:var(--rs);padding:10px 14px">
@@ -4255,6 +4336,7 @@ function selectProdJob(prodNo){
       <div style="font-size:11px;color:var(--ink2);margin-top:3px;line-height:1.5">${j.name||''}</div>
       <div style="font-size:11px;color:var(--ink3);margin-top:4px;display:flex;gap:12px;flex-wrap:wrap">
         ${j.machine?`<span>⚙️ ${j.machine}</span>`:''}
+        ${j.startDate?`<span>📅 ${fmtDate(j.startDate.slice(0,10))}</span>`:''}
         ${j.planQty?`<span>📋 แผน: <strong>${j.planQty}</strong></span>`:''}
         ${j.brand?`<span>🏷 ${j.brand}</span>`:''}
       </div>
