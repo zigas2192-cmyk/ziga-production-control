@@ -2585,6 +2585,7 @@ function exportSlitExcel(oseNoFilter){
       const net   =d.net   ||(after-scrap)||0;
       rows.push({
         'เลขที่ใบงาน OSE': p.oseNo,
+        'วันที่ Plan':      p.startDate||p.job?.startDate?fmtDate((p.startDate||p.job?.startDate||'').slice(0,10)):'',
         'SlitFormula':      job.name||'',
         'รหัสสินค้า':       mc.item||c.item||'',
         'Batch No.':        mc.batch||c.batch||'',
@@ -2609,6 +2610,7 @@ function exportSlitExcel(oseNoFilter){
     const totalNet =p.mcids.reduce((s,c)=>{const d=S.slitData[c.serial]||{};return s+(d.net||(d.after-d.scrap)||0);},0);
     rows.push({
       'เลขที่ใบงาน OSE': `รวม ${p.oseNo}`,
+      'วันที่ Plan': '',
       'SlitFormula': '',
       'รหัสสินค้า': '',
       'Batch No.': '',
@@ -2628,7 +2630,7 @@ function exportSlitExcel(oseNoFilter){
   });
 
   const ws=XLSX.utils.json_to_sheet(rows);
-  ws['!cols']=[16,35,18,16,18,10,28,8,20,13,14,14,13,12,14].map(w=>({wch:w}));
+  ws['!cols']=[16,12,35,18,16,18,10,28,8,20,13,14,14,13,12,14].map(w=>({wch:w}));
   XLSX.utils.book_append_sheet(wb,ws,'SlitWeight');
 
   // ── Sheet 2: สรุปต่อ OSE ─────────────────────────────────────
@@ -2638,6 +2640,7 @@ function exportSlitExcel(oseNoFilter){
     const done=p.mcids.filter(c=>S.slitData[c.serial]?.done).length;
     return {
       'OSE No.':       p.oseNo,
+      'วันที่ Plan':   p.startDate||p.job?.startDate?fmtDate((p.startDate||p.job?.startDate||'').slice(0,10)):'',
       'SlitFormula':   p.job.name||'',
       'Batch/Remarks': p.job.remarks||'',
       'MCID ทั้งหมด': p.mcids.length,
@@ -2648,7 +2651,7 @@ function exportSlitExcel(oseNoFilter){
     };
   });
   const ws2=XLSX.utils.json_to_sheet(sumRows);
-  ws2['!cols']=[16,38,30,10,10,14,14,20].map(w=>({wch:w}));
+  ws2['!cols']=[16,12,35,28,10,10,13,13,18].map(w=>({wch:w}));
   XLSX.utils.book_append_sheet(wb,ws2,'Summary');
 
   const date=new Date().toISOString().slice(0,10).replace(/-/g,'');
@@ -3706,11 +3709,13 @@ function renderSlitOSEList(){
     const existing=S.osePlans.find(p=>p.oseNo===oseNo);
     const job=S.axJobs.find(j=>j.prod===oseNo)||{prod:oseNo,name:oseNo};
     const mcids=S.mcids.filter(c=>c.oseNo===oseNo&&isPicked(c));
+    const startDate=job.startDate||existing?.startDate||'';
     if(existing){
-      existing.mcids=mcids; // อัป mcids
+      existing.mcids=mcids;
+      existing.startDate=startDate;
       plans.push(existing);
     } else {
-      plans.push({oseNo,job,mcids,slitDone:false});
+      plans.push({oseNo,job,mcids,slitDone:false,startDate});
     }
   });
 
@@ -3722,11 +3727,17 @@ function renderSlitOSEList(){
     return;
   }
 
-  // เรียง: ยังไม่เสร็จขึ้นก่อน
+  // เรียงตามวันที่ startDate ก่อน งานไม่มีวันที่ไปอยู่ท้าย งานเสร็จแล้วไปอยู่ท้ายสุด
   plans.sort((a,b)=>{
     const aDone=a.mcids.every(c=>S.slitData[c.serial]?.done)&&a.mcids.length>0;
     const bDone=b.mcids.every(c=>S.slitData[c.serial]?.done)&&b.mcids.length>0;
-    return aDone-bDone;
+    if(aDone!==bDone) return aDone-bDone; // เสร็จไปท้าย
+    const aD=a.startDate||a.job?.startDate||'';
+    const bD=b.startDate||b.job?.startDate||'';
+    if(!aD&&!bD) return 0;
+    if(!aD) return 1;
+    if(!bD) return -1;
+    return aD.localeCompare(bD); // เรียงวันที่น้อย→มาก
   });
 
   // filter และ search
@@ -3741,11 +3752,14 @@ function renderSlitOSEList(){
     const total=p.mcids.length;
     const allDone=done===total&&total>0;
     const isActive=S.selectedOSE===p.oseNo;
+    const sd=p.startDate||p.job?.startDate||'';
+    const sdDisplay=sd?fmtDate(sd.slice(0,10)):'';
     return `<div class="ose-row ${isActive?'active':''}" onclick="selectSlitOSE('${p.oseNo}')"
       style="cursor:pointer;margin-bottom:6px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
         <div style="font-family:var(--mono);font-size:14px;font-weight:700;color:${allDone?'#888':'#1a7a1a'}">${p.oseNo}</div>
         <div style="display:flex;gap:5px;align-items:center">
+          ${sdDisplay?`<span style="font-size:11px;color:#666;font-family:var(--mono)">📅 ${sdDisplay}</span>`:''}
           ${allDone
             ? `<span class="pill p-ok" style="font-size:12px;font-weight:700">✅ เสร็จสิ้น</span>`
             : `<span class="pill ${done>0?'p-blue':'p-amber'}">${done}/${total} ลูก</span>`
