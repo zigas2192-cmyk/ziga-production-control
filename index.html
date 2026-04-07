@@ -2452,7 +2452,9 @@ function renderUnassigned(){
 
       const isDone = !isActive(j);
       return `<tr style="${isDone?'opacity:.55;':''}${!hasM&&!isDone?'background:var(--amber-bg)':''}">
-        <td><div style="font-family:var(--mono);font-size:13px;font-weight:700;color:${tc}">${j.prod}</div><span style="font-size:11px;color:#666">${jt}</span></td>
+        <td><div style="font-family:var(--mono);font-size:13px;font-weight:700;color:${tc}">${j.prod}</div>
+          <span style="font-size:11px;color:#666">${jt}</span>
+          ${j.created?`<div style="font-size:10px;color:#999;font-family:var(--mono);margin-top:2px">📥 ${fmtDateTime(j.created)}</div>`:''}</td>
         <td style="font-size:12px;color:#111;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${j.name||''}">${j.name||'—'}</td>
         <td style="font-size:13px;text-align:center;color:#111">${j.thick?j.thick+'mm':'—'}</td>
         <td style="font-family:var(--mono);font-size:13px;text-align:right;color:#111">${j.qty?Number(j.qty).toLocaleString():'—'}</td>
@@ -2738,6 +2740,20 @@ function exportSlitExcel(oseNoFilter){
   xlsxDownload(wb, filename);
   showToast(`✅ Export ${rows.filter(r=>r['MCID (Serial)']).length} MCID จาก ${plans.length} ใบงาน`);
 }
+// Convert ISO datetime → dd/mm/yyyy HH:mm
+function fmtDateTime(iso){
+  if(!iso) return '';
+  try{
+    const d=new Date(iso);
+    const dd=String(d.getDate()).padStart(2,'0');
+    const mm=String(d.getMonth()+1).padStart(2,'0');
+    const yyyy=d.getFullYear();
+    const hh=String(d.getHours()).padStart(2,'0');
+    const min=String(d.getMinutes()).padStart(2,'0');
+    return `${dd}/${mm}/${yyyy} ${hh}:${min}`;
+  }catch(e){ return iso.slice(0,16); }
+}
+
 // Convert yyyy-mm-dd → dd/mm/yyyy for display
 function fmtDate(iso){
   if(!iso) return '';
@@ -3076,9 +3092,10 @@ async function loadL6FromSP(){
       gradeAminus:  parseFloat(f.GradeAminus)||0,
       jobType:      f.JobType||'',
       brand:        f.Brand||f.field_18||'',
-      routeCH:      f.RouteCH||'',   // เส้นทาง → ลบคม/เกลียว
-      routePA:      f.RoutePA||'',   // เส้นทาง → แพ็คกิ้ง
-      routeORW:     f.RouteORW||'',  // เส้นทาง → ข้อต่อ/อื่นๆ
+      routeCH:      f.RouteCH||'',
+      routePA:      f.RoutePA||'',
+      routeORW:     f.RouteORW||'',
+      created:      f.Created||'',    // วันที่ upload ใบงาน
       spId:         f.id||'',
       used:         false,
     }));
