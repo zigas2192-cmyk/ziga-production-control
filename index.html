@@ -2453,6 +2453,26 @@ function updateJobRoute(prod,type,val){
   if(type==='ORW') j.routeORW=val;
 }
 
+// ── Helper: download Excel ที่รองรับทั้ง desktop และ mobile ────────
+function xlsxDownload(wb, filename){
+  try{
+    // วิธี 1: Blob URL (รองรับ mobile ดีกว่า)
+    const wbout = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+    const blob  = new Blob([wbout], {type:'application/octet-stream'});
+    const url   = URL.createObjectURL(blob);
+    const a     = document.createElement('a');
+    a.href      = url;
+    a.download  = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 1000);
+  }catch(e){
+    // fallback: writeFile เดิม
+    try{ XLSX.writeFile(wb, filename); }
+    catch(e2){ showToast('❌ ดาวน์โหลดไม่สำเร็จ — ลองบน desktop ค่ะ'); }
+  }
+}
+
 // ── Export for AI — สร้าง Excel พร้อม CapTable สำหรับส่ง Claude ──
 function exportForAI(){
   if(!S.axJobs.length){ showToast('⚠️ Load L6 ก่อนค่ะ'); return; }
@@ -2540,7 +2560,7 @@ function exportForAI(){
 
   // Download
   const date = new Date().toISOString().slice(0,10).replace(/-/g,'');
-  XLSX.writeFile(wb, `ZIGA_AIInput_${date}.xlsx`);
+  xlsxDownload(wb, `ZIGA_AIInput_${date}.xlsx`);
   showToast('✅ Export สำเร็จ — นำไฟล์นี้แนบให้ Claude คำนวณ Daily Plan ค่ะ');
 }
 
@@ -2658,7 +2678,7 @@ function exportSlitExcel(oseNoFilter){
 
   const date=new Date().toISOString().slice(0,10).replace(/-/g,'');
   const label=oseNoFilter?oseNoFilter:f==='done'?'done':f==='pending'?'pending':'all';
-  XLSX.writeFile(wb,`ZIGA_SlitWeight_${label}_${date}.xlsx`);
+  xlsxDownload(wb,`ZIGA_SlitWeight_${label}_${date}.xlsx`);
   showToast(`✅ Export ${rows.filter(r=>r['MCID (Serial)']).length} MCID จาก ${plans.length} ใบงาน`);
 }
 // Convert yyyy-mm-dd → dd/mm/yyyy for display
@@ -2822,7 +2842,7 @@ function exportMasterPlanXLSX(){
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(machRows),   'ByMachine');
 
   const dateStr=new Date().toLocaleDateString('th-TH',{year:'numeric',month:'2-digit',day:'2-digit'}).replace(/\//g,'');
-  XLSX.writeFile(wb, `ZIGA_MasterPlan_${dateStr}.xlsx`);
+  xlsxDownload(wb, `ZIGA_MasterPlan_${dateStr}.xlsx`);
   showToast(`✅ Export Excel แล้ว — ${jobs.length} ใบงาน`);
 }
 
