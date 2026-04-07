@@ -481,6 +481,8 @@ table.ax-t .ax-total{background:var(--green-lt);color:var(--green);font-weight:6
           style="padding:7px 14px;border:1px solid var(--blue-bd);border-radius:var(--rs);background:var(--blue-bg);color:var(--blue);font-size:13px;cursor:pointer;font-family:var(--sans)">🔄 Load L6</button>
         <button onclick="exportSlitExcel()"
           style="padding:7px 14px;border:1px solid var(--green-bd);border-radius:var(--rs);background:var(--green-bg);color:var(--green);font-size:13px;cursor:pointer;font-family:var(--sans);font-weight:500">📥 Export Excel</button>
+        <button onclick="document.getElementById('slit-search').value='';document.getElementById('slit-filter').value='all';renderSlitOSEList();exportSlitExcel();"
+          style="padding:7px 14px;border:1px solid var(--teal-bd);border-radius:var(--rs);background:var(--teal-bg);color:var(--teal);font-size:13px;cursor:pointer;font-family:var(--sans);font-weight:500">📥 Export ทั้งหมด</button>
         <span id="slit-export-note" style="font-size:11px;color:#888">ส่งออกตามที่ filter ไว้</span>
       </div>
       <!-- OSE list (mobile single column) -->
