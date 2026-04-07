@@ -636,13 +636,22 @@ table.ax-t .ax-total{background:var(--green-lt);color:var(--green);font-weight:6
                 <input class="fi" type="number" id="prod-hours" step="0.5" placeholder="0.0"></div>
             </div>
 
-            <!-- Breakdown -->
-            <div class="sec-lbl">Breakdown</div>
-            <div class="g2">
-              <div class="ff"><label>ระยะเวลา (นาที)</label>
-                <input class="fi" type="number" id="prod-bd" placeholder="0"></div>
-              <div class="ff"><label>สาเหตุ</label>
-                <input class="fi" id="prod-bdr" placeholder="ถ้ามี"></div>
+            <!-- Breakdown Section -->
+            <div class="sec-lbl" style="display:flex;align-items:center;justify-content:space-between">
+              <span>Breakdown</span>
+              <button onclick="addBDRow()" style="padding:3px 10px;border:1px solid var(--red-bd);border-radius:var(--rs);background:var(--red-bg);color:var(--red);font-size:11px;cursor:pointer">+ เพิ่ม BD</button>
+            </div>
+            <div id="prod-bd-list" style="margin-bottom:10px">
+              <div style="color:var(--ink3);font-size:12px;padding:8px;text-align:center;background:var(--panel);border-radius:var(--rs)">ไม่มี Breakdown — กด "+ เพิ่ม BD" ถ้าเครื่องหยุด</div>
+            </div>
+
+            <!-- Setup Section -->
+            <div class="sec-lbl" style="display:flex;align-items:center;justify-content:space-between">
+              <span>Setup / Changeover</span>
+              <button onclick="addSetupRow()" style="padding:3px 10px;border:1px solid var(--blue-bd);border-radius:var(--rs);background:var(--blue-bg);color:var(--blue);font-size:11px;cursor:pointer">+ เพิ่ม Setup</button>
+            </div>
+            <div id="prod-setup-list" style="margin-bottom:10px">
+              <div style="color:var(--ink3);font-size:12px;padding:8px;text-align:center;background:var(--panel);border-radius:var(--rs)">ไม่มี Setup — กด "+ เพิ่ม Setup" ถ้ามีการ setup</div>
             </div>
 
             <!-- พารามิเตอร์ -->
@@ -1126,7 +1135,16 @@ const AZURE_CONFIG = {
   redirectUri: window.location.origin + window.location.pathname,
 };
 const SP_SITE_PATH = 'zigainnovation.sharepoint.com:/sites/msteams_1fdd76:';
-const SP_LISTS = { L4: 'PrdCtrl_M4_Mcoil_Inventory', L6: 'PrdCtrl_M6_OSE_Production', L7: 'ProdCtrl_L7_DailyPlan_OFM', L8: 'ProdCtrl_L8_Defect_FMQA08', L9: 'L9_EmployeeZiGA' };
+const SP_LISTS = {
+  L4:  'PrdCtrl_M4_Mcoil_Inventory',
+  L6:  'PrdCtrl_M6_OSE_Production',
+  L7:  'ProdCtrl_L7_DailyPlan_OFM',   // legacy
+  L7_1:'ProdCtrl_L7_1_DailyReport',   // บันทึกผลผลิตต่อ row
+  L7_2:'ProdCtrl_L7_2_Breakdown',     // Breakdown incidents
+  L7_3:'ProdCtrl_L7_3_SetupLog',      // Setup/Changeover log
+  L8:  'ProdCtrl_L8_Defect_FMQA08',
+  L9:  'L9_EmployeeZiGA',
+};
 
 // ── L9 UserRoles — Fallback hardcode (ใช้ถ้า SP fetch ไม่ได้) ──────
 // admin แก้ได้ที่ SP list โดยตรง ไม่ต้อง redeploy app
@@ -4244,11 +4262,14 @@ function selectProdJob(prodNo){
   // set today & pre-fill operator name
   document.getElementById('prod-by').value = S.user?.name||'';
   // clear previous values
-  ['prod-actual','prod-hours','prod-bd','prod-bdr','prod-speed','prod-elec',
+  ['prod-actual','prod-hours','prod-speed','prod-elec',
    'prod-ga','prod-gb','prod-gc','prod-note','prod-timerange'].forEach(id=>{
     const el=document.getElementById(id); if(el&&el.type!=='select-one') el.value='';
   });
   document.getElementById('prod-grade-msg').style.display='none';
+  // reset BD/Setup rows
+  prodBDRows=[]; prodSetupRows=[];
+  renderBDRows(); renderSetupRows();
   document.getElementById('prod-form-wrap').scrollIntoView({behavior:'smooth',block:'start'});
 }
 
@@ -4274,56 +4295,259 @@ function calcProdGrade(){
   } else el.style.display='none';
 }
 
+// ── BD / Setup rows state ────────────────────────────────────────
+let prodBDRows    = []; // [{seq,start,end,min,type,cause,solution,tech,resolved}]
+let prodSetupRows = []; // [{seq,start,end,min,type,by,note}]
+
+function addBDRow(){
+  const seq = prodBDRows.length + 1;
+  prodBDRows.push({seq, start:'', end:'', min:0, type:'ไฟฟ้า', cause:'', solution:'', tech:'', resolved:'ยังไม่แก้ไข'});
+  renderBDRows();
+}
+function removeBDRow(i){ prodBDRows.splice(i,1); renderBDRows(); }
+
+function renderBDRows(){
+  const el = document.getElementById('prod-bd-list');
+  if(!prodBDRows.length){
+    el.innerHTML='<div style="color:var(--ink3);font-size:12px;padding:8px;text-align:center;background:var(--panel);border-radius:var(--rs)">ไม่มี Breakdown</div>';
+    return;
+  }
+  el.innerHTML = prodBDRows.map((r,i)=>`
+    <div style="background:var(--red-bg);border:1px solid var(--red-bd);border-radius:var(--rs);padding:10px;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-size:12px;font-weight:600;color:var(--red)">BD #${r.seq}</span>
+        <button onclick="removeBDRow(${i})" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:14px">✕</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+        <div><label style="font-size:11px;color:var(--ink3)">เริ่ม</label>
+          <input type="time" value="${r.start}" onchange="prodBDRows[${i}].start=this.value;calcBDMin(${i})"
+            style="width:100%;padding:5px;border:1px solid var(--b2);border-radius:var(--rs);font-size:13px"></div>
+        <div><label style="font-size:11px;color:var(--ink3)">จบ</label>
+          <input type="time" value="${r.end}" onchange="prodBDRows[${i}].end=this.value;calcBDMin(${i})"
+            style="width:100%;padding:5px;border:1px solid var(--b2);border-radius:var(--rs);font-size:13px"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+        <div><label style="font-size:11px;color:var(--ink3)">รวม (นาที)</label>
+          <input type="number" value="${r.min}" id="bd-min-${i}" onchange="prodBDRows[${i}].min=parseInt(this.value)||0"
+            style="width:100%;padding:5px;border:1px solid var(--b2);border-radius:var(--rs);font-size:13px"></div>
+        <div><label style="font-size:11px;color:var(--ink3)">ประเภท</label>
+          <select onchange="prodBDRows[${i}].type=this.value" style="width:100%;padding:5px;border:1px solid var(--b2);border-radius:var(--rs);font-size:13px">
+            ${['ไฟฟ้า','เครื่องกล','อิเล็กทรอนิกส์','วัตถุดิบ','อื่นๆ'].map(t=>`<option ${r.type===t?'selected':''}>${t}</option>`).join('')}
+          </select></div>
+      </div>
+      <div style="margin-bottom:6px"><label style="font-size:11px;color:var(--ink3)">สาเหตุ</label>
+        <input value="${r.cause}" onchange="prodBDRows[${i}].cause=this.value" placeholder="อธิบายสาเหตุ"
+          style="width:100%;padding:5px;border:1px solid var(--b2);border-radius:var(--rs);font-size:13px;box-sizing:border-box"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+        <div><label style="font-size:11px;color:var(--ink3)">วิธีแก้ไข</label>
+          <input value="${r.solution}" onchange="prodBDRows[${i}].solution=this.value" placeholder="วิธีแก้"
+            style="width:100%;padding:5px;border:1px solid var(--b2);border-radius:var(--rs);font-size:13px;box-sizing:border-box"></div>
+        <div><label style="font-size:11px;color:var(--ink3)">ช่าง</label>
+          <input value="${r.tech}" onchange="prodBDRows[${i}].tech=this.value" placeholder="ชื่อช่าง"
+            style="width:100%;padding:5px;border:1px solid var(--b2);border-radius:var(--rs);font-size:13px;box-sizing:border-box"></div>
+      </div>
+    </div>`).join('');
+}
+
+function calcBDMin(i){
+  const r = prodBDRows[i];
+  if(r.start && r.end){
+    const [sh,sm]=r.start.split(':').map(Number);
+    const [eh,em]=r.end.split(':').map(Number);
+    let min=(eh*60+em)-(sh*60+sm);
+    if(min<0) min+=24*60;
+    r.min=min;
+    const el=document.getElementById(`bd-min-${i}`);
+    if(el) el.value=min;
+  }
+}
+
+function addSetupRow(){
+  const seq = prodSetupRows.length + 1;
+  prodSetupRows.push({seq, start:'', end:'', min:0, type:'เปลี่ยนโรล', by:'', note:''});
+  renderSetupRows();
+}
+function removeSetupRow(i){ prodSetupRows.splice(i,1); renderSetupRows(); }
+
+function renderSetupRows(){
+  const el = document.getElementById('prod-setup-list');
+  if(!prodSetupRows.length){
+    el.innerHTML='<div style="color:var(--ink3);font-size:12px;padding:8px;text-align:center;background:var(--panel);border-radius:var(--rs)">ไม่มี Setup</div>';
+    return;
+  }
+  el.innerHTML = prodSetupRows.map((r,i)=>`
+    <div style="background:var(--blue-bg);border:1px solid var(--blue-bd);border-radius:var(--rs);padding:10px;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-size:12px;font-weight:600;color:var(--blue)">Setup #${r.seq}</span>
+        <button onclick="removeSetupRow(${i})" style="background:none;border:none;color:var(--blue);cursor:pointer;font-size:14px">✕</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+        <div><label style="font-size:11px;color:var(--ink3)">เริ่ม</label>
+          <input type="time" value="${r.start}" onchange="prodSetupRows[${i}].start=this.value;calcSetupMin(${i})"
+            style="width:100%;padding:5px;border:1px solid var(--b2);border-radius:var(--rs);font-size:13px"></div>
+        <div><label style="font-size:11px;color:var(--ink3)">จบ</label>
+          <input type="time" value="${r.end}" onchange="prodSetupRows[${i}].end=this.value;calcSetupMin(${i})"
+            style="width:100%;padding:5px;border:1px solid var(--b2);border-radius:var(--rs);font-size:13px"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+        <div><label style="font-size:11px;color:var(--ink3)">รวม (นาที)</label>
+          <input type="number" value="${r.min}" id="su-min-${i}" onchange="prodSetupRows[${i}].min=parseInt(this.value)||0"
+            style="width:100%;padding:5px;border:1px solid var(--b2);border-radius:var(--rs);font-size:13px"></div>
+        <div><label style="font-size:11px;color:var(--ink3)">ประเภท</label>
+          <select onchange="prodSetupRows[${i}].type=this.value" style="width:100%;padding:5px;border:1px solid var(--b2);border-radius:var(--rs);font-size:13px">
+            ${['เปลี่ยนโรล','เปลี่ยนใบเลื่อย','ปรับ OD','เปลี่ยนมีด','PM','อื่นๆ'].map(t=>`<option ${r.type===t?'selected':''}>${t}</option>`).join('')}
+          </select></div>
+        <div><label style="font-size:11px;color:var(--ink3)">ทำโดย</label>
+          <input value="${r.by}" onchange="prodSetupRows[${i}].by=this.value" placeholder="ชื่อพนักงาน"
+            style="width:100%;padding:5px;border:1px solid var(--b2);border-radius:var(--rs);font-size:13px;box-sizing:border-box"></div>
+      </div>
+      <div style="margin-top:6px"><label style="font-size:11px;color:var(--ink3)">หมายเหตุ</label>
+        <input value="${r.note}" onchange="prodSetupRows[${i}].note=this.value" placeholder="รายละเอียดเพิ่มเติม"
+          style="width:100%;padding:5px;border:1px solid var(--b2);border-radius:var(--rs);font-size:13px;box-sizing:border-box"></div>
+    </div>`).join('');
+}
+
+function calcSetupMin(i){
+  const r = prodSetupRows[i];
+  if(r.start && r.end){
+    const [sh,sm]=r.start.split(':').map(Number);
+    const [eh,em]=r.end.split(':').map(Number);
+    let min=(eh*60+em)-(sh*60+sm);
+    if(min<0) min+=24*60;
+    r.min=min;
+    const el=document.getElementById(`su-min-${i}`);
+    if(el) el.value=min;
+  }
+}
+
 async function saveProd(){
   const prodNo = S.selectedOFMPlan;
   if(!prodNo){ showToast('⚠️ เลือกใบงานก่อนค่ะ'); return; }
   const actual = parseInt(document.getElementById('prod-actual').value)||0;
   if(!actual){ showToast('⚠️ กรุณากรอกจำนวนจริง'); return; }
 
-  const record = {
-    OFMNo:      prodNo,
-    ProdDate:   document.getElementById('prod-date').value,
-    Shift:      document.getElementById('prod-shift').value,
-    Machine:    document.getElementById('prod-machine').value,
-    TimeRange:  document.getElementById('prod-timerange').value,
-    PlanQty:    document.getElementById('prod-plan-qty').value,
-    ActualQty:  actual,
-    Status:     document.getElementById('prod-status').value,
-    HoursRun:   parseFloat(document.getElementById('prod-hours').value)||0,
-    BDMinutes:  parseInt(document.getElementById('prod-bd').value)||0,
-    BDReason:   document.getElementById('prod-bdr').value,
-    Speed:      document.getElementById('prod-speed').value,
-    Electric:   document.getElementById('prod-elec').value,
-    GradeA:     parseInt(document.getElementById('prod-ga').value)||0,
-    GradeB:     parseInt(document.getElementById('prod-gb').value)||0,
-    GradeC:     parseInt(document.getElementById('prod-gc').value)||0,
-    Note:       document.getElementById('prod-note').value,
-    RecordBy:   document.getElementById('prod-by').value,
-    Title:      `${prodNo}_${document.getElementById('prod-date').value}`,
+  const planDate = document.getElementById('prod-date').value;
+  const machine  = document.getElementById('prod-machine').value;
+  const timeSlot = document.getElementById('prod-timerange').value;
+  const title    = `${prodNo}_${planDate}_${timeSlot.replace(':','').slice(0,4)}`;
+  const job      = S.axJobs.find(j=>j.prod===prodNo)||{};
+
+  // L7_1 DailyReport fields
+  const l7_1 = {
+    Title:       title,
+    JobNo:       prodNo,
+    JobName:     job.name||'',
+    Brand:       job.brand||'',
+    Machine:     machine,
+    PlanDate:    planDate ? new Date(planDate).toISOString() : null,
+    Location:    document.getElementById('prod-shift').value,
+    TimeSlot:    timeSlot,
+    CapValue:    parseFloat(document.getElementById('prod-speed').value)||0,
+    CapUnit:     'เส้น/นาที',
+    HourPlan:    parseFloat(document.getElementById('prod-hours').value)||0,
+    QTYPlan:     parseInt(document.getElementById('prod-plan-qty').value)||0,
+    QTYActual:   actual,
+    HoursActual: parseFloat(document.getElementById('prod-hours').value)||0,
+    ProdStatus:  document.getElementById('prod-status').value,
+    OnTarget:    actual >= (parseInt(document.getElementById('prod-plan-qty').value)||0),
   };
 
-  // POST to SP L7
+  const record = {
+    OFMNo: prodNo, ProdDate: planDate, Shift: document.getElementById('prod-shift').value,
+    Machine: machine, TimeRange: timeSlot,
+    PlanQty: document.getElementById('prod-plan-qty').value, ActualQty: actual,
+    Status: document.getElementById('prod-status').value,
+    HoursRun: parseFloat(document.getElementById('prod-hours').value)||0,
+    Speed: document.getElementById('prod-speed').value,
+    Electric: document.getElementById('prod-elec').value,
+    GradeA: parseInt(document.getElementById('prod-ga').value)||0,
+    GradeB: parseInt(document.getElementById('prod-gb').value)||0,
+    GradeC: parseInt(document.getElementById('prod-gc').value)||0,
+    Note: document.getElementById('prod-note').value,
+    RecordBy: document.getElementById('prod-by').value,
+    Title: title,
+  };
+
   if(graphToken){
     try{
-      const siteId = await getSiteId();
-      const listId = await getListId(SP_LISTS.L7);
-      const resp = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`,{
-        method:'POST',
-        headers:{ Authorization:`Bearer ${graphToken}`, 'Content-Type':'application/json' },
-        body: JSON.stringify({ fields: record })
+      // ── POST L7_1 DailyReport ────────────────────────────────
+      const siteId  = await getSiteId();
+      const lid1    = await getListId(SP_LISTS.L7_1);
+      const r1      = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${lid1}/items`,{
+        method:'POST', headers:{Authorization:`Bearer ${graphToken}`,'Content-Type':'application/json'},
+        body: JSON.stringify({fields: l7_1})
       });
-      if(!resp.ok) throw new Error(await resp.text());
-      showToast(`✅ บันทึก ${prodNo} ลง SP แล้วค่ะ`);
+      if(!r1.ok) throw new Error(`L7_1: ${await r1.text()}`);
+      const r1json  = await r1.json();
+      const reportId = r1json.id;
+      showToast(`✅ L7_1 บันทึกแล้ว`);
+
+      // ── POST L7_2 Breakdown (แต่ละ row) ─────────────────────
+      if(prodBDRows.length){
+        const lid2 = await getListId(SP_LISTS.L7_2);
+        for(const bd of prodBDRows){
+          const bdFields = {
+            Title:        `${title}_BD${bd.seq}`,
+            ReportTitle:  reportId,
+            PlanDate:     planDate ? new Date(planDate).toISOString() : null,
+            Machine:      machine,
+            BDSeq:        bd.seq,
+            BDStart:      bd.start ? new Date(`${planDate}T${bd.start}`).toISOString() : null,
+            BDEnd:        bd.end   ? new Date(`${planDate}T${bd.end}`).toISOString()   : null,
+            BDMin:        bd.min,
+            BDType:       bd.type,
+            BDCause:      bd.cause,
+            BDSolution:   bd.solution,
+            BDTechnician: bd.tech,
+            BDResloved:   bd.resolved||'ยังไม่แก้ไข',
+          };
+          await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${lid2}/items`,{
+            method:'POST', headers:{Authorization:`Bearer ${graphToken}`,'Content-Type':'application/json'},
+            body: JSON.stringify({fields: bdFields})
+          });
+        }
+        showToast(`✅ L7_2 Breakdown ${prodBDRows.length} รายการ`);
+      }
+
+      // ── POST L7_3 SetupLog (แต่ละ row) ───────────────────────
+      if(prodSetupRows.length){
+        const lid3 = await getListId(SP_LISTS.L7_3);
+        for(const su of prodSetupRows){
+          const suFields = {
+            Title:       `${title}_SU${su.seq}`,
+            ReportTitle: reportId,
+            PlanDate:    planDate ? new Date(planDate).toISOString() : null,
+            Machine:     machine,
+            SetupSq:     su.seq,
+            SetupStart:  su.start ? new Date(`${planDate}T${su.start}`).toISOString() : null,
+            SetupEnd:    su.end   ? new Date(`${planDate}T${su.end}`).toISOString()   : null,
+            SetupMin:    su.min,
+            SetupType:   su.type,
+            SetupBy:     su.by,
+            SetupNote:   su.note,
+          };
+          await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${lid3}/items`,{
+            method:'POST', headers:{Authorization:`Bearer ${graphToken}`,'Content-Type':'application/json'},
+            body: JSON.stringify({fields: suFields})
+          });
+        }
+        showToast(`✅ L7_3 Setup ${prodSetupRows.length} รายการ`);
+      }
+
+      showToast(`🎉 บันทึกครบ: ${prodNo} → L7_1/2/3`);
     }catch(e){
-      showToast('⚠️ SP error: '+e.message+' (บันทึก local ไว้ก่อน)');
+      showToast('❌ SP error: '+e.message);
+      console.error(e);
     }
   } else {
     showToast('⚠️ ไม่ได้ login — บันทึก local เท่านั้น');
   }
 
-  // บันทึก local history
+  // local history
   prodHistory.unshift({...record, savedAt: new Date().toLocaleTimeString('th-TH')});
   renderProdHistory();
+  // reset BD/Setup
+  prodBDRows=[]; prodSetupRows=[];
   closeProdForm();
 }
 
