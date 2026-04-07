@@ -588,11 +588,20 @@ table.ax-t .ax-total{background:var(--green-lt);color:var(--green);font-weight:6
           <!-- Search -->
           <input id="prod-search" placeholder="🔍 ค้นหาใบงาน..." oninput="renderProdJobList()"
             style="width:100%;padding:7px 12px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:12px;outline:none;color:var(--ink);margin-bottom:8px;box-sizing:border-box">
-          <!-- Filter chips -->
-          <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px" id="prod-type-chips">
+          <!-- Filter chips + Status -->
+          <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px;align-items:center" id="prod-type-chips">
             <span class="chip active" onclick="setProdTypeFilter('',this)">ทั้งหมด</span>
             <span class="chip" onclick="setProdTypeFilter('OFM',this)">OFM</span>
             <span class="chip" onclick="setProdTypeFilter('ORW',this)">ORW</span>
+            <select id="prod-status-filter" onchange="renderProdJobList()"
+              style="padding:4px 8px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:11px;outline:none;color:var(--ink);margin-left:4px">
+              <option value="">ทุกสถานะ</option>
+              <option value="1.Start">1.Start</option>
+              <option value="2.">2.Pick</option>
+              <option value="3.">3.On process</option>
+              <option value="4.End">4.End-เสร็จ</option>
+              <option value="5.Cancle">5.ยกเลิก</option>
+            </select>
           </div>
           <div id="prod-job-list">
             <div style="color:var(--ink3);font-size:12px;padding:24px;text-align:center;background:var(--panel);border-radius:var(--r)">
@@ -704,7 +713,10 @@ table.ax-t .ax-total{background:var(--green-lt);color:var(--green);font-weight:6
 
           <!-- ประวัติบันทึกล่าสุด -->
           <div class="card" style="margin-top:12px">
-            <div class="card-title">ประวัติบันทึกวันนี้</div>
+            <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">
+              <span>ประวัติบันทึกวันนี้</span>
+              <button onclick="loadTodayProdHistory()" style="padding:3px 10px;border:1px solid var(--blue-bd);border-radius:var(--rs);background:var(--blue-bg);color:var(--blue);font-size:11px;cursor:pointer">🔄 โหลดจาก SP</button>
+            </div>
             <div id="prod-history-list">
               <div style="color:var(--ink3);font-size:12px;padding:16px;text-align:center">ยังไม่มีการบันทึก</div>
             </div>
@@ -4308,8 +4320,10 @@ async function loadProdJobs(){
 function renderProdJobList(){
   const el = document.getElementById('prod-job-list');
   const search = (document.getElementById('prod-search')?.value||'').toLowerCase();
+  const stFilter = document.getElementById('prod-status-filter')?.value||'';
   let jobs = prodJobs;
   if(prodTypeFilter) jobs = jobs.filter(j=>j.prod.startsWith(prodTypeFilter));
+  if(stFilter) jobs = jobs.filter(j=>(j.oseStatus||j.status||'').startsWith(stFilter));
   if(search) jobs = jobs.filter(j=>
     j.prod.toLowerCase().includes(search) ||
     (j.name||'').toLowerCase().includes(search) ||
@@ -4322,14 +4336,18 @@ function renderProdJobList(){
   }
   el.innerHTML = jobs.map(j=>{
     const sd = j.startDate ? fmtDate(j.startDate.slice(0,10)) : '';
+    const st = j.oseStatus||j.status||'';
+    const stColor = OSE_STATUS_COLOR[st]||'p-gray';
+    const hasRecord = prodHistory.some(h=>h.OFMNo===j.prod);
     return `
     <div class="ose-row" style="border-left:3px solid ${j.prod.startsWith('OFM')?'var(--blue)':'var(--teal)'};cursor:pointer;margin-bottom:6px"
       onclick="selectProdJob('${j.prod}')">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px">
         <div class="mono" style="font-size:12px;color:${j.prod.startsWith('OFM')?'var(--blue)':'var(--teal)'}">${j.prod}</div>
-        <div style="display:flex;gap:5px;align-items:center">
+        <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
           ${sd?`<span style="font-size:10px;color:var(--ink3);font-family:var(--mono)">📅 ${sd}</span>`:''}
-          <span class="pill ${j.prod.startsWith('OFM')?'p-blue':'p-teal'}" style="font-size:9px">${j.prod.slice(0,3)}</span>
+          ${hasRecord?`<span class="pill p-ok" style="font-size:9px">✓บันทึกแล้ว</span>`:''}
+          <span class="pill ${stColor}" style="font-size:9px;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${st.slice(0,15)||j.prod.slice(0,3)}</span>
         </div>
       </div>
       <div style="font-size:11px;color:var(--ink2);line-height:1.4">${(j.name||'').slice(0,55)}</div>
@@ -4656,14 +4674,86 @@ function renderProdHistory(){
     el.innerHTML='<div style="color:var(--ink3);font-size:12px;padding:16px;text-align:center">ยังไม่มีการบันทึก</div>';
     return;
   }
-  el.innerHTML = prodHistory.slice(0,10).map(r=>`
+  el.innerHTML = prodHistory.slice(0,20).map((r,i)=>`
     <div style="padding:8px 10px;border-bottom:1px solid var(--b);font-size:12px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
         <span class="mono" style="color:var(--blue);font-size:11px">${r.OFMNo}</span>
-        <span class="pill p-ok">✓ ${r.ActualQty}</span>
+        <div style="display:flex;gap:5px;align-items:center">
+          <span class="pill p-ok" style="font-size:10px">✓ ${r.ActualQty} เส้น</span>
+          <button onclick="editProdRecord(${i})" style="padding:2px 8px;border:1px solid var(--blue-bd);border-radius:var(--rs);background:var(--blue-bg);color:var(--blue);font-size:10px;cursor:pointer">✏️ แก้</button>
+        </div>
       </div>
-      <div style="color:var(--ink3);font-size:10px">${r.Machine} · ${r.Shift} · ${r.savedAt}</div>
+      <div style="color:var(--ink3);font-size:10px">${r.Machine||'—'} · ${r.TimeRange||r.Shift||'—'} · ${r.Status||'—'} · ${r.savedAt||''}</div>
     </div>`).join('');
+}
+
+function editProdRecord(idx){
+  const r = prodHistory[idx];
+  if(!r) return;
+  // เลือก job ก่อน
+  S.selectedOFMPlan = r.OFMNo;
+  document.getElementById('prod-form-wrap').style.display='block';
+  // pre-fill ค่าเดิม
+  setTimeout(()=>{
+    const setSel=(id,val)=>{ const el=document.getElementById(id); if(el) el.value=val||''; };
+    setSel('prod-machine',    r.Machine);
+    setSel('prod-timerange',  r.TimeRange);
+    setSel('prod-actual',     r.ActualQty);
+    setSel('prod-status',     r.Status);
+    setSel('prod-hours',      r.HoursRun);
+    setSel('prod-speed',      r.Speed);
+    setSel('prod-elec',       r.Electric);
+    setSel('prod-ga',         r.GradeA);
+    setSel('prod-gb',         r.GradeB);
+    setSel('prod-gc',         r.GradeC);
+    setSel('prod-note',       r.Note);
+    setSel('prod-by',         r.RecordBy);
+    // อัป header
+    const j = prodJobs.find(x=>x.prod===r.OFMNo)||{prod:r.OFMNo,name:r.OFMNo};
+    document.getElementById('prod-job-header').innerHTML=`
+      <div style="background:var(--amber-bg);border:1px solid var(--amber-bd);border-radius:var(--rs);padding:10px 14px">
+        <div style="font-family:var(--mono);font-size:13px;font-weight:700;color:var(--amber)">✏️ กำลังแก้ไข: ${r.OFMNo}</div>
+        <div style="font-size:11px;color:var(--ink2);margin-top:2px">${j.name||''}</div>
+        <div style="font-size:10px;color:var(--ink3);margin-top:4px">บันทึกเดิม: ${r.Machine||'—'} · ${r.TimeRange||'—'} · ${r.ActualQty} เส้น</div>
+      </div>`;
+    prodBDRows=[]; prodSetupRows=[];
+    renderBDRows(); renderSetupRows();
+  }, 50);
+  document.getElementById('prod-form-wrap').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+async function loadTodayProdHistory(){
+  // โหลด L7_1 ของวันนี้กลับมาใน prodHistory เพื่อให้แก้ไขได้
+  if(!graphToken) return;
+  try{
+    const today = document.getElementById('prod-date')?.value || new Date().toISOString().slice(0,10);
+    const siteId = await getSiteId();
+    const lid = await getListId(SP_LISTS.L7_1);
+    const resp = await fetch(
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${lid}/items?$expand=fields&$filter=fields/PlanDate ge '${today}T00:00:00Z' and fields/PlanDate le '${today}T23:59:59Z'&$top=50`,
+      {headers:{Authorization:`Bearer ${graphToken}`, Prefer:'HonorNonIndexedQueriesWarningMayFailRandomly'}}
+    );
+    if(!resp.ok) return;
+    const data = await resp.json();
+    const loaded = (data.value||[]).map(i=>({
+      OFMNo:    i.fields?.JobNo||'',
+      Machine:  i.fields?.Machine||'',
+      TimeRange:i.fields?.TimeSlot||'',
+      ActualQty:i.fields?.QTYActual||0,
+      Status:   i.fields?.ProdStatus||'',
+      HoursRun: i.fields?.HoursActual||0,
+      Speed:    i.fields?.CapValue||'',
+      GradeA:0, GradeB:0, GradeC:0,
+      Note:'', RecordBy:'',
+      l7Id:     i.id,
+      savedAt:  i.fields?.Created ? fmtDateTime(i.fields.Created) : '',
+    }));
+    if(loaded.length){
+      prodHistory = [...loaded, ...prodHistory.filter(h=>!loaded.find(l=>l.OFMNo===h.OFMNo))];
+      renderProdHistory();
+      showToast(`✅ โหลดประวัติ ${loaded.length} รายการจาก SP`);
+    }
+  }catch(e){ console.warn('loadTodayProdHistory:',e); }
 }
 
 function renderProdList(){ renderProdJobList(); } // compat
