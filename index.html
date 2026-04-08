@@ -780,7 +780,9 @@ table.ax-t .ax-total{background:var(--green-lt);color:var(--green);font-weight:6
               <input class="fi" type="number" id="qa-qty" placeholder="0" min="1">
             </div>
             <div class="ff"><label>เครื่องจักร</label>
-              <input class="fi" id="qa-machine-no" placeholder="เช่น RF_05">
+              <select class="fi sel" id="qa-machine-no">
+                <option value="">— เลือกเครื่อง —</option>
+              </select>
             </div>
           </div>
 
@@ -1185,7 +1187,8 @@ const SP_LISTS = {
   L7_1:'ProdCtrl_L7_1_DailyReport',   // บันทึกผลผลิตต่อ row
   L7_2:'ProdCtrl_L7_2_Breakdown',     // Breakdown incidents
   L7_3:'ProdCtrl_L7_3_SetupLog',      // Setup/Changeover log
-  L8:  'ProdCtrl_L8_Defect_FMQA08',
+  L8:  'ProdCtrl_L8_Defect',           // บันทึกของเสีย FM-QA-08
+  DEFECT_LIST: 'ProdCtrl_List_Defect', // รายชื่อสาเหตุของเสีย
   L9:  'L9_EmployeeZiGA',
   MACH:'ProdCtrl_Machine',            // รายชื่อเครื่องจักร
 };
@@ -1210,7 +1213,7 @@ const SP_LIST_IDS = {
   L4: '33b438fa-216b-4be0-8685-1d6e42ac2f8d',
   L6: '166c31c7-0d07-4058-b38f-216fcc929058',
   L7: 'ca4ff326-ddc5-4aad-9386-3f5a0dc50789',
-  L8: '4b37e942-da19-4e1e-ac68-0a07c37a0354',
+  // L8 ไม่ hardcode — ใช้ getListId() fetch จาก SP ตามชื่อ ProdCtrl_L8_Defect
 };
 
 let msalInstance = null;
@@ -1857,6 +1860,12 @@ function navigate(id){
   if(id==='qa'){
     renderQAJobSelect();renderQAList();updateQAStats();
     if(!qaDefectCauses.length) loadDefectCauses();
+    // populate machine dropdown จาก machineList
+    const mSel = document.getElementById('qa-machine-no');
+    if(mSel && mSel.options.length <= 1){
+      if(!machineList.length) loadMachineList().then(()=>populateMachineDropdowns());
+      else populateMachineDropdowns();
+    }
   }
   if(id==='master-plan'){initMasterPlan();}
   if(id==='dash') renderDash();
@@ -4333,7 +4342,7 @@ async function loadMachineList(){
 
 function populateMachineDropdowns(){
   // สร้าง options สำหรับทุก dropdown machine ใน app
-  const selIds = ['prod-machine','sch-machine-filter'];
+  const selIds = ['prod-machine','qa-machine-no','sch-machine-filter'];
   selIds.forEach(id=>{
     const sel = document.getElementById(id);
     if(!sel) return;
@@ -4916,44 +4925,84 @@ let qaDefectCauses = []; // จาก SP L10
 let qaPhotos = [];       // รูปที่เลือก [{file, dataUrl}]
 let qaRecords = [];      // บันทึกทั้งหมด
 
+// Hardcode defect list จาก ProdCtrl_List_Defect (27 รายการ)
+const DEFECT_LIST_FALLBACK = [
+  {code:'A-',  grade:'A', label:'ท่ออื่นๆ พิเศษ 16 บาท'},
+  {code:'A1',  grade:'A', label:'ท่ออื่นๆ สั้น 5980-5999 mm.'},
+  {code:'A2',  grade:'A', label:'ท่อผิวต่างดำ จับแล้วไม่สาก ไม่เข้าเนื้อ'},
+  {code:'A3',  grade:'A', label:'ท่อตะเข็บไม่แข็งแรง ตัดโค้ง'},
+  {code:'A4',  grade:'A', label:'ท่อบุบเล็กน้อย ไม่ลึกบี้'},
+  {code:'A5',  grade:'A', label:'ซิงค์ไม่พ่น'},
+  {code:'B1',  grade:'B', label:'ท่ออื่นๆ สั้น 5900-5979 mm.'},
+  {code:'B2',  grade:'B', label:'ท่อผิวเคลือบหลุดร่อน คราบขาว สนิมขาว'},
+  {code:'B3',  grade:'B', label:'ท่อแตก รวมไม่เกิน 10 cm.'},
+  {code:'B4',  grade:'B', label:'ท่อบุบ 1/3 ของท่อ ท่อยังตรงอยู่'},
+  {code:'B5',  grade:'B', label:'ท่องอ โก่งมากกว่า 18-20 mm.'},
+  {code:'B6',  grade:'B', label:'ท่ออื่นๆ มีรอยแคล้มรูดเข้าเนื้อ'},
+  {code:'B7',  grade:'B', label:'ท่ออื่นๆ เกลียวเสีย'},
+  {code:'B8',  grade:'B', label:'ท่ออื่นๆ ซิงค์ไม่พ่น ตะเข็บดำ'},
+  {code:'B9',  grade:'B', label:'ท่ออื่นๆ รอยต่อม้วน'},
+  {code:'B10', grade:'B', label:'รอยไสท่อ'},
+  {code:'C1',  grade:'C', label:'ท่อ DAIWA สั้น น้อยกว่า 3000 mm.'},
+  {code:'C1-1',grade:'C', label:'ท่ออื่นๆ สั้น น้อยกว่า 5899 mm.'},
+  {code:'C2',  grade:'C', label:'ท่อผิวขาวโพลนทั้งเส้น สนิมแดง'},
+  {code:'C3',  grade:'C', label:'ท่อแตกทั้งเนื้อ มากกว่า 10 cm.'},
+  {code:'C4',  grade:'C', label:'ท่อบุบบี้แบน เสียรูป'},
+  {code:'C5',  grade:'C', label:'ท่องอ โก่ง มากกว่า 20 mm. เสียรูปชัดเจน'},
+  {code:'C6',  grade:'C', label:'ท่อ DAIWA มีรอยแคล้มรูดเข้าเนื้อ'},
+  {code:'C7',  grade:'C', label:'ท่อ DAIWA เกลียวเสีย'},
+  {code:'C8',  grade:'C', label:'ท่อ DAIWA ซิงค์ไม่พ่น ตะเข็บดำ'},
+  {code:'C9',  grade:'C', label:'ท่อ DAIWA รอยต่อม้วน'},
+  {code:'C10', grade:'C', label:'รอยไสไม่เรียบ'},
+];
+
 async function loadDefectCauses(){
   const loading = document.getElementById('qa-cause-loading');
   const sel = document.getElementById('qa-cause');
   if(loading) loading.textContent = '⏳ กำลังโหลด...';
   try{
     if(graphToken){
-      const items = await spGetItems('L10_DefectCauses','',200);
+      // โหลดจาก ProdCtrl_List_Defect
+      const items = await spGetItems(SP_LISTS.DEFECT_LIST,'',100);
       if(items.length){
         qaDefectCauses = items.map(i=>({
-          id: i.id,
-          code: i.fields?.Code||i.fields?.Title||'',
-          label: i.fields?.Label||i.fields?.Title||'',
-          grade: i.fields?.Grade||'B',
-          group: i.fields?.Group||'',
+          code:  i.fields?.Title||'',
+          label: i.fields?.DefectDesc||i.fields?.Title||'',
+          grade: (i.fields?.Grade||'').replace('Grade ',''), // "Grade A" → "A"
         }));
       }
     }
-    // fallback: ใช้ DEFECT_TYPES hardcode ถ้า SP ไม่มี
+    // fallback hardcode
     if(!qaDefectCauses.length){
-      qaDefectCauses = DEFECT_TYPES.map(d=>({code:d.code, label:d.lbl, grade:d.g, group:d.g}));
+      qaDefectCauses = DEFECT_LIST_FALLBACK;
     }
-    // render dropdown
-    const groups = [...new Set(qaDefectCauses.map(d=>d.grade))].sort();
-    sel.innerHTML = '<option value="">-- เลือกสาเหตุ --</option>' +
-      groups.map(g=>`
-        <optgroup label="Grade ${g}">
-          ${qaDefectCauses.filter(d=>d.grade===g).map(d=>
-            `<option value="${d.code}" data-grade="${d.grade}" data-label="${d.label}">${d.code} — ${d.label}</option>`
-          ).join('')}
-        </optgroup>`).join('');
+    populateDefectDropdown(sel);
     if(loading) loading.textContent = `✅ ${qaDefectCauses.length} สาเหตุ`;
   }catch(e){
-    if(loading) loading.textContent = '❌ โหลดไม่ได้';
-    // fallback
-    qaDefectCauses = DEFECT_TYPES.map(d=>({code:d.code, label:d.lbl, grade:d.g}));
-    sel.innerHTML = '<option value="">-- เลือกสาเหตุ --</option>' +
-      qaDefectCauses.map(d=>`<option value="${d.code}" data-grade="${d.grade}" data-label="${d.label}">${d.code} — ${d.label}</option>`).join('');
+    if(loading) loading.textContent = '⚠️ ใช้ hardcode';
+    qaDefectCauses = DEFECT_LIST_FALLBACK;
+    populateDefectDropdown(sel);
   }
+}
+
+function populateDefectDropdown(sel){
+  if(!sel) return;
+  sel.innerHTML = '<option value="">-- เลือกสาเหตุของเสีย --</option>';
+  ['A','B','C'].forEach(g=>{
+    const list = qaDefectCauses.filter(d=>d.grade===g);
+    if(!list.length) return;
+    const grp = document.createElement('optgroup');
+    grp.label = `Grade ${g}`;
+    list.forEach(d=>{
+      const opt = document.createElement('option');
+      opt.value = d.code;
+      opt.dataset.grade = d.grade;
+      opt.dataset.label = d.label;
+      opt.textContent = `${d.code} — ${d.label}`;
+      grp.appendChild(opt);
+    });
+    sel.appendChild(grp);
+  });
 }
 
 function onQACauseChange(){
@@ -5022,24 +5071,28 @@ async function saveQA(){
   const qty = parseInt(document.getElementById('qa-qty').value)||0;
   if(!qty){ showToast('⚠️ กรอกจำนวน'); return; }
 
-  const cause = qaDefectCauses.find(d=>d.code===causeCode);
+  const cause = qaDefectCauses.find(d=>d.code===causeCode)||{};
+  const defDate = document.getElementById('qa-date').value;
+
+  // L8 column names ตรงกับ SP
   const fields = {
-    Title:      `${job}_${document.getElementById('qa-date').value}_${causeCode}`,
-    OFMNo:      job,
-    DefectDate: document.getElementById('qa-date').value,
-    CauseCode:  causeCode,
-    CauseLabel: cause?.label||'',
-    Grade:      cause?.grade||'',
-    Quantity:   qty,
-    MachineNo:  document.getElementById('qa-machine-no').value,
-    Man4M:      document.getElementById('qa-man').value,
-    Machine4M:  document.getElementById('qa-machine-4m').value,
-    Method4M:   document.getElementById('qa-method').value,
-    Material4M: document.getElementById('qa-material').value,
-    Note:       document.getElementById('qa-note').value,
-    RecordBy:   S.user?.name||'',
-    PhotoCount: qaPhotos.length,
+    Title:            `${job}_${defDate}_${causeCode}`,
+    JobNo:            job,
+    DefectDate:       defDate ? new Date(defDate).toISOString() : null,
+    DefectCode:       causeCode,
+    DefectDesc:       cause.label||causeCode,
+    Machine:          document.getElementById('qa-machine-no').value,
+    QTYDefect:        qty,
+    AnalysisMan:      document.getElementById('qa-man').value,
+    AnalysisMachine:  document.getElementById('qa-machine-4m').value,
+    AnalysisMethod:   document.getElementById('qa-method').value,
+    AnalysisMaterial: document.getElementById('qa-material').value,
+    ReportBy:         S.user?.name||'',
+    EmpRes:           S.user?.name||'',
+    Remarks:          document.getElementById('qa-note').value,
   };
+  // ลบ null fields
+  Object.keys(fields).forEach(k=>{ if(fields[k]===null||fields[k]==='') delete fields[k]; });
 
   let savedId = null;
   if(graphToken){
@@ -5055,22 +5108,15 @@ async function saveQA(){
       const newItem = await resp.json();
       savedId = newItem.id;
 
-      // upload รูปเป็น attachment ไปที่ item นั้น
+      // upload รูปเป็น attachment
       if(qaPhotos.length && savedId){
         for(const p of qaPhotos){
           try{
             const b64 = p.dataUrl.split(',')[1];
-            const bin = Uint8Array.from(atob(b64), c=>c.charCodeAt(0));
             await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${savedId}/attachments`,{
               method:'POST',
-              headers:{
-                Authorization:`Bearer ${graphToken}`,
-                'Content-Type':'application/json',
-              },
-              body: JSON.stringify({
-                name: p.name||`photo_${Date.now()}.jpg`,
-                contentBytes: b64,
-              })
+              headers:{ Authorization:`Bearer ${graphToken}`, 'Content-Type':'application/json' },
+              body: JSON.stringify({ name: p.name||`photo_${Date.now()}.jpg`, contentBytes: b64 })
             });
           }catch(e){ console.warn('upload photo error:',e); }
         }
@@ -5078,41 +5124,50 @@ async function saveQA(){
       showToast(`✅ บันทึก + แนบ ${qaPhotos.length} รูป ลง SP แล้วค่ะ`);
     }catch(e){
       showToast('⚠️ SP error: '+e.message);
+      console.error('saveQA error:',e);
     }
   } else {
     showToast('⚠️ ไม่ได้ login — บันทึก local เท่านั้น');
   }
 
-  // เก็บ local
-  qaRecords.unshift({...fields, photos: qaPhotos.map(p=>p.dataUrl), savedAt: new Date().toLocaleString('th-TH')});
-  updateQAStats();
-  renderQAList();
-  clearQAForm();
+  qaRecords.unshift({
+    id: savedId, OFMNo: job,
+    DefectDate: defDate, DefectCode: causeCode,
+    DefectDesc: cause.label||'', Grade: cause.grade||'',
+    QTYDefect: qty, Machine: fields.Machine||'',
+    ReportBy: fields.ReportBy,
+    photos: qaPhotos.map(p=>p.dataUrl),
+    savedAt: new Date().toLocaleString('th-TH')
+  });
+  updateQAStats(); renderQAList(); clearQAForm();
 }
 
 async function loadQAFromSP(){
   if(!graphToken){ showToast('⚠️ Login ก่อนค่ะ'); return; }
   showToast('⏳ Load QA จาก SP...');
   try{
-    const items = await spGetItems(SP_LISTS.L8,'',100);
+    const items = await spGetItems(SP_LISTS.L8,'',200);
     qaRecords = items.map(i=>({
-      OFMNo:      i.fields?.OFMNo||'',
-      DefectDate: i.fields?.DefectDate||'',
-      CauseCode:  i.fields?.CauseCode||'',
-      CauseLabel: i.fields?.CauseLabel||'',
-      Grade:      i.fields?.Grade||'',
-      Quantity:   i.fields?.Quantity||0,
-      Man4M:      i.fields?.Man4M||'',
-      RecordBy:   i.fields?.RecordBy||'',
-      PhotoCount: i.fields?.PhotoCount||0,
+      id:         i.id,
+      OFMNo:      i.fields?.JobNo||'',
+      DefectDate: i.fields?.DefectDate?i.fields.DefectDate.slice(0,10):'',
+      DefectCode: i.fields?.DefectCode||'',
+      DefectDesc: i.fields?.DefectDesc||'',
+      Grade:      (() => {
+        const c=i.fields?.DefectCode||'';
+        if(c.startsWith('A')) return 'Grade A';
+        if(c.startsWith('B')) return 'Grade B';
+        if(c.startsWith('C')) return 'Grade C';
+        return '';
+      })(),
+      QTYDefect:  i.fields?.QTYDefect||0,
+      Machine:    i.fields?.Machine||'',
+      ReportBy:   i.fields?.ReportBy||'',
       savedAt:    i.fields?.Modified||'',
     }));
-    updateQAStats();
-    renderQAList();
+    updateQAStats(); renderQAList();
     showToast(`✅ Load ${qaRecords.length} records`);
-  }catch(e){
-    showToast('❌ Load ไม่ได้: '+e.message);
-  }
+  }catch(e){ showToast('❌ Load ไม่ได้: '+e.message); }
 }
 
 function updateQAStats(){
@@ -5129,27 +5184,53 @@ function renderQAList(){
   let records = [...qaRecords];
   if(search) records = records.filter(r=>
     (r.OFMNo||'').toLowerCase().includes(search)||
-    (r.CauseCode||'').toLowerCase().includes(search)||
-    (r.CauseLabel||'').toLowerCase().includes(search)
+    (r.DefectCode||r.CauseCode||'').toLowerCase().includes(search)||
+    (r.DefectDesc||r.CauseLabel||'').toLowerCase().includes(search)
   );
-  if(gradeFilter) records = records.filter(r=>r.Grade===gradeFilter);
+  if(gradeFilter) records = records.filter(r=>(r.Grade||'').includes(gradeFilter));
   if(!records.length){
     el.innerHTML='<div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center">ไม่มีข้อมูล</div>';
     return;
   }
-  el.innerHTML = records.slice(0,30).map(r=>`
-    <div style="border-left:3px solid ${r.Grade==='A'?'var(--green)':r.Grade==='B'?'var(--amber)':'var(--red)'};padding:8px 10px;margin-bottom:6px;background:var(--panel);border-radius:0 var(--rs) var(--rs) 0">
+  el.innerHTML = records.slice(0,50).map((r,i)=>{
+    const grade = (r.Grade||'').replace('Grade ','');
+    const code  = r.DefectCode||r.CauseCode||'';
+    const desc  = r.DefectDesc||r.CauseLabel||'';
+    const qty   = r.QTYDefect||r.Quantity||0;
+    const bc    = grade==='A'?'var(--green)':grade==='B'?'var(--amber)':'var(--red)';
+    const pc    = grade==='A'?'p-ok':grade==='B'?'p-amber':'p-red';
+    return `
+    <div style="border-left:3px solid ${bc};padding:8px 10px;margin-bottom:6px;background:var(--panel);border-radius:0 var(--rs) var(--rs) 0">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px">
         <span class="mono" style="font-size:11px;color:var(--blue)">${r.OFMNo}</span>
-        <div style="display:flex;gap:4px">
-          <span class="pill ${r.Grade==='A'?'p-ok':r.Grade==='B'?'p-amber':'p-red'}">Grade ${r.Grade}</span>
-          <span class="pill p-gray">${r.Quantity} เส้น</span>
-          ${r.PhotoCount?`<span class="pill p-purple">📷${r.PhotoCount}</span>`:''}
+        <div style="display:flex;gap:4px;align-items:center">
+          <span class="pill ${pc}" style="font-size:9px">Grade ${grade}</span>
+          <span class="pill p-gray" style="font-size:9px">${qty} เส้น</span>
+          ${r.Machine?`<span style="font-size:9px;color:var(--ink3)">⚙️${r.Machine}</span>`:''}
+          <button onclick="deleteQARecord(${i})" style="padding:1px 6px;border:1px solid var(--red-bd);border-radius:var(--rs);background:var(--red-bg);color:var(--red);font-size:10px;cursor:pointer">🗑️</button>
         </div>
       </div>
-      <div style="font-size:11px;color:var(--ink2)">${r.CauseCode} — ${r.CauseLabel}</div>
-      <div style="font-size:10px;color:var(--ink3);margin-top:2px">${r.DefectDate} · ${r.RecordBy}</div>
-    </div>`).join('');
+      <div style="font-size:11px;color:var(--ink2)">${code} — ${desc}</div>
+      <div style="font-size:10px;color:var(--ink3);margin-top:2px">${r.DefectDate||''} · ${r.ReportBy||r.RecordBy||''} · ${r.savedAt||''}</div>
+    </div>`;
+  }).join('');
+}
+
+async function deleteQARecord(idx){
+  const r = qaRecords[idx];
+  if(!r) return;
+  if(!confirm(`ลบรายการของเสีย ${r.OFMNo} · ${r.DefectCode||r.CauseCode} ออก?`)) return;
+  if(r.id && graphToken){
+    try{
+      const siteId = await getSiteId();
+      const lid = await getListId(SP_LISTS.L8);
+      await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${lid}/items/${r.id}`,
+        {method:'DELETE', headers:{Authorization:`Bearer ${graphToken}`}});
+      showToast('🗑️ ลบจาก SP แล้วค่ะ');
+    }catch(e){ showToast('⚠️ ลบ SP ไม่สำเร็จ'); }
+  }
+  qaRecords.splice(idx,1);
+  updateQAStats(); renderQAList();
 }
 
 function renderQAJobSelect(){
