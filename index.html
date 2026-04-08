@@ -2918,8 +2918,8 @@ async function saveSchEdit(prod){
   // PATCH SP
   if(graphToken && j.spId){
     const fields={};
-    if(newSt){           fields.OSEStatus=newSt; fields.field_10=newSt; }
-    if(newMach){         fields.MachineName=newMach; fields.field_6=newMach; }
+    if(newSt){           fields.field_10=newSt; }
+    if(newMach){         fields.field_6=newMach; }
     if(parseDMY(newSd)) fields.field_7=new Date(parseDMY(newSd)).toISOString();
     if(parseDMY(newEd)) fields.field_8=new Date(parseDMY(newEd)).toISOString();
     if(newRm!==undefined) fields.field_17=newRm;
@@ -3851,7 +3851,9 @@ async function saveOSEPlan(){
 }
 function renderOSEPlanned(){
   const el=document.getElementById('ose-planned-list');
-  document.getElementById('ose-plan-count').textContent=S.osePlans.length;
+  if(!el) return;
+  const cnt=document.getElementById('ose-plan-count');
+  if(cnt) cnt.textContent=S.osePlans.length;
   el.innerHTML=S.osePlans.map((p,i)=>`
     <div class="ose-row">
       <div style="display:flex;align-items:center;gap:8px">
@@ -4720,6 +4722,7 @@ async function saveProd(){
       if(!r1.ok) throw new Error(`L7_1: ${await r1.text()}`);
       const r1json  = await r1.json();
       const reportId = r1json.id;
+      window._lastL7Id = reportId; // เก็บไว้ใช้ใน prodHistory
       showToast(`✅ L7_1 บันทึกแล้ว`);
 
       // ── POST L7_2 Breakdown (แต่ละ row) ─────────────────────
@@ -4784,7 +4787,7 @@ async function saveProd(){
   }
 
   // local history
-  prodHistory.unshift({...record, savedAt: new Date().toLocaleTimeString('th-TH')});
+  prodHistory.unshift({...record, l7Id: window._lastL7Id||'', savedAt: new Date().toLocaleTimeString('th-TH')});
   renderProdHistory();
   // reset BD/Setup
   prodBDRows=[]; prodSetupRows=[];
