@@ -2864,20 +2864,28 @@ async function saveJobSchedule(prod){
   if(!j.spId){showToast('⚠️ ไม่พบ spId — Load L6 ก่อน');return;}
   const fields={};
   if(j.machine){             fields.field_6  = j.machine; }
-  if(j.startDate){           fields.field_7  = new Date(j.startDate).toISOString(); }
-  if(j.endDate){             fields.field_8  = new Date(j.endDate).toISOString(); }
+  if(j.startDate){           try{ fields.field_7 = new Date(j.startDate).toISOString(); }catch(e){} }
+  if(j.endDate){             try{ fields.field_8 = new Date(j.endDate).toISOString(); }catch(e){} }
   if(j.oseStatus||j.status){ fields.field_10 = j.oseStatus||j.status; }
-  // เส้นทางหลังเครื่อง
-  if(j.routeCH  !== undefined){ fields.RouteCH  = j.routeCH||''; }
-  if(j.routePA  !== undefined){ fields.RoutePA  = j.routePA||''; }
-  if(j.routeORW !== undefined){ fields.RouteORW = j.routeORW||''; }
   if(!Object.keys(fields).length){ showToast('⚠️ ไม่มีข้อมูลที่ต้องบันทึก'); return; }
+
+  // PATCH หลัก (field_6/7/8/10)
   const ok=await spPatchItem(SP_LISTS.L6,j.spId,fields);
-  if(ok){
-    showToast(`✅ บันทึก ${prod} → ${j.machine||'?'} | ${(j.oseStatus||'').slice(0,20)}`);
-    renderMachineSchedule();
-    renderUnassigned();
-  } else showToast(`❌ บันทึกไม่สำเร็จ: ${prod}`);
+  if(!ok){ showToast(`❌ บันทึกไม่สำเร็จ: ${prod}`); return; }
+
+  // PATCH Route (ถ้ามี column — ล้มเหลวได้โดยไม่ block)
+  const routeFields={};
+  if(j.routeCH)  routeFields.RouteCH  = j.routeCH;
+  if(j.routePA)  routeFields.RoutePA  = j.routePA;
+  if(j.routeORW) routeFields.RouteORW = j.routeORW;
+  if(Object.keys(routeFields).length){
+    try{ await spPatchItem(SP_LISTS.L6,j.spId,routeFields); }
+    catch(e){ console.warn('Route columns not yet created in SP — skipping',e); }
+  }
+
+  showToast(`✅ บันทึก ${prod} → ${j.machine||'?'} | ${(j.oseStatus||'').slice(0,20)}`);
+  renderMachineSchedule();
+  renderUnassigned();
 }
 
 // ── Inline edit in machine schedule table ────────────────────────
