@@ -4490,34 +4490,60 @@ function resetProdForm(){
 async function deleteProdRecord(idx){
   const r = prodHistory[idx];
   if(!r) return;
-  if(!confirm(`ลบรายการ ${r.OFMNo} · ${r.TimeRange||r.Shift||''} · ${r.ActualQty} เส้น ออก?`)) return;
+  if(!confirm(`ลบรายการ ${r.OFMNo} · ${r.TimeRange||r.Shift||''} · ${r.ActualQty} เส้น ออก?\n(จะลบทั้งใน L7_1 DailyReport, L7_2 Breakdown และ L7_3 SetupLog)`)) return;
 
-  // ลบจาก SP L7_1 ถ้ามี id
   if(r.l7Id && graphToken){
     try{
       const siteId = await getSiteId();
-      const lid = await getListId(SP_LISTS.L7_1);
-      const resp = await fetch(
-        `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${lid}/items/${r.l7Id}`,
-        {method:'DELETE', headers:{Authorization:`Bearer ${graphToken}`}}
-      );
-      if(resp.ok || resp.status===204){
-        showToast(`🗑️ ลบ ${r.OFMNo} จาก SP แล้วค่ะ`);
-      } else {
-        showToast(`⚠️ SP ลบไม่สำเร็จ (${resp.status}) — ลบจาก local เท่านั้น`);
-      }
+      showToast('⏳ กำลังลบ...');
+
+      // ── ลบ L7_1 DailyReport ──────────────────────────────────
+      const lid1 = await getListId(SP_LISTS.L7_1);
+      await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${lid1}/items/${r.l7Id}`,
+        {method:'DELETE', headers:{Authorization:`Bearer ${graphToken}`}});
+
+      // ── ลบ L7_2 Breakdown ที่มี ReportTitle = r.l7Id ─────────
+      try{
+        const lid2 = await getListId(SP_LISTS.L7_2);
+        const bd2 = await fetch(
+          `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${lid2}/items?$expand=fields&$filter=fields/ReportTitle eq '${r.l7Id}'&$top=50`,
+          {headers:{Authorization:`Bearer ${graphToken}`, Prefer:'HonorNonIndexedQueriesWarningMayFailRandomly'}}
+        );
+        const bd2json = await bd2.json();
+        for(const item of (bd2json.value||[])){
+          await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${lid2}/items/${item.id}`,
+            {method:'DELETE', headers:{Authorization:`Bearer ${graphToken}`}});
+        }
+        if((bd2json.value||[]).length) showToast(`🗑️ ลบ Breakdown ${bd2json.value.length} รายการ`);
+      }catch(e){ console.warn('delete L7_2 error:',e); }
+
+      // ── ลบ L7_3 SetupLog ที่มี ReportTitle = r.l7Id ──────────
+      try{
+        const lid3 = await getListId(SP_LISTS.L7_3);
+        const su3 = await fetch(
+          `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${lid3}/items?$expand=fields&$filter=fields/ReportTitle eq '${r.l7Id}'&$top=50`,
+          {headers:{Authorization:`Bearer ${graphToken}`, Prefer:'HonorNonIndexedQueriesWarningMayFailRandomly'}}
+        );
+        const su3json = await su3.json();
+        for(const item of (su3json.value||[])){
+          await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${lid3}/items/${item.id}`,
+            {method:'DELETE', headers:{Authorization:`Bearer ${graphToken}`}});
+        }
+        if((su3json.value||[]).length) showToast(`🗑️ ลบ Setup ${su3json.value.length} รายการ`);
+      }catch(e){ console.warn('delete L7_3 error:',e); }
+
+      showToast(`✅ ลบ ${r.OFMNo} ออกจาก SP ครบแล้วค่ะ`);
     }catch(e){
-      showToast('⚠️ ลบจาก SP ไม่ได้ — ลบ local เท่านั้น');
-      console.warn('deleteProdRecord SP error:',e);
+      showToast('⚠️ ลบจาก SP บางส่วนไม่สำเร็จ — ลบ local เท่านั้น');
+      console.warn('deleteProdRecord error:',e);
     }
-  } else if(!r.l7Id){
-    showToast('🗑️ ลบออกจาก local แล้วค่ะ (ไม่มี SP id)');
+  } else {
+    showToast('🗑️ ลบออกจาก local แล้วค่ะ (ไม่มี SP id — กด 🔄 โหลดจาก SP ก่อน)');
   }
 
-  // ลบออกจาก local history เสมอ
   prodHistory.splice(idx, 1);
   renderProdHistory();
-  renderProdJobList(); // อัป badge "✓บันทึกแล้ว"
+  renderProdJobList();
 }
 
 function onProdChange(){ calcProdGrade(); }
