@@ -706,7 +706,8 @@ table.ax-t .ax-total{background:var(--green-lt);color:var(--green);font-weight:6
               <input class="fi" id="prod-by" placeholder="ชื่อพนักงาน"></div>
 
             <div class="btn-row" style="margin-top:4px">
-              <button class="btn" onclick="closeProdForm()">ยกเลิก</button>
+              <button class="btn" onclick="closeProdForm()">✕ ปิด</button>
+              <button class="btn" style="color:var(--amber);border-color:var(--amber-bd)" onclick="resetProdForm()">↩ คืนค่าเดิม</button>
               <button class="btn btn-p" style="flex:2" onclick="saveProd()">💾 บันทึกผลผลิต → SP</button>
             </div>
           </div>
@@ -4461,6 +4462,62 @@ function closeProdForm(){
   S.selectedOFMPlan=null;
 }
 
+// คืนค่า form กลับค่าเดิมจากใบงาน L6
+function resetProdForm(){
+  const prodNo = S.selectedOFMPlan;
+  if(!prodNo){ showToast('⚠️ ยังไม่ได้เลือกใบงาน'); return; }
+  if(!confirm('คืนค่า form ทั้งหมดกลับเป็นค่าเดิม?')) return;
+  const j = prodJobs.find(x=>x.prod===prodNo);
+  ['prod-actual','prod-hours','prod-speed','prod-elec',
+   'prod-ga','prod-gb','prod-gc','prod-note'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value='';
+  });
+  if(j){
+    document.getElementById('prod-machine').value = j.machine||'';
+    document.getElementById('prod-plan-qty').value = j.planQty||'';
+  }
+  document.getElementById('prod-status').value = 'เดินงานตามปกติ';
+  document.getElementById('prod-timerange').value = '';
+  document.getElementById('prod-grade-msg').style.display='none';
+  prodBDRows=[]; prodSetupRows=[];
+  renderBDRows(); renderSetupRows();
+  showToast('↩ คืนค่า form แล้วค่ะ');
+}
+
+// ลบ record ออกจาก history (และ SP ถ้ามี l7Id)
+async function deleteProdRecord(idx){
+  const r = prodHistory[idx];
+  if(!r) return;
+  if(!confirm(`ลบรายการ ${r.OFMNo} · ${r.TimeRange||r.Shift||''} · ${r.ActualQty} เส้น ออก?`)) return;
+
+  // ลบจาก SP L7_1 ถ้ามี id
+  if(r.l7Id && graphToken){
+    try{
+      const siteId = await getSiteId();
+      const lid = await getListId(SP_LISTS.L7_1);
+      const resp = await fetch(
+        `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${lid}/items/${r.l7Id}`,
+        {method:'DELETE', headers:{Authorization:`Bearer ${graphToken}`}}
+      );
+      if(resp.ok || resp.status===204){
+        showToast(`🗑️ ลบ ${r.OFMNo} จาก SP แล้วค่ะ`);
+      } else {
+        showToast(`⚠️ SP ลบไม่สำเร็จ (${resp.status}) — ลบจาก local เท่านั้น`);
+      }
+    }catch(e){
+      showToast('⚠️ ลบจาก SP ไม่ได้ — ลบ local เท่านั้น');
+      console.warn('deleteProdRecord SP error:',e);
+    }
+  } else if(!r.l7Id){
+    showToast('🗑️ ลบออกจาก local แล้วค่ะ (ไม่มี SP id)');
+  }
+
+  // ลบออกจาก local history เสมอ
+  prodHistory.splice(idx, 1);
+  renderProdHistory();
+  renderProdJobList(); // อัป badge "✓บันทึกแล้ว"
+}
+
 function onProdChange(){ calcProdGrade(); }
 
 function calcProdGrade(){
@@ -4747,6 +4804,7 @@ function renderProdHistory(){
         <div style="display:flex;gap:5px;align-items:center">
           <span class="pill p-ok" style="font-size:10px">✓ ${r.ActualQty} เส้น</span>
           <button onclick="editProdRecord(${i})" style="padding:2px 8px;border:1px solid var(--blue-bd);border-radius:var(--rs);background:var(--blue-bg);color:var(--blue);font-size:10px;cursor:pointer">✏️ แก้</button>
+          <button onclick="deleteProdRecord(${i})" style="padding:2px 8px;border:1px solid var(--red-bd);border-radius:var(--rs);background:var(--red-bg);color:var(--red);font-size:10px;cursor:pointer">🗑️ ลบ</button>
         </div>
       </div>
       <div style="color:var(--ink3);font-size:10px">${r.Machine||'—'} · ${r.TimeRange||r.Shift||'—'} · ${r.Status||'—'} · ${r.savedAt||''}</div>
