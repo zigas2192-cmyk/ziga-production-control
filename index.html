@@ -1086,6 +1086,7 @@ table.ax-t .ax-total{background:var(--green-lt);color:var(--green);font-weight:6
           <div>Remark &nbsp;&nbsp;&nbsp;→ หมายเหตุ (Single line, optional)</div>
         </div>
         <button class="btn" style="margin-top:10px;font-size:11px" onclick="createL9List()">🔧 สร้าง L9 List อัตโนมัติ (ถ้ายังไม่มี)</button>
+        <button class="btn" style="margin-top:10px;font-size:11px;margin-left:8px" onclick="debugL6Sample()">🔍 Debug L6 Machine Column</button>
       </div>
 
       <!-- Current UserRoles from SP -->
@@ -1570,6 +1571,25 @@ async function debugL4Fields(){
     console.log('L4 Fields:\n'+msg);
     alert('L4 Field Mapping (ดู Console สำหรับครบ):\n\n'+
       fields.slice(0,15).map(f=>`${f.display} → "${f.internal}"`).join('\n'));
+  }
+}
+
+async function debugL6Sample(){
+  if(!graphToken){showToast('⚠️ login ก่อน');return;}
+  showToast('🔍 ดู L6 raw item...');
+  const items = await spGetItems(SP_LISTS.L6,'',3);
+  if(items.length){
+    // Show all keys of first item
+    const keys = Object.keys(items[0]);
+    console.log('L6 first item keys:', keys);
+    console.log('L6 first item:', JSON.stringify(items[0],null,2));
+    // Show machine-related fields
+    const machKeys = keys.filter(k=>k.toLowerCase().includes('machine')||k==='field_6');
+    const machVals = machKeys.map(k=>`${k}: "${items[0][k]}"`).join('\n');
+    alert('L6 Machine-related columns:\n\n'+(machVals||'ไม่พบ — ดู Console')+'\n\n'+
+          'All keys (first 20):\n'+keys.slice(0,20).join(', '));
+  } else {
+    alert('L6 ว่างเปล่า — Load L6 ก่อน');
   }
 }
 
@@ -2216,7 +2236,8 @@ function initMasterPlan(){
   const active=S.axJobs.filter(isActive);
   const noMach=active.filter(j=>!j.machine).length;
   const bd=document.getElementById('mp-summary-badge');
-  if(bd) bd.textContent=`ทั้งหมด ${active.length} ใบ · รอลงเครื่อง ${noMach} ใบ`;
+  const hasMach = active.filter(j=>j.machine).length;
+  if(bd) bd.textContent=`ทั้งหมด ${active.length} ใบ · ลงเครื่องแล้ว ${hasMach} ใบ · รอลงเครื่อง ${noMach} ใบ`;
   const sel=document.getElementById('mp-shift-sel');
   if(sel&&sel.options.length<=1) SHIFTS.forEach(s=>{const o=document.createElement('option');o.value=s.hours;o.textContent=s.label+' ('+s.hours+'h)';sel.appendChild(o);});
   const stSel=document.getElementById('mp-map-status');
@@ -2339,7 +2360,7 @@ function renderMachineSchedule(){
   const dType = document.getElementById('sch-type-filter')?.value||'';
 
   // Apply filters
-  let allJobs=S.axJobs.filter(j=>isActive(j)&&j.machine);
+  let allJobs=S.axJobs.filter(j=>isActive(j)); // รวมทั้งที่ลงเครื่องแล้วและยังไม่ลง
   if(q) allJobs=allJobs.filter(j=>
     (j.prod||'').toLowerCase().includes(q)||
     (j.name||'').toLowerCase().includes(q)||
@@ -2378,11 +2399,8 @@ function renderMachineSchedule(){
 
   const unassigned=S.axJobs.filter(j=>isActive(j)&&!j.machine).length;
   let html='';
-  if(unassigned>0){
-    html+=`<div style="background:var(--amber-bg);border:1px solid var(--amber-bd);border-radius:var(--rs);padding:10px 14px;margin-bottom:14px;font-size:13px;color:var(--amber)">
-      ⚠️ มีใบงาน <strong>${unassigned} ใบ</strong> ยังไม่ได้ลงเครื่อง — ไปที่ tab <strong>📋 ลงเครื่อง</strong>
-    </div>`;
-  }
+  // Banner ถูกแทนที่ด้วย group "ยังไม่ลงเครื่อง" ด้านล่างตาราง
+  // ไม่ต้องแสดง banner ซ้ำ
 
   let totalShown=0;
   MACHINE_GROUPS.forEach(grp=>{
@@ -2506,7 +2524,61 @@ function renderMachineSchedule(){
     </div>`;
   });
 
-  if(!totalShown&&!unassigned) html='<div style="color:#888;font-size:14px;padding:30px;text-align:center">ไม่มีใบงาน — กด 🔄 Load L6 ก่อน</div>';
+  // Group: ยังไม่ลงเครื่อง (jobs without machine, respecting current filters)
+  const noMachJobs = allJobs.filter(j=>!j.machine);
+  if(noMachJobs.length > 0 && !dMach){
+    html += `<div style="margin-bottom:20px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:8px 12px;background:#fff3e0;border-left:4px solid var(--amber);border-radius:0 var(--rs) var(--rs) 0">
+        <span style="font-size:16px">⏳</span>
+        <span style="font-size:14px;font-weight:700;color:var(--amber)">ยังไม่ลงเครื่อง</span>
+        <span class="pill p-amber">${noMachJobs.length} ใบ</span>
+        <span style="font-size:11px;color:var(--ink3);margin-left:4px">→ ไปที่ tab <a onclick="switchMPTab('unassigned',document.querySelector('.mp-tab:nth-child(2)'))" style="color:var(--blue);cursor:pointer;text-decoration:underline">ลงเครื่อง</a> เพื่อกำหนดเครื่อง</span>
+      </div>
+      <div class="tbl-wrap"><table class="ft" style="min-width:900px">
+        <thead><tr>
+          <th style="width:130px">หมายเลขงาน</th>
+          <th>ชื่องาน</th>
+          <th style="width:60px">TH(mm)</th>
+          <th style="width:90px">จำนวน/ม้วน</th>
+          <th style="width:70px">แบรนด์</th>
+          <th style="width:100px">น้ำหนัก(kg)</th>
+          <th style="width:105px">วันที่เริ่ม</th>
+          <th style="width:105px">วันที่จบ</th>
+          <th style="width:150px">สถานะ</th>
+        </tr></thead>
+        <tbody>
+        ${noMachJobs.map(j=>{
+          const jt=jobType(j);
+          const tc=jt==='OSE'?'#1a7a1a':jt==='OFM'?'#1259A5':jt==='ORW'?'#433FA8':'#333';
+          const _cc=j.qtyCoils||Math.round((j.qty||0)/10000)||0;
+          const _pi=getProdInfo(j);
+          const st=j.oseStatus||j.status||'';
+          const stColor=OSE_STATUS_COLOR[st]||'p-gray';
+          return \`<tr style="background:var(--amber-bg);opacity:.85">
+            <td><div style="font-family:var(--mono);font-size:13px;font-weight:700;color:\${tc}">\${j.prod}</div><span style="font-size:11px;color:#666">\${jt}</span></td>
+            <td style="font-size:12px;color:#111;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="\${j.name||''}">\${j.name||'—'}</td>
+            <td style="text-align:center;font-size:13px">\${j.thick?j.thick:'—'}</td>
+            <td style="font-family:var(--mono);font-size:12px;text-align:right">
+              \${jt==='OSE'&&_cc>0?\`<div style="font-weight:700;color:var(--green)">\${_cc} ม้วน</div>\`:(j.qty?Number(j.qty).toLocaleString():'—')}
+            </td>
+            <td style="text-align:center">
+              \${_pi.brand?\`<span style="padding:2px 5px;border-radius:3px;background:var(--blue-bg);border:1px solid var(--blue-bd);color:var(--blue);font-size:10px;font-weight:600">\${_pi.brand}</span>\`:'<span style="color:var(--ink4);font-size:10px">—</span>'}
+            </td>
+            <td style="font-family:var(--mono);font-size:11px;text-align:right">
+              \${_pi.totalWt>0?\`<div style="font-weight:600">\${_pi.totalWt.toLocaleString()}</div><div style="font-size:9px;color:var(--ink3)">\${_pi.netWt}kg/เส้น</div>\`:'—'}
+            </td>
+            <td style="font-size:12px;color:\${j.startDate?'#111':'var(--amber)'}">\${j.startDate?j.startDate.slice(0,10):'<span style="color:var(--amber)">ยังไม่กำหนด</span>'}</td>
+            <td style="font-size:12px">\${j.endDate?j.endDate.slice(0,10):'—'}</td>
+            <td><span class="pill \${stColor}" style="font-size:10px;max-width:138px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block">\${st||'ไม่ระบุ'}</span></td>
+          </tr>\`;
+        }).join('')}
+        </tbody>
+      </table></div>
+    </div>`;
+    totalShown += noMachJobs.length;
+  }
+
+  if(!totalShown) html='<div style="color:#888;font-size:14px;padding:30px;text-align:center">ไม่มีใบงาน — กด 🔄 Load L6 ก่อน</div>';
   el.innerHTML=html;
 }
 
@@ -3406,7 +3478,10 @@ async function loadL6FromSP(){
       thick:        parseFloat(f.ThicknessMM||f.field_3)||0,
       width:        parseFloat(f.field_4)||0,
       qtyCoils:     parseFloat(f.field_5)||0,
-      machine:      (f.MachineName||f.field_6||'').replace(/\s*\([^)]*\)/g,'').trim(),
+      machine:      (()=>{
+        const raw = f.MachineName||f.Machine||f.field_6||f.MachineCode||'';
+        return raw.replace(/\s*\([^)]*\)/g,'').trim();
+      })(),
       startDate:    f.StartDate||f.field_7||'',
       endDate:      f.EndDate||f.field_8||'',
       capMinPerCoil:parseFloat(f.field_9)||0,
