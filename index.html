@@ -2175,7 +2175,7 @@ async function loadL4FromSP(){
       wScrap:   parseFloat(f.field_15)||0,
       wNet:     parseFloat(f.field_16)||0,
       remarks:  f.field_17||'',
-      spId:     f.id||'',
+      spId:     f.id ? String(f.id) : '',
     }));
     hideProgress();
     // ── Restore slitData จากค่าน้ำหนักที่ load มาจาก L4 ──────────
@@ -2432,6 +2432,7 @@ function renderMachineSchedule(){
               <th>ชื่องาน</th>
               <th style="width:60px">TH(mm)</th>
               <th style="width:80px">จำนวน</th>
+              <th style="width:110px">Itemnumber</th>
               <th style="width:70px">แบรนด์</th>
               <th style="width:90px">น้ำหนัก(kg)</th>
               <th style="width:100px">วันที่เริ่ม</th>
@@ -2458,6 +2459,7 @@ function renderMachineSchedule(){
               : (j.qty?Number(j.qty).toLocaleString():'—');
           })()}
         </td>
+                <td style="font-family:var(--mono);font-size:11px;color:var(--ink2);max-width:105px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${j.itemCode||''}">${j.itemCode||'—'}</td>
                 ${(()=>{
                   const _pi=getProdInfo(j);
                   const brandCell=_pi.brand
@@ -2552,6 +2554,7 @@ function renderMachineSchedule(){
         '<td style="font-size:12px;color:#111;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+(j.name||'')+'">'+( j.name||'—')+'</td>'+
         '<td style="text-align:center;font-size:13px">'+(j.thick?j.thick:'—')+'</td>'+
         '<td style="font-family:var(--mono);font-size:12px;text-align:right">'+qtyCell+'</td>'+
+        '<td style="font-family:var(--mono);font-size:11px;color:var(--ink2);max-width:105px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+(j.itemCode||'')+'">'+( j.itemCode||'—')+'</td>'+
         '<td style="text-align:center">'+brandCell+'</td>'+
         '<td style="font-family:var(--mono);font-size:11px;text-align:right">'+wtCell+'</td>'+
         '<td style="font-size:12px">'+startCell+'</td>'+
@@ -2569,6 +2572,7 @@ function renderMachineSchedule(){
       '<thead><tr>'+
       '<th style="width:130px">หมายเลขงาน</th><th>ชื่องาน</th>'+
       '<th style="width:60px">TH(mm)</th><th style="width:90px">จำนวน/ม้วน</th>'+
+      '<th style="width:110px">Itemnumber</th>'+
       '<th style="width:70px">แบรนด์</th><th style="width:100px">น้ำหนัก(kg)</th>'+
       '<th style="width:105px">วันที่เริ่ม</th><th style="width:105px">วันที่จบ</th>'+
       '<th style="width:150px">สถานะ</th>'+
@@ -2826,6 +2830,7 @@ function renderUnassigned(){
       <th>ชื่องาน</th>
       <th style="width:55px">TH</th>
       <th style="width:80px">จำนวน/ม้วน</th>
+      <th style="width:110px">Itemnumber</th>
       <th style="width:65px">แบรนด์</th>
       <th style="width:85px">น้ำหนัก(kg)</th>
       <th style="width:110px">OSE คู่</th>
@@ -2895,6 +2900,7 @@ function renderUnassigned(){
             : (j.qty?Number(j.qty).toLocaleString():'—')
           }
         </td>
+        <td style="font-family:var(--mono);font-size:11px;color:var(--ink2);max-width:105px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${j.itemCode||''}">${j.itemCode||'—'}</td>
         ${(()=>{
           const _pi3=getProdInfo(j);
           const b3=_pi3.brand
@@ -4721,8 +4727,16 @@ async function syncBrandWeightToL6(){
   if(!S.axJobs.length){ showToast('⚠️ Load L6 ก่อน'); return; }
 
   const jobs = S.axJobs.filter(j=>j.spId && j.itemCode && prodAXMap[j.itemCode]);
-  if(!jobs.length){ showToast('⚠️ ไม่มีใบงานที่ match กับ Released Products'); return; }
-  if(!confirm(`PATCH Brand + น้ำหนัก รวม ${jobs.length} ใบงาน → L6?\n\nข้อมูลที่จะบันทึก:\n- field_18 = Brand (จาก Released Products)\n- field_19 = น้ำหนักรวม kg (Net weight × QTY)`)) return;
+  const sample = S.axJobs[0];
+  console.log('Sync sample job[0]:', {spId: sample?.spId, itemCode: sample?.itemCode, prod: sample?.prod});
+  console.log(`Sync check: total=${S.axJobs.length}, hasSpId=${S.axJobs.filter(j=>j.spId).length}, hasItemCode=${S.axJobs.filter(j=>j.itemCode).length}, inProdAX=${S.axJobs.filter(j=>j.itemCode&&prodAXMap[j.itemCode]).length}, matched=${jobs.length}`);
+  if(!jobs.length){
+    const noSpId = S.axJobs.filter(j=>!j.spId).length;
+    const noCode = S.axJobs.filter(j=>!j.itemCode).length;
+    showToast(`⚠️ ไม่มีใบงานที่ match — ไม่มี spId: ${noSpId}, ไม่มี itemCode: ${noCode}`);
+    return;
+  }
+  if(!confirm(`Sync Brand + น้ำหนัก → L6 จำนวน ${jobs.length} ใบงาน?\n\nข้อมูลที่จะบันทึก:\n- _x0e3a_Brand = Brand\n- TotalWeightKG = น้ำหนักรวม kg`)) return;
 
   showProgress('กำลัง Sync Brand+Weight → L6...', 0, jobs.length);
   let ok=0, err=0;
