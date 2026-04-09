@@ -3242,7 +3242,12 @@ async function saveJobSchedule(prod){
   if(!graphToken){showToast('⚠️ login ก่อน');return;}
   if(!j.spId){showToast('⚠️ ไม่พบ spId — Load L6 ก่อน');return;}
   const fields={};
-  if(j.machine){             fields.MachineNo = j.machine; } // lookup column
+  if(j.machine){
+    // Lookup column: find SP item ID from machineIdMap
+    const machId = Object.entries(machineIdMap).find(([id,name])=>name===j.machine)?.[0];
+    if(machId) fields.MachineNoLookupId = parseInt(machId);
+    else fields.MachineNo = j.machine; // fallback: try text
+  }
   if(j.startDate){           try{ fields.field_7 = new Date(j.startDate).toISOString(); }catch(e){} }
   if(j.endDate){             try{ fields.field_8 = new Date(j.endDate).toISOString(); }catch(e){} }
   if(j.oseStatus||j.status){ fields.field_10 = j.oseStatus||j.status; }
@@ -3474,16 +3479,12 @@ async function loadL6FromSP(){
   if(_loadingL6) return;
   _loadingL6 = true;
   try{
+    // Ensure machineIdMap is ready (needed to resolve MachineNoLookupId)
+    if(!Object.keys(machineIdMap).length) await loadMachineList();
     showProgress('กำลังโหลด OSE/OFM จาก SharePoint L6...',0,1);
     const items=await spGetItems(SP_LISTS.L6,'',500);
     if(!items.length){hideProgress();return;}
-    // DEBUG: log all SP field names to find MachineNo internal name
-    if(items[0]){
-      const allKeys = Object.keys(items[0]);
-      const machKeys = allKeys.filter(k=>k.toLowerCase().includes('machine')||k.toLowerCase().includes('mach'));
-      console.log('L6 SP machine keys:', machKeys, '| values:', machKeys.map(k=>items[0][k]));
-      console.log('L6 SP all keys:', allKeys.join(', '));
-    }
+
     // ← overwrite ทั้งหมดจาก SP เสมอ ไม่ merge กับ cache เก่า
     S.axJobs=items.map(f=>({
       prod:         f.Title||'',
@@ -3493,7 +3494,7 @@ async function loadL6FromSP(){
       thick:        parseFloat(f.ThicknessMM||f.field_3)||0,
       width:        parseFloat(f.field_4)||0,
       qtyCoils:     parseFloat(f.field_5)||0,
-      machine:      f.MachineNo||'', // NEWMachineNo column (internal: MachineNo)
+      machine:      machineIdMap[String(f.MachineNoLookupId||'')]||f.MachineNo||'', // resolve lookup ID → name
       startDate:    f.StartDate||f.field_7||'',
       endDate:      f.EndDate||f.field_8||'',
       capMinPerCoil:parseFloat(f.field_9)||0,
@@ -4728,12 +4729,21 @@ const MACHINE_LIST_FALLBACK = [
   {g:'ข้อต่อ/อื่นๆ', m:['CU_BL01','CU_BL02','CU_HS01','CU_HS02','CU_HS03 (E6)','CU_HS04 (E7)','CU_HS05 (ตัดท่อโค้ง)','ข้อต่อ-อัด','ข้อต่อ-ลบคม','ข้อต่อ-เกลียว','ข้อต่อ-ล้าง','ข้อต่อ-ชุบน้ำยากันสนิม','ดันตะเข็บ','WT_01']},
 ];
 
+// Map SP item ID → MachineNo name (for lookup column resolution)
+let machineIdMap = {}; // {spItemId: 'SL_02'}
+
 async function loadMachineList(){
   try{
     if(graphToken){
       const items = await spGetItems(SP_LISTS.MACH,'',100);
       if(items.length){
+        machineIdMap = {};
+        items.forEach(i=>{
+          const name = i.MachineNO||i.field_1||i.Title||'';
+          if(i.id && name) machineIdMap[String(i.id)] = name;
+        });
         machineList = items.map(i=>i.MachineNO||i.field_1||i.Title||'').filter(Boolean).sort();
+        console.log('machineIdMap:', machineIdMap);
       }
     }
   }catch(e){ console.warn('loadMachineList fallback:',e); }
