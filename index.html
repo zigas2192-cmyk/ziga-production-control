@@ -2429,10 +2429,10 @@ function renderMachineSchedule(){
           ${d.jobs.length?`<div class="tbl-wrap"><table class="ft" style="min-width:820px">
             <thead><tr>
               <th style="width:130px">หมายเลขงาน</th>
+              <th style="width:140px">Itemnumber</th>
               <th>ชื่องาน</th>
               <th style="width:60px">TH(mm)</th>
               <th style="width:80px">จำนวน</th>
-              <th style="width:110px">Itemnumber</th>
               <th style="width:70px">แบรนด์</th>
               <th style="width:90px">น้ำหนัก(kg)</th>
               <th style="width:100px">วันที่เริ่ม</th>
@@ -2449,7 +2449,8 @@ function renderMachineSchedule(){
               const sid=j.prod.replace(/[^a-z0-9]/gi,'_');
               return `<tr id="sch-row-${sid}">
                 <td><div style="font-family:var(--mono);font-size:13px;font-weight:700;color:${tc}">${j.prod}</div><span style="font-size:11px;color:#666">${jt}</span></td>
-                <td style="font-size:13px;color:#111;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${j.name||''}">${j.name||'—'}</td>
+                <td style="font-family:var(--mono);font-size:11px;color:var(--ink2);white-space:nowrap" title="${j.itemCode||''}">${j.itemCode||'—'}</td>
+                <td style="font-size:12px;color:#111;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${j.name||''}">${j.name||'—'}</td>
                 <td style="font-size:13px;text-align:center;color:#111">${j.thick?j.thick+'mm':'—'}</td>
                 <td style="font-family:var(--mono);font-size:13px;text-align:right;color:#111">
           ${(()=>{const _cc=j.qtyCoils||Math.round((j.qty||0)/10000)||0;
@@ -2459,7 +2460,6 @@ function renderMachineSchedule(){
               : (j.qty?Number(j.qty).toLocaleString():'—');
           })()}
         </td>
-                <td style="font-family:var(--mono);font-size:11px;color:var(--ink2);max-width:105px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${j.itemCode||''}">${j.itemCode||'—'}</td>
                 ${(()=>{
                   const _pi=getProdInfo(j);
                   const brandCell=_pi.brand
@@ -2551,10 +2551,10 @@ function renderMachineSchedule(){
         : '<span style="color:var(--amber)">ยังไม่กำหนด</span>';
       return '<tr style="background:var(--amber-bg)">'+
         '<td><div style="font-family:var(--mono);font-size:13px;font-weight:700;color:'+tc+'">'+j.prod+'</div><span style="font-size:11px;color:#666">'+jt+'</span></td>'+
+        '<td style="font-family:var(--mono);font-size:11px;color:var(--ink2);white-space:nowrap" title="'+(j.itemCode||'')+'">'+( j.itemCode||'—')+'</td>'+
         '<td style="font-size:12px;color:#111;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+(j.name||'')+'">'+( j.name||'—')+'</td>'+
         '<td style="text-align:center;font-size:13px">'+(j.thick?j.thick:'—')+'</td>'+
         '<td style="font-family:var(--mono);font-size:12px;text-align:right">'+qtyCell+'</td>'+
-        '<td style="font-family:var(--mono);font-size:11px;color:var(--ink2);max-width:105px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+(j.itemCode||'')+'">'+( j.itemCode||'—')+'</td>'+
         '<td style="text-align:center">'+brandCell+'</td>'+
         '<td style="font-family:var(--mono);font-size:11px;text-align:right">'+wtCell+'</td>'+
         '<td style="font-size:12px">'+startCell+'</td>'+
@@ -2570,9 +2570,10 @@ function renderMachineSchedule(){
       '</div>'+
       '<div class="tbl-wrap"><table class="ft" style="min-width:900px">'+
       '<thead><tr>'+
-      '<th style="width:130px">หมายเลขงาน</th><th>ชื่องาน</th>'+
+      '<th style="width:130px">หมายเลขงาน</th>'+
+      '<th style="width:120px">Itemnumber</th>'+
+      '<th>ชื่องาน</th>'+
       '<th style="width:60px">TH(mm)</th><th style="width:90px">จำนวน/ม้วน</th>'+
-      '<th style="width:110px">Itemnumber</th>'+
       '<th style="width:70px">แบรนด์</th><th style="width:100px">น้ำหนัก(kg)</th>'+
       '<th style="width:105px">วันที่เริ่ม</th><th style="width:105px">วันที่จบ</th>'+
       '<th style="width:150px">สถานะ</th>'+
@@ -2827,10 +2828,10 @@ function renderUnassigned(){
     <thead><tr>
       <th style="width:36px;text-align:center"><input type="checkbox" id="ua-sel-all" onchange="selectAllJobs(this)" title="เลือกทั้งหมด" style="cursor:pointer;width:15px;height:15px"></th>
       <th style="width:130px">หมายเลขงาน</th>
+      <th style="width:120px">Itemnumber</th>
       <th>ชื่องาน</th>
       <th style="width:55px">TH</th>
       <th style="width:80px">จำนวน/ม้วน</th>
-      <th style="width:110px">Itemnumber</th>
       <th style="width:65px">แบรนด์</th>
       <th style="width:85px">น้ำหนัก(kg)</th>
       <th style="width:110px">OSE คู่</th>
@@ -2891,6 +2892,7 @@ function renderUnassigned(){
         <td><div style="font-family:var(--mono);font-size:13px;font-weight:700;color:${tc}">${j.prod}</div>
           <span style="font-size:11px;color:#666">${jt}</span>
           ${j.created?`<div style="font-size:10px;color:#999;font-family:var(--mono);margin-top:2px">📥 ${fmtDateTime(j.created)}</div>`:''}</td>
+        <td style="font-family:var(--mono);font-size:11px;color:var(--ink2);white-space:nowrap" title="${j.itemCode||''}">${j.itemCode||'—'}</td>
         <td style="font-size:12px;color:#111;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${j.name||''}">${j.name||'—'}</td>
         <td style="font-size:13px;text-align:center;color:#111">${j.thick?j.thick+'mm':'—'}</td>
         <td style="font-family:var(--mono);font-size:13px;text-align:right;color:#111">
@@ -2900,7 +2902,6 @@ function renderUnassigned(){
             : (j.qty?Number(j.qty).toLocaleString():'—')
           }
         </td>
-        <td style="font-family:var(--mono);font-size:11px;color:var(--ink2);max-width:105px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${j.itemCode||''}">${j.itemCode||'—'}</td>
         ${(()=>{
           const _pi3=getProdInfo(j);
           const b3=_pi3.brand
