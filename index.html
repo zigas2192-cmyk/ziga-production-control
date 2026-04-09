@@ -3486,12 +3486,7 @@ async function loadL6FromSP(){
       thick:        parseFloat(f.ThicknessMM||f.field_3)||0,
       width:        parseFloat(f.field_4)||0,
       qtyCoils:     parseFloat(f.field_5)||0,
-      machine:      (()=>{
-        // MachineNo is a lookup column from ProdCtrl_Machine
-        // Graph API returns lookup value as MachineNo or field_6
-        const raw = f.MachineNo||f.MachineName||f.Machine||f.field_6||f.MachineCode||'';
-        return raw.replace(/\s*\([^)]*\)/g,'').trim();
-      })(),
+      machine:      f.MachineNo||'', // NEWMachineNo column (internal: MachineNo)
       startDate:    f.StartDate||f.field_7||'',
       endDate:      f.EndDate||f.field_8||'',
       capMinPerCoil:parseFloat(f.field_9)||0,
