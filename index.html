@@ -2123,8 +2123,11 @@ async function applyPacking(){
 }
 
 // ── Load L4 from SharePoint on page open ────────────────────────
+let _loadingL4 = false;
 async function loadL4FromSP(){
   if(!graphToken) return;
+  if(_loadingL4) return; // prevent duplicate load
+  _loadingL4 = true;
   try{
     showProgress('กำลังโหลด MCID จาก SharePoint...',0,1);
     const items=await spGetItems(SP_LISTS.L4,'',500);
@@ -2171,6 +2174,7 @@ async function loadL4FromSP(){
     console.log(`✅ Loaded ${S.mcids.length} MCID from L4`);
     saveState();
   }catch(e){hideProgress();console.error('loadL4 error:',e);}
+  finally{_loadingL4=false;}
 }
 
 // ── Master Plan config ───────────────────────────────────────────
@@ -2340,10 +2344,10 @@ function renderMachineSchedule(){
     (j.prod||'').toLowerCase().includes(q)||
     (j.name||'').toLowerCase().includes(q)||
     (j.machine||'').toLowerCase().includes(q));
-  if(dMach) allJobs=allJobs.filter(j=>j.machine===dMach);
+  if(dMach) allJobs=allJobs.filter(j=>j.machine===dMach||j.machine.startsWith(dMach));
   else if(dGrp){
     const grpMachines=MACHINE_GROUPS.find(g=>g.key===dGrp)?.machines||[];
-    allJobs=allJobs.filter(j=>grpMachines.includes(j.machine));
+    allJobs=allJobs.filter(j=>grpMachines.some(m=>j.machine===m||j.machine.startsWith(m)));
   }
   if(dStat) allJobs=allJobs.filter(j=>(j.oseStatus||j.status||'')===dStat);
   if(dType) allJobs=allJobs.filter(j=>jobType(j)===dType);
@@ -2360,7 +2364,7 @@ function renderMachineSchedule(){
     const totalFiltered = (()=>{
       let tj=S.axJobs.filter(isActive);
       if(dMach) tj=tj.filter(j=>j.machine===dMach);
-      else if(dGrp){ const gm=MACHINE_GROUPS.find(g=>g.key===dGrp)?.machines||[]; tj=tj.filter(j=>gm.includes(j.machine)); }
+      else if(dGrp){ const gm=MACHINE_GROUPS.find(g=>g.key===dGrp)?.machines||[]; tj=tj.filter(j=>gm.some(m=>j.machine===m||j.machine.startsWith(m))); }
       if(dStat) tj=tj.filter(j=>(j.oseStatus||j.status||'')===dStat);
       if(dType) tj=tj.filter(j=>jobType(j)===dType);
       return tj.length;
@@ -2570,10 +2574,10 @@ function getFilteredScheduleJobs(){
     (j.prod||'').toLowerCase().includes(q)||
     (j.name||'').toLowerCase().includes(q)||
     (j.machine||'').toLowerCase().includes(q));
-  if(dMach) jobs = jobs.filter(j=>j.machine===dMach);
+  if(dMach) jobs = jobs.filter(j=>j.machine===dMach||j.machine.startsWith(dMach));
   else if(dGrp){
     const grpMachines = MACHINE_GROUPS.find(g=>g.key===dGrp)?.machines||[];
-    jobs = jobs.filter(j=>grpMachines.includes(j.machine));
+    jobs = jobs.filter(j=>grpMachines.some(m=>j.machine===m||j.machine.startsWith(m)));
   }
   if(dStat) jobs = jobs.filter(j=>(j.oseStatus||j.status||'')===dStat);
   if(dType) jobs = jobs.filter(j=>jobType(j)===dType);
@@ -3384,8 +3388,11 @@ function showToast(msg){
 }
 
 // ── Load L6 from SharePoint ─────────────────────────────────────
+let _loadingL6 = false;
 async function loadL6FromSP(){
   if(!graphToken) return;
+  if(_loadingL6) return;
+  _loadingL6 = true;
   try{
     showProgress('กำลังโหลด OSE/OFM จาก SharePoint L6...',0,1);
     const items=await spGetItems(SP_LISTS.L6,'',500);
@@ -3399,7 +3406,7 @@ async function loadL6FromSP(){
       thick:        parseFloat(f.ThicknessMM||f.field_3)||0,
       width:        parseFloat(f.field_4)||0,
       qtyCoils:     parseFloat(f.field_5)||0,
-      machine:      f.MachineName||f.field_6||'',
+      machine:      (f.MachineName||f.field_6||'').replace(/\s*\([^)]*\)/g,'').trim(),
       startDate:    f.StartDate||f.field_7||'',
       endDate:      f.EndDate||f.field_8||'',
       capMinPerCoil:parseFloat(f.field_9)||0,
@@ -3433,6 +3440,7 @@ async function loadL6FromSP(){
     console.log(`✅ Loaded ${S.axJobs.length} jobs from L6`);
     saveState();
   }catch(e){hideProgress();console.error('loadL6 error:',e);}
+  finally{_loadingL6=false;}
 }
 
 // ── Progress helper ──────────────────────────────────────────────
@@ -5067,14 +5075,12 @@ async function saveProd(){
     HoursActual: hoursVal||undefined,
     ProdStatus:  prodStatusVal||undefined,
     OnTarget:    actual >= planQtyVal,
-    BDCount:     prodBDRows.length||undefined,
-    SetupCount:  prodSetupRows.length||undefined,
+    // BDCount/SetupCount removed — SP L7_1 list does not have these columns
+    // Grade/Electric/Note/RecordBy — only add if column exists in SP L7_1
+    // (comment these out if SP gives 'Field not recognized' error)
     GradeA:      gaVal||undefined,
     GradeB:      gbVal||undefined,
     GradeC:      gcVal||undefined,
-    Electric:    elecVal||undefined,
-    Note:        noteVal||undefined,
-    RecordBy:    recByVal||undefined,
   };
   const l7_1 = Object.fromEntries(
     Object.entries(l7_1_raw).filter(([,v])=>v!==undefined&&v!==null&&v!=='')
@@ -5103,11 +5109,36 @@ async function saveProd(){
         method:'POST', headers:{Authorization:`Bearer ${graphToken}`,'Content-Type':'application/json'},
         body: JSON.stringify({fields: l7_1})
       });
-      if(!r1.ok) throw new Error(`L7_1: ${await r1.text()}`);
-      const r1json  = await r1.json();
-      const reportId = r1json.id;
-      window._lastL7Id = reportId; // เก็บไว้ใช้ใน prodHistory
-      showToast(`✅ L7_1 บันทึกแล้ว`);
+      if(!r1.ok){
+        const errTxt = await r1.text();
+        // ถ้า field ไม่รู้จัก → ลอง POST เฉพาะ core fields
+        if(errTxt.includes('not recognized')||errTxt.includes('invalidRequest')){
+          const coreFields={Title:l7_1.Title,JobNo:l7_1.JobNo,Machine:l7_1.Machine,
+            PlanDate:l7_1.PlanDate,QTYActual:l7_1.QTYActual,ProdStatus:l7_1.ProdStatus,
+            QTYPlan:l7_1.QTYPlan,HoursActual:l7_1.HoursActual,TimeSlot:l7_1.TimeSlot,
+            Location:l7_1.Location,OnTarget:l7_1.OnTarget};
+          Object.keys(coreFields).forEach(k=>{if(coreFields[k]===undefined||coreFields[k]===null)delete coreFields[k];});
+          const r1b=await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${lid1}/items`,{
+            method:'POST',headers:{Authorization:`Bearer ${graphToken}`,'Content-Type':'application/json'},
+            body:JSON.stringify({fields:coreFields})
+          });
+          if(!r1b.ok) throw new Error(`L7_1 (core): ${await r1b.text()}`);
+          const r1json=(await r1b.json()); const reportId=r1json.id; window._lastL7Id=reportId;
+          showToast('⚠️ L7_1 บันทึก core fields เท่านั้น (SP ไม่มีบาง column)');
+        } else {
+          throw new Error(`L7_1: ${errTxt}`);
+        }
+      }
+      // Get reportId — either from successful first attempt or fallback
+      let reportId;
+      if(r1 && r1.ok){
+        const r1json = await r1.json();
+        reportId = r1json.id;
+        window._lastL7Id = reportId;
+        showToast('✅ L7_1 บันทึกแล้ว');
+      }
+      // (else: reportId set inside fallback block above)
+      if(!reportId) reportId = window._lastL7Id||'';
 
       // ── POST L7_2 Breakdown (แต่ละ row) ─────────────────────
       if(prodBDRows.length){
