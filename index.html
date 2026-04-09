@@ -4682,29 +4682,23 @@ async function loadProdAX(){
   if(Object.keys(prodAXMap).length > 0) return; // already loaded
   try{
     showToast('⏳ กำลัง Load Released Products...');
+    // ProdCtrl_released_Prod_AX field mapping (confirmed):
+    // Title = ItemNumber (product code), field_5 = Netweight, field_9 = Brand
     const items = await spGetItems(SP_LISTS.PROD_AX, '', 500);
     items.forEach(i=>{
-      const code = i.ItemNumber||i.field_1||i.Title||'';
+      // Title = ItemNumber, field_5 = Netweight, field_9 = Brand (confirmed)
+      const code = i.Title||'';
       if(!code) return;
-      // SP returns field_N names for custom columns:
-      // field_1=ItemNumber, field_2=ProductName, field_3=Status, field_4=Th_Group
-      // field_5=BOM unit, field_6=Net weight, field_7=MiN_Stock, field_8=Max_Stock
-      // field_9=TYPE, field_10=Brand, field_11=LOGO, field_12=Production group
-      // field_13=rework, Title=ItemNumber
-      const netWtRaw = parseFloat(i.field_6||i['Net weight']||i.NetWeight||0)||0;
-      const brandRaw  = i.field_10||i.Brand||'';
+      const netWtRaw = parseFloat(i.field_5)||0;
+      const brandRaw = i.field_9||'';
       prodAXMap[code] = {
         brand:       brandRaw,
         netWt:       netWtRaw,
-        productName: i.field_2||i.ProductName||'',
-        type:        i.field_9||i.TYPE||'',
-        status:      i.field_3||i.Status||'',
-        fcPcs:       parseInt(String(i.field_14||i.FC_pcs||'0').replace(/,/g,''))||0,
+        productName: i.field_1||'',
+        type:        i.field_8||'',
+        status:      i.field_2||'',
       };
-      // Debug first 3 only
-      if(Object.keys(prodAXMap).length<=3){
-        console.log('prodAX sample:', code, '→ brand:', brandRaw, 'netWt:', netWtRaw);
-      }
+
     });
     console.log(`✅ Loaded ${Object.keys(prodAXMap).length} released products`);
     showToast(`✅ Released Products: ${Object.keys(prodAXMap).length} รายการ`);
