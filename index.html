@@ -3251,6 +3251,7 @@ async function saveJobSchedule(prod){
   if(j.startDate){           try{ fields.field_7 = new Date(j.startDate).toISOString(); }catch(e){} }
   if(j.endDate){             try{ fields.field_8 = new Date(j.endDate).toISOString(); }catch(e){} }
   if(j.oseStatus||j.status){ fields.field_10 = j.oseStatus||j.status; }
+  if(j.item!==undefined){    fields.field_1  = j.item||''; } // OFMRef = field_1 (OSE↔OFM pairing)
   if(!Object.keys(fields).length){ showToast('⚠️ ไม่มีข้อมูลที่ต้องบันทึก'); return; }
 
   // PATCH หลัก (field_6/7/8/10)
@@ -3433,7 +3434,14 @@ async function updateOSEDate(prod, val){
 }
 async function updateOSEOFMRef(prod, val){
   const j=S.axJobs.find(j=>j.prod===prod);
-  if(j) j.item=val;
+  if(!j) return;
+  j.item=val;
+  // Auto-save OFMRef to SP L6
+  if(graphToken && j.spId){
+    spPatchItem(SP_LISTS.L6, j.spId, {field_1: val||''})  // OFMRef = field_1
+      .then(ok=>{ if(ok) showToast('✅ บันทึก OSE↔OFM: '+prod); else showToast('❌ บันทึกไม่สำเร็จ'); })
+      .catch(()=>showToast('❌ บันทึก error'));
+  }
 }
 
 async function saveOSEMappingRow(prod){
@@ -3442,7 +3450,7 @@ async function saveOSEMappingRow(prod){
   if(!graphToken){alert('กรุณา login ด้วย Microsoft ก่อน');return;}
   if(!j.spId){alert('ไม่พบ SP ID — reload L6 ก่อน');return;}
   const fields={
-    field_1:  j.item||undefined,
+    field_1:  j.item||undefined   // OFMRef = field_1 (SP internal name),
     field_11: j.priority?Number(j.priority):undefined,
     field_7:  j.startDate?new Date(j.startDate).toISOString():undefined,
   };
@@ -3477,7 +3485,7 @@ async function loadL6FromSP(){
     // ← overwrite ทั้งหมดจาก SP เสมอ ไม่ merge กับ cache เก่า
     S.axJobs=items.map(f=>({
       prod:         f.Title||'',
-      item:         f.OFMRef||f.field_1||'',        // OFMRef (จับคู่ OSE↔OFM)
+      item:         f.field_1||f.OFMRef||'',         // OFMRef = field_1 (OSE↔OFM pairing)
       itemCode:     f.Itemnumber||'',   // SP column 'Itemnumber' = item/product code
       name:         f.SlitFormula||f.field_2||'',
       thick:        parseFloat(f.ThicknessMM||f.field_3)||0,
