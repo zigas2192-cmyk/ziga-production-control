@@ -2292,19 +2292,53 @@ function initSchFilterChips(){
     }
   }
   // Populate machine dropdown only once (on first render)
+  // Use machineList from SP if available, else fallback to MACHINE_GROUPS
   if(machSel && !machSel.dataset.init){
     machSel.dataset.init='1';
     machSel.innerHTML='<option value="">— ทุกเครื่อง —</option>';
-    MACHINE_GROUPS.forEach(g=>{
-      const og=document.createElement('optgroup');
-      og.label=g.icon+' '+g.label;
-      g.machines.forEach(m=>{
+    if(machineList && machineList.length){
+      // Group by prefix using MACHINE_GROUPS keys
+      const grouped = {};
+      const ungrouped = [];
+      machineList.forEach(m=>{
+        const grp = MACHINE_GROUPS.find(g=>g.machines.includes(m)||m.startsWith(g.key+'_')||m.startsWith(g.key[0]));
+        if(grp){
+          if(!grouped[grp.key]) grouped[grp.key]=[];
+          grouped[grp.key].push(m);
+        } else {
+          ungrouped.push(m);
+        }
+      });
+      MACHINE_GROUPS.forEach(g=>{
+        const ms = grouped[g.key]||[];
+        if(!ms.length) return;
+        const og=document.createElement('optgroup');
+        og.label=g.icon+' '+g.label;
+        ms.forEach(m=>{
+          const o=document.createElement('option');
+          o.value=m; o.textContent=m;
+          og.appendChild(o);
+        });
+        machSel.appendChild(og);
+      });
+      ungrouped.forEach(m=>{
         const o=document.createElement('option');
         o.value=m; o.textContent=m;
-        og.appendChild(o);
+        machSel.appendChild(o);
       });
-      machSel.appendChild(og);
-    });
+    } else {
+      // Fallback: MACHINE_GROUPS hardcode
+      MACHINE_GROUPS.forEach(g=>{
+        const og=document.createElement('optgroup');
+        og.label=g.icon+' '+g.label;
+        g.machines.forEach(m=>{
+          const o=document.createElement('option');
+          o.value=m; o.textContent=m;
+          og.appendChild(o);
+        });
+        machSel.appendChild(og);
+      });
+    }
   }
 }
 
@@ -2314,16 +2348,20 @@ function applySchDropFilter(){
   const machSel = document.getElementById('sch-mach-filter');
   if(grpSel && machSel){
     const grpKey = grpSel.value;
-    const prevMach = machSel.value; // preserve current selection
+    const prevMach = machSel.value;
     machSel.innerHTML='<option value="">— ทุกเครื่อง —</option>';
     const grps = grpKey ? MACHINE_GROUPS.filter(g=>g.key===grpKey) : MACHINE_GROUPS;
     grps.forEach(g=>{
       const og=document.createElement('optgroup');
       og.label=g.icon+' '+g.label;
-      g.machines.forEach(m=>{
+      // Use machineList from SP if available, filter by group
+      const ms = (machineList&&machineList.length)
+        ? machineList.filter(m=>g.machines.includes(m)||m.startsWith(g.key+'_'))
+        : g.machines;
+      (ms.length ? ms : g.machines).forEach(m=>{
         const o=document.createElement('option');
         o.value=m; o.textContent=m;
-        if(m===prevMach) o.selected=true; // restore if still in group
+        if(m===prevMach) o.selected=true;
         og.appendChild(o);
       });
       machSel.appendChild(og);
@@ -4829,6 +4867,9 @@ function populateMachineDropdowns(){
     }
     if(cur) sel.value = cur;
   });
+  // Reset sch-mach-filter so it repopulates with SP machine names
+  const schMach = document.getElementById('sch-mach-filter');
+  if(schMach) delete schMach.dataset.init;
 }
 
 function setProdTypeFilter(type, el){
