@@ -908,8 +908,10 @@ table.ax-t .ax-total{background:var(--green-lt);color:var(--green);font-weight:6
             style="padding:6px 14px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);color:var(--ink3);font-size:13px;cursor:pointer;font-family:var(--sans);font-weight:500">📤 Export ที่เลือก</button>
           <button onclick="exportForAI()"
             style="padding:6px 14px;border:1px solid var(--purple-bd);border-radius:var(--rs);background:var(--purple-bg);color:var(--purple);font-size:13px;cursor:pointer;font-family:var(--sans);font-weight:500">🤖 Export for AI</button>
-          <button onclick="loadL6FromSP().then(()=>{initMasterPlan();showToast('✅ Load L6: '+S.axJobs.length+' jobs');})"
+          <button onclick="loadL6FromSP().then(()=>{initMasterPlan();showToast('✅ Load L6: '+S.axJobs.length+' jobs');loadProdAX();})"
             style="padding:6px 14px;border:1px solid var(--blue-bd);border-radius:var(--rs);background:var(--blue-bg);color:var(--blue);font-size:13px;cursor:pointer;font-family:var(--sans);font-weight:500">🔄 Load L6</button>
+          <button onclick="prodAXMap={};loadProdAX()" id="prod-ax-btn"
+            style="padding:6px 14px;border:1px solid var(--purple-bd);border-radius:var(--rs);background:var(--purple-bg);color:var(--purple);font-size:13px;cursor:pointer;font-family:var(--sans);font-weight:500">📦 Load Products</button>
           <span id="mp-summary-badge" style="font-size:12px;color:var(--ink3)"></span>
         </div>
       </div>
@@ -1229,6 +1231,7 @@ const SP_LISTS = {
   DEFECT_LIST: 'ProdCtrl_L10_DefectCauses', // รายชื่อสาเหตุของเสีย (ลอง L10 ก่อน)
   L9:  'L9_EmployeeZiGA',
   MACH:'ProdCtrl_Machine',            // รายชื่อเครื่องจักร
+  PROD_AX: 'ProdCtrl_released_Prod_AX', // Released products จาก AX
 };
 
 // ── L9 UserRoles — Fallback hardcode (ใช้ถ้า SP fetch ไม่ได้) ──────
@@ -2404,10 +2407,12 @@ function renderMachineSchedule(){
             <thead><tr>
               <th style="width:130px">หมายเลขงาน</th>
               <th>ชื่องาน</th>
-              <th style="width:60px">ความหนา</th>
-              <th style="width:90px">จำนวน / ม้วน</th>
-              <th style="width:105px">วันที่เริ่ม</th>
-              <th style="width:105px">วันที่จบ</th>
+              <th style="width:60px">TH(mm)</th>
+              <th style="width:80px">จำนวน</th>
+              <th style="width:70px">แบรนด์</th>
+              <th style="width:90px">น้ำหนัก(kg)</th>
+              <th style="width:100px">วันที่เริ่ม</th>
+              <th style="width:100px">วันที่จบ</th>
               <th style="width:150px">สถานะ</th>
               <th style="width:58px">แก้ไข</th>
             </tr></thead>
@@ -2430,6 +2435,16 @@ function renderMachineSchedule(){
               : (j.qty?Number(j.qty).toLocaleString():'—');
           })()}
         </td>
+                ${(()=>{
+                  const _pi=getProdInfo(j);
+                  const brandCell=_pi.brand
+                    ? `<td style="text-align:center"><span style="display:inline-block;padding:2px 6px;border-radius:4px;background:var(--blue-bg);border:1px solid var(--blue-bd);color:var(--blue);font-size:11px;font-weight:600">${_pi.brand}</span></td>`
+                    : `<td style="text-align:center;color:var(--ink4);font-size:11px">${Object.keys(prodAXMap).length>0?'—':'⏳'}</td>`;
+                  const wtCell=_pi.totalWt>0
+                    ? `<td style="font-family:var(--mono);font-size:12px;text-align:right;color:#111"><div style="font-weight:600">${_pi.totalWt.toLocaleString()}</div><div style="font-size:10px;color:var(--ink3)">${_pi.netWt}×${Number(j.qty||0).toLocaleString()}</div></td>`
+                    : `<td style="text-align:right;color:var(--ink4);font-size:11px">${Object.keys(prodAXMap).length>0?'—':'⏳'}</td>`;
+                  return brandCell+wtCell;
+                })()}
                 <td id="sch-start-${sid}" style="font-size:13px;color:${j.startDate?'#111':'var(--amber)'}">
                   ${j.startDate?j.startDate.slice(0,10):'<span style="color:var(--amber)">ยังไม่กำหนด</span>'}
                 </td>
@@ -2595,6 +2610,9 @@ function _doExportXLSX(jobs, baseName){
         'ความหนา(mm)':   j.thick||'',
         'จำนวน QTY(เส้น)': j.qty||'',
         'ม้วน coil':      coilQty||'',
+        'แบรนด์(AX)':     (()=>{const _pb=getProdInfo(j);return _pb.brand||j.brand||'';})(),
+        'น้ำหนัก(kg)':   (()=>{const _pb=getProdInfo(j);return _pb.totalWt||'';})(),
+        'kg/เส้น':        (()=>{const _pb=getProdInfo(j);return _pb.netWt||'';})(),
         'OSE/OFM คู่':    oseRef,
         'เครื่องจักร':    j.machine||'',
         'วันที่เริ่ม':    j.startDate?j.startDate.slice(0,10):'',
@@ -2610,6 +2628,7 @@ function _doExportXLSX(jobs, baseName){
     const ws = XLSX.utils.json_to_sheet(rows);
     ws['!cols'] = [
       {wch:14},{wch:6},{wch:50},{wch:10},{wch:12},{wch:10},
+      {wch:12},{wch:10},{wch:8},
       {wch:16},{wch:20},{wch:12},{wch:12},{wch:28},{wch:16},{wch:16},{wch:14},{wch:30}
     ];
     XLSX.utils.book_append_sheet(wb, ws, 'Jobs');
@@ -2627,18 +2646,22 @@ function _doExportXLSX(jobs, baseName){
             'เครื่อง':       m,
             'หมายเลขงาน':   j.prod||'',
             'ชื่องาน':       j.name||'',
-            'ความหนา':       j.thick?j.thick+'mm':'',
+            'ความหนา(mm)':  j.thick||'',
+            'แบรนด์':        (()=>{const _pb=getProdInfo(j);return _pb.brand||'';})(),
+            'จำนวน QTY':    j.qty||'',
+            'ม้วน coil':     j.qtyCoils||(j.qty?Math.round(j.qty/10000):'')||'',
+            'น้ำหนัก(kg)':  (()=>{const _pb=getProdInfo(j);return _pb.totalWt||'';})(),
+            'kg/เส้น':       (()=>{const _pb=getProdInfo(j);return _pb.netWt||'';})(),
             'วันเริ่ม':      j.startDate?j.startDate.slice(0,10):'',
             'วันจบ':         j.endDate?j.endDate.slice(0,10):'',
             'สถานะ':         j.oseStatus||j.status||'',
-            'ม้วน coil':     j.qtyCoils||(j.qty?Math.round(j.qty/10000):'')||'',
           });
         });
       });
     });
     if(machRows.length){
       const ws2 = XLSX.utils.json_to_sheet(machRows);
-      ws2['!cols']=[{wch:14},{wch:20},{wch:14},{wch:44},{wch:10},{wch:12},{wch:12},{wch:28},{wch:10}];
+      ws2['!cols']=[{wch:14},{wch:20},{wch:14},{wch:44},{wch:10},{wch:12},{wch:10},{wch:8},{wch:10},{wch:8},{wch:12},{wch:12},{wch:28}];
       XLSX.utils.book_append_sheet(wb, ws2, 'ByMachine');
     }
     const dateStr = new Date().toLocaleDateString('th-TH',{year:'numeric',month:'2-digit',day:'2-digit'}).replace(/\//g,'');
@@ -2727,8 +2750,10 @@ function renderUnassigned(){
       <th style="width:36px;text-align:center"><input type="checkbox" id="ua-sel-all" onchange="selectAllJobs(this)" title="เลือกทั้งหมด" style="cursor:pointer;width:15px;height:15px"></th>
       <th style="width:130px">หมายเลขงาน</th>
       <th>ชื่องาน</th>
-      <th style="width:60px">ความหนา</th>
-      <th style="width:80px">จำนวน</th>
+      <th style="width:55px">TH</th>
+      <th style="width:80px">จำนวน/ม้วน</th>
+      <th style="width:65px">แบรนด์</th>
+      <th style="width:85px">น้ำหนัก(kg)</th>
       <th style="width:110px">OSE คู่</th>
       <th style="width:160px">เครื่องต้นทาง</th>
       <th style="width:115px">วันที่เริ่ม</th>
@@ -2796,6 +2821,16 @@ function renderUnassigned(){
             : (j.qty?Number(j.qty).toLocaleString():'—')
           }
         </td>
+        ${(()=>{
+          const _pi3=getProdInfo(j);
+          const b3=_pi3.brand
+            ?`<td style="text-align:center"><span style="padding:2px 5px;border-radius:3px;background:var(--blue-bg);border:1px solid var(--blue-bd);color:var(--blue);font-size:10px;font-weight:600">${_pi3.brand}</span></td>`
+            :`<td style="text-align:center;color:var(--ink4);font-size:10px">${Object.keys(prodAXMap).length>0?'—':'⏳'}</td>`;
+          const w3=_pi3.totalWt>0
+            ?`<td style="font-family:var(--mono);font-size:11px;text-align:right"><div style="font-weight:600">${_pi3.totalWt.toLocaleString()}</div><div style="font-size:9px;color:var(--ink3)">${_pi3.netWt}kg/เส้น</div></td>`
+            :`<td style="text-align:right;color:var(--ink4);font-size:10px">${Object.keys(prodAXMap).length>0?'—':'⏳'}</td>`;
+          return b3+w3;
+        })()}
         <td>${oseRef}</td>
         <td><select style="${iStyle}" onchange="updateJobMachine('${j.prod}',this.value)">${opts}</select></td>
         <td><input type="text" value="${fmtDate(j.startDate)}" placeholder="dd/mm/yyyy" maxlength="10"
@@ -4554,6 +4589,50 @@ async function loadMachineList(){
     }
   }catch(e){ console.warn('loadMachineList fallback:',e); }
   populateMachineDropdowns();
+}
+
+// ── Released Prod AX — Brand + Net weight per unit ────────────────
+// Map: ItemNumber → {brand, netWt, productName, fcPcs}
+let prodAXMap = {}; // populated by loadProdAX()
+
+async function loadProdAX(){
+  if(!graphToken) return;
+  if(Object.keys(prodAXMap).length > 0) return; // already loaded
+  try{
+    showToast('⏳ กำลัง Load Released Products...');
+    const items = await spGetItems(SP_LISTS.PROD_AX, '', 500);
+    items.forEach(i=>{
+      const code = i.ItemNumber||i.Title||'';
+      if(!code) return;
+      prodAXMap[code] = {
+        brand:       i.Brand||'',
+        netWt:       parseFloat(i['Net weight']||i.NetWeight||i.Net_weight||0)||0,
+        productName: i.ProductName||i.Title||'',
+        fcPcs:       parseInt(String(i.FC_pcs||'0').replace(/,/g,''))||0,
+        type:        i.TYPE||'',
+        status:      i.Status||'',
+      };
+    });
+    console.log(`✅ Loaded ${Object.keys(prodAXMap).length} released products`);
+    showToast(`✅ Released Products: ${Object.keys(prodAXMap).length} รายการ`);
+    // Re-render schedule to show brand + weight
+    renderMachineSchedule();
+  }catch(e){
+    console.warn('loadProdAX error:', e);
+  }
+}
+
+// Helper: lookup brand + weight from prodAXMap by itemCode
+function getProdInfo(j){
+  const code = j.itemCode||j.item||'';
+  if(!code || !prodAXMap[code]) return {brand:'', netWt:0, totalWt:0};
+  const p = prodAXMap[code];
+  const qty = j.qty||0;
+  return {
+    brand:   p.brand,
+    netWt:   p.netWt,
+    totalWt: p.netWt > 0 && qty > 0 ? Math.round(p.netWt * qty) : 0,
+  };
 }
 
 function populateMachineDropdowns(){
