@@ -2343,22 +2343,26 @@ function initSchFilterChips(){
 }
 
 function applySchDropFilter(){
-  // Only called when GROUP changes — repopulates machine dropdown, then renders
+  // Called when GROUP changes — filter existing machine options by group
   const grpSel  = document.getElementById('sch-grp-filter');
   const machSel = document.getElementById('sch-mach-filter');
   if(grpSel && machSel){
     const grpKey = grpSel.value;
     const prevMach = machSel.value;
+    // Get all machines currently in L6 (from buildMachineListFromL6)
+    const allMachines = [...new Set(S.axJobs.map(j=>j.machine).filter(Boolean))].sort();
     machSel.innerHTML='<option value="">— ทุกเครื่อง —</option>';
     const grps = grpKey ? MACHINE_GROUPS.filter(g=>g.key===grpKey) : MACHINE_GROUPS;
     grps.forEach(g=>{
+      const ms = allMachines.filter(m=>
+        g.machines.includes(m)||m.startsWith(g.key+'_')||
+        (g.key==='CH'&&(m.startsWith('CH_')||m.startsWith('TA_')))||
+        (g.key==='PA'&&(m.startsWith('LO_')||m.startsWith('PA_')))
+      );
+      if(!ms.length) return;
       const og=document.createElement('optgroup');
       og.label=g.icon+' '+g.label;
-      // Use machineList from SP if available, filter by group
-      const ms = (machineList&&machineList.length)
-        ? machineList.filter(m=>g.machines.includes(m)||m.startsWith(g.key+'_'))
-        : g.machines;
-      (ms.length ? ms : g.machines).forEach(m=>{
+      ms.forEach(m=>{
         const o=document.createElement('option');
         o.value=m; o.textContent=m;
         if(m===prevMach) o.selected=true;
@@ -3571,8 +3575,61 @@ async function loadL6FromSP(){
     renderOSEPending();buildOFMJobSelect();saveState();
     console.log(`✅ Loaded ${S.axJobs.length} jobs from L6`);
     saveState();
+    // Build machine list from MachineNo values in L6 data
+    buildMachineListFromL6();
   }catch(e){hideProgress();console.error('loadL6 error:',e);}
   finally{_loadingL6=false;}
+}
+
+function buildMachineListFromL6(){
+  // Collect unique MachineNo values from loaded L6 jobs
+  const seen = new Set();
+  S.axJobs.forEach(j=>{ if(j.machine) seen.add(j.machine); });
+  if(!seen.size) return;
+  // Also include machines from machineList (SP ProdCtrl_Machine) if loaded
+  if(machineList && machineList.length){
+    machineList.forEach(m=>seen.add(m));
+  }
+  // Repopulate sch-mach-filter with these values grouped by MACHINE_GROUPS
+  const machSel = document.getElementById('sch-mach-filter');
+  if(!machSel) return;
+  machSel.dataset.init=''; // force repopulate
+  const allMachines = [...seen].sort();
+  machSel.innerHTML='<option value="">— ทุกเครื่อง —</option>';
+  MACHINE_GROUPS.forEach(g=>{
+    const ms = allMachines.filter(m=>
+      g.machines.includes(m) ||
+      m.startsWith(g.key+'_') ||
+      (g.key==='CH' && (m.startsWith('CH_')||m.startsWith('TA_'))) ||
+      (g.key==='PA' && (m.startsWith('LO_')||m.startsWith('PA_'))) ||
+      (g.key==='OT' && !['RF','SL','CH','TA','LO','PA'].some(p=>m.startsWith(p+'_')))
+    );
+    if(!ms.length) return;
+    const og=document.createElement('optgroup');
+    og.label=g.icon+' '+g.label;
+    ms.forEach(m=>{
+      const o=document.createElement('option');
+      o.value=m; o.textContent=m;
+      og.appendChild(o);
+    });
+    machSel.appendChild(og);
+  });
+  // Ungrouped machines
+  const grouped = new Set(MACHINE_GROUPS.flatMap(g=>g.machines));
+  const ungrouped = allMachines.filter(m=>
+    !MACHINE_GROUPS.some(g=>
+      g.machines.includes(m)||m.startsWith(g.key+'_')||
+      (g.key==='CH'&&(m.startsWith('CH_')||m.startsWith('TA_')))||
+      (g.key==='PA'&&(m.startsWith('LO_')||m.startsWith('PA_')))
+    )
+  );
+  ungrouped.forEach(m=>{
+    const o=document.createElement('option');
+    o.value=m; o.textContent=m;
+    machSel.appendChild(o);
+  });
+  machSel.dataset.init='1';
+  console.log(`✅ sch-mach-filter: ${allMachines.length} machines from L6 MachineNo`);
 }
 
 // ── Progress helper ──────────────────────────────────────────────
