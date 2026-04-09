@@ -2838,12 +2838,16 @@ function renderUnassigned(){
 
   const iStyle='padding:5px 7px;border:1px solid var(--b2);border-radius:4px;background:#fff;font-size:13px;outline:none;color:#111;width:100%';
   // dropdown options สำหรับเส้นทาง
-  const chOpts = ['','CH_A02','CH_A03','CH_A05','CH_A06','TA_A03','TA_A04','TA_A05','TA_A06']
-    .map(m=>`<option value="${m}">${m||'— ไม่มี —'}</option>`).join('');
-  const paOpts = ['','LO_R01+PA_M01','LO_R04','LO_R05+PA_M05','LO_R06+PA_M06','LO_R08+PA_M08','PA_EL01','PA_EL02']
-    .map(m=>`<option value="${m}">${m||'— ไม่มี —'}</option>`).join('');
-  const orwOpts = ['','CU_BL01','ข้อต่อ-เกลียว','ข้อต่อ-ชุบ','ดันตะเข็บ']
-    .map(m=>`<option value="${m}">${m||'— ไม่มี —'}</option>`).join('');
+  // Build route dropdown options from machineList (SP) or fallback hardcode
+  const _chFallback = ['CH_A02','CH_A03','CH_A05','CH_A06','TA_A03','TA_A04','TA_A05','TA_A06'];
+  const _paFallback = ['LO_R01+PA_M01','LO_R04','LO_R05+PA_M05','LO_R06+PA_M06','LO_R08+PA_M08','PA_EL01','PA_EL02'];
+  const _orwFallback= ['CU_BL01','ข้อต่อ-เกลียว','ข้อต่อ-ชุบ','ดันตะเข็บ'];
+  const _chList  = machineList.length ? machineList.filter(m=>m.startsWith('CH_')||m.startsWith('TA_')) : _chFallback;
+  const _paList  = machineList.length ? machineList.filter(m=>m.startsWith('LO_')||m.startsWith('PA_')) : _paFallback;
+  const _mkOpt = (m)=>`<option value="${m}">${m||'— ไม่มี —'}</option>`;
+  const chOpts  = _mkOpt('') + _chList.map(_mkOpt).join('');
+  const paOpts  = _mkOpt('') + _paList.map(_mkOpt).join('');
+  const orwOpts = _mkOpt('') + _orwFallback.map(_mkOpt).join(''); // ข้อต่อ ใช้ hardcode
 
   const stOpts=OSE_STATUS.map(s=>`<option value="${s}">${s}</option>`).join('');
 
