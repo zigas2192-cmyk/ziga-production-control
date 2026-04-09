@@ -1709,7 +1709,7 @@ const S = {
 // ── State persistence helpers ─────────────────────────────────────
 
 const STATE_KEY='ziga_app_state';
-const STATE_VER=5; // v5: fix L7_2/3 null fields, 4.End status, L10 defects
+const STATE_VER=6; // v6: Itemnumber col + OFMRef save
 
 function saveState(){
   try{
@@ -3450,7 +3450,7 @@ async function saveOSEMappingRow(prod){
   if(!graphToken){alert('กรุณา login ด้วย Microsoft ก่อน');return;}
   if(!j.spId){alert('ไม่พบ SP ID — reload L6 ก่อน');return;}
   const fields={
-    field_1:  j.item||undefined   // OFMRef = field_1 (SP internal name),
+    field_1:  j.item||undefined,  // OFMRef = field_1 (SP internal name)
     field_11: j.priority?Number(j.priority):undefined,
     field_7:  j.startDate?new Date(j.startDate).toISOString():undefined,
   };
