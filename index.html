@@ -902,7 +902,7 @@ table.ax-t .ax-total{background:var(--green-lt);color:var(--green);font-weight:6
         <button class="mp-tab" onclick="switchMPTab('mapping',this)">🔗 OSE↔OFM</button>
         <button class="mp-tab" onclick="switchMPTab('monthly',this)">📆 Monthly</button>
         <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
-          <button onclick="exportAllXLSX()"
+          <button id="export-all-btn" onclick="exportAllXLSX()"
             style="padding:6px 14px;border:1px solid var(--green-bd);border-radius:var(--rs);background:var(--green-bg);color:var(--green);font-size:13px;cursor:pointer;font-family:var(--sans);font-weight:500">📥 Export Excel</button>
           <button id="export-sel-btn" onclick="exportSelectedXLSX()"
             style="padding:6px 14px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);color:var(--ink3);font-size:13px;cursor:pointer;font-family:var(--sans);font-weight:500">📤 Export ที่เลือก</button>
@@ -2350,6 +2350,25 @@ function renderMachineSchedule(){
   const activeFilters=[dGrp&&'กลุ่ม:'+dGrp,dMach&&dMach,dStat&&dStat.slice(0,15),dType&&dType].filter(Boolean);
   if(badge) badge.textContent=activeFilters.length?`🔍 ${activeFilters.join(' · ')}`:'';
 
+  // Update Export Excel button label to reflect current filter
+  const exportAllBtn = document.getElementById('export-all-btn');
+  if(exportAllBtn){
+    const visibleCount = allJobs.length; // jobs visible in schedule (has machine assigned)
+    const totalFiltered = (()=>{
+      let tj=S.axJobs.filter(isActive);
+      if(dMach) tj=tj.filter(j=>j.machine===dMach);
+      else if(dGrp){ const gm=MACHINE_GROUPS.find(g=>g.key===dGrp)?.machines||[]; tj=tj.filter(j=>gm.includes(j.machine)); }
+      if(dStat) tj=tj.filter(j=>(j.oseStatus||j.status||'')===dStat);
+      if(dType) tj=tj.filter(j=>jobType(j)===dType);
+      return tj.length;
+    })();
+    if(activeFilters.length){
+      exportAllBtn.textContent=`📥 Export ตาม Filter (${totalFiltered})`;
+    } else {
+      exportAllBtn.textContent='📥 Export Excel';
+    }
+  }
+
   const unassigned=S.axJobs.filter(j=>isActive(j)&&!j.machine).length;
   let html='';
   if(unassigned>0){
@@ -2521,8 +2540,42 @@ function exportSelectedXLSX(){
   const jobs = S.axJobs.filter(j=>selectedJobs.has(j.prod));
   _doExportXLSX(jobs, `ZIGA_Selected_${jobs.length}jobs`);
 }
+// Returns jobs currently visible in the schedule view (respects all dropdown filters)
+function getFilteredScheduleJobs(){
+  const q      = (document.getElementById('mp-sch-search')?.value||'').toLowerCase();
+  const dGrp   = document.getElementById('sch-grp-filter')?.value||'';
+  const dMach  = document.getElementById('sch-mach-filter')?.value||'';
+  const dStat  = document.getElementById('sch-stat-filter')?.value||'';
+  const dType  = document.getElementById('sch-type-filter')?.value||'';
+  // Also check which MP tab is active to decide job pool
+  const isUnassignedTab = document.getElementById('mp-unassigned')?.style.display !== 'none';
+
+  let jobs = S.axJobs.filter(isActive);
+  if(q) jobs = jobs.filter(j=>
+    (j.prod||'').toLowerCase().includes(q)||
+    (j.name||'').toLowerCase().includes(q)||
+    (j.machine||'').toLowerCase().includes(q));
+  if(dMach) jobs = jobs.filter(j=>j.machine===dMach);
+  else if(dGrp){
+    const grpMachines = MACHINE_GROUPS.find(g=>g.key===dGrp)?.machines||[];
+    jobs = jobs.filter(j=>grpMachines.includes(j.machine));
+  }
+  if(dStat) jobs = jobs.filter(j=>(j.oseStatus||j.status||'')===dStat);
+  if(dType) jobs = jobs.filter(j=>jobType(j)===dType);
+  return jobs;
+}
+
 function exportAllXLSX(){
-  _doExportXLSX(S.axJobs.filter(isActive), 'ZIGA_MasterPlan_All');
+  const jobs = getFilteredScheduleJobs();
+  const hasFilter = !!(
+    (document.getElementById('sch-grp-filter')?.value)||
+    (document.getElementById('sch-mach-filter')?.value)||
+    (document.getElementById('sch-stat-filter')?.value)||
+    (document.getElementById('sch-type-filter')?.value)||
+    (document.getElementById('mp-sch-search')?.value)
+  );
+  const name = hasFilter ? `ZIGA_Filtered_${jobs.length}jobs` : 'ZIGA_MasterPlan_All';
+  _doExportXLSX(jobs, name);
 }
 function _doExportXLSX(jobs, baseName){
   if(!jobs.length){ showToast('⚠️ ไม่มีข้อมูล'); return; }
@@ -2533,16 +2586,15 @@ function _doExportXLSX(jobs, baseName){
       const oseRef = jt==='OFM'
         ? S.axJobs.filter(x=>jobType(x)==='OSE'&&x.item===j.prod).map(x=>x.prod).join(', ')
         : jt==='OSE' ? (j.item||'') : '';
-      const coilQty = jt==='OSE'
-        ? (j.qtyCoils||Math.round((j.qty||0)/10000)||'—')
-        : (j.qty||'');
+      // จำนวนม้วน coil: OSE ใช้ qtyCoils หรือ qty/10000, OFM/ORW ว่าง
+      const coilQty = j.qtyCoils || (j.qty ? Math.round(j.qty/10000) : 0);
       return {
         'หมายเลขงาน':    j.prod||'',
         'ประเภท':         jt,
         'ชื่องาน/สูตร':   j.name||'',
         'ความหนา(mm)':   j.thick||'',
-        'จำนวน(เส้น)':   jt==='OSE'?'':j.qty||'',
-        'ม้วน coil(OSE)': jt==='OSE'?coilQty:'',
+        'จำนวน QTY(เส้น)': j.qty||'',
+        'ม้วน coil':      coilQty||'',
         'OSE/OFM คู่':    oseRef,
         'เครื่องจักร':    j.machine||'',
         'วันที่เริ่ม':    j.startDate?j.startDate.slice(0,10):'',
@@ -2557,7 +2609,7 @@ function _doExportXLSX(jobs, baseName){
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(rows);
     ws['!cols'] = [
-      {wch:14},{wch:6},{wch:50},{wch:10},{wch:10},{wch:10},
+      {wch:14},{wch:6},{wch:50},{wch:10},{wch:12},{wch:10},
       {wch:16},{wch:20},{wch:12},{wch:12},{wch:28},{wch:16},{wch:16},{wch:14},{wch:30}
     ];
     XLSX.utils.book_append_sheet(wb, ws, 'Jobs');
@@ -2579,7 +2631,7 @@ function _doExportXLSX(jobs, baseName){
             'วันเริ่ม':      j.startDate?j.startDate.slice(0,10):'',
             'วันจบ':         j.endDate?j.endDate.slice(0,10):'',
             'สถานะ':         j.oseStatus||j.status||'',
-            'ม้วน coil':     jt2==='OSE'?(j.qtyCoils||Math.round((j.qty||0)/10000)||''):'',
+            'ม้วน coil':     j.qtyCoils||(j.qty?Math.round(j.qty/10000):'')||'',
           });
         });
       });
