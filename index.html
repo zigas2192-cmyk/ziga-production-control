@@ -3471,7 +3471,7 @@ async function loadL6FromSP(){
     S.axJobs=items.map(f=>({
       prod:         f.Title||'',
       item:         f.OFMRef||f.field_1||'',        // OFMRef (จับคู่ OSE↔OFM)
-      itemCode:     f.Itemnumber||f.field_13||'',   // Item code สินค้า
+      itemCode:     f.Itemnumber||'',   // SP column 'Itemnumber' = item/product code
       name:         f.SlitFormula||f.field_2||'',
       thick:        parseFloat(f.ThicknessMM||f.field_3)||0,
       width:        parseFloat(f.field_4)||0,
@@ -4684,23 +4684,26 @@ async function loadProdAX(){
     showToast('⏳ กำลัง Load Released Products...');
     const items = await spGetItems(SP_LISTS.PROD_AX, '', 500);
     items.forEach(i=>{
-      const code = i.ItemNumber||i.Title||'';
+      const code = i.ItemNumber||i.field_1||i.Title||'';
       if(!code) return;
-      // SP internal names: spaces → _x0020_ or removed
-      const netWtRaw = i['Net weight']||i['Net_x0020_weight']||
-                       i.NetWeight||i.Net_weight||i.Netweight||
-                       i['OData__x0e3a_NetWeight']||0;
+      // SP returns field_N names for custom columns:
+      // field_1=ItemNumber, field_2=ProductName, field_3=Status, field_4=Th_Group
+      // field_5=BOM unit, field_6=Net weight, field_7=MiN_Stock, field_8=Max_Stock
+      // field_9=TYPE, field_10=Brand, field_11=LOGO, field_12=Production group
+      // field_13=rework, Title=ItemNumber
+      const netWtRaw = parseFloat(i.field_6||i['Net weight']||i.NetWeight||0)||0;
+      const brandRaw  = i.field_10||i.Brand||'';
       prodAXMap[code] = {
-        brand:       i.Brand||'',
-        netWt:       parseFloat(netWtRaw)||0,
-        productName: i.ProductName||'',
-        fcPcs:       parseInt(String(i.FC_pcs||i.FCpcs||'0').replace(/,/g,''))||0,
-        type:        i.TYPE||i.Type||'',
-        status:      i.Status||'',
+        brand:       brandRaw,
+        netWt:       netWtRaw,
+        productName: i.field_2||i.ProductName||'',
+        type:        i.field_9||i.TYPE||'',
+        status:      i.field_3||i.Status||'',
+        fcPcs:       parseInt(String(i.field_14||i.FC_pcs||'0').replace(/,/g,''))||0,
       };
-      // Debug: log first few items
+      // Debug first 3 only
       if(Object.keys(prodAXMap).length<=3){
-        console.log('prodAX sample:', code, '→ brand:', i.Brand, 'netWt:', parseFloat(netWtRaw)||0, 'keys:', Object.keys(i).join(','));
+        console.log('prodAX sample:', code, '→ brand:', brandRaw, 'netWt:', netWtRaw);
       }
     });
     console.log(`✅ Loaded ${Object.keys(prodAXMap).length} released products`);
