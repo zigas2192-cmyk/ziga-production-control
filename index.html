@@ -926,21 +926,44 @@ table.ax-t .ax-total{background:var(--green-lt);color:var(--green);font-weight:6
           <button onclick="clearSchFilters()" style="padding:6px 12px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:12px;cursor:pointer;color:var(--ink3)">↺ ล้าง filter</button>
         </div>
 
-        <!-- Filter: เครื่องจักร (chip multi-select) -->
-        <div style="margin-bottom:8px">
-          <div style="font-size:11px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px">เครื่องจักร</div>
-          <div style="display:flex;gap:5px;flex-wrap:wrap" id="sch-machine-chips">
-            <!-- populated by JS -->
+        <!-- Filter: เครื่องจักร + สถานะ — compact dropdowns -->
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:flex-end">
+          <div>
+            <label style="font-size:10px;font-weight:600;color:#666;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:3px">กลุ่มเครื่อง</label>
+            <select id="sch-grp-filter" onchange="applySchDropFilter()"
+              style="padding:5px 8px;border:1px solid var(--b2);border-radius:var(--rs);background:#fff;font-size:12px;outline:none;color:#111;min-width:110px">
+              <option value="">— ทั้งหมด —</option>
+            </select>
           </div>
-        </div>
-
-        <!-- Filter: สถานะ (chip multi-select) -->
-        <div style="margin-bottom:14px">
-          <div style="font-size:11px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px">สถานะใบงาน</div>
-          <div style="display:flex;gap:5px;flex-wrap:wrap" id="sch-status-chips">
-            <!-- populated by JS -->
+          <div>
+            <label style="font-size:10px;font-weight:600;color:#666;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:3px">เครื่องจักร</label>
+            <select id="sch-mach-filter" onchange="applySchDropFilter()"
+              style="padding:5px 8px;border:1px solid var(--b2);border-radius:var(--rs);background:#fff;font-size:12px;outline:none;color:#111;min-width:150px">
+              <option value="">— ทุกเครื่อง —</option>
+            </select>
           </div>
+          <div>
+            <label style="font-size:10px;font-weight:600;color:#666;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:3px">สถานะใบงาน</label>
+            <select id="sch-stat-filter" onchange="applySchDropFilter()"
+              style="padding:5px 8px;border:1px solid var(--b2);border-radius:var(--rs);background:#fff;font-size:12px;outline:none;color:#111;min-width:170px">
+              <option value="">— ทุกสถานะ —</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:10px;font-weight:600;color:#666;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:3px">ประเภท</label>
+            <select id="sch-type-filter" onchange="applySchDropFilter()"
+              style="padding:5px 8px;border:1px solid var(--b2);border-radius:var(--rs);background:#fff;font-size:12px;outline:none;color:#111;min-width:90px">
+              <option value="">— ทั้งหมด —</option>
+              <option value="OSE">OSE</option>
+              <option value="OFM">OFM</option>
+              <option value="ORW">ORW</option>
+            </select>
+          </div>
+          <span id="sch-filter-badge" style="font-size:11px;color:var(--blue);font-weight:600;align-self:center"></span>
         </div>
+        <!-- hidden elements for JS compat (initSchFilterChips looks for these) -->
+        <div id="sch-machine-chips" style="display:none"></div>
+        <div id="sch-status-chips" style="display:none"></div>
 
         <div id="mp-machine-groups"></div>
       </div>
@@ -2215,67 +2238,80 @@ const SCH_STATUSES = [
 ];
 
 function initSchFilterChips(){
-  const mEl=document.getElementById('sch-machine-chips');
-  if(mEl && !mEl.dataset.init){
-    mEl.dataset.init='1';
-    mEl.innerHTML=''; // clear whitespace
-    MACHINE_GROUPS.forEach(grp=>{
-      const glbl=document.createElement('div');
-      glbl.style.cssText='font-size:11px;color:#888;padding:3px 0 3px;display:flex;align-items:center;width:100%;margin-top:6px;font-weight:600';
-      glbl.textContent=grp.icon+' '+grp.label;
-      mEl.appendChild(glbl);
-      grp.machines.forEach(m=>{
-        const chip=document.createElement('button');
-        chip.dataset.val=m;
-        chip.textContent=m;
-        chip.style.cssText='padding:5px 11px;border-radius:20px;font-size:12px;cursor:pointer;border:1px solid var(--b2);background:var(--panel);color:#333;font-family:var(--sans);transition:all .12s;font-weight:500';
-        chip.onclick=()=>toggleSchChip('machine',m,chip,grp.color);
-        mEl.appendChild(chip);
-      });
+  // Legacy chips replaced with dropdowns — populate dropdowns instead
+  const grpSel  = document.getElementById('sch-grp-filter');
+  const machSel = document.getElementById('sch-mach-filter');
+  const statSel = document.getElementById('sch-stat-filter');
+  if(grpSel && !grpSel.dataset.init){
+    grpSel.dataset.init='1';
+    MACHINE_GROUPS.forEach(g=>{
+      const o=document.createElement('option');
+      o.value=g.key; o.textContent=g.icon+' '+g.label;
+      grpSel.appendChild(o);
     });
+    // populate status dropdown
+    if(statSel && !statSel.dataset.init){
+      statSel.dataset.init='1';
+      SCH_STATUSES.forEach(s=>{
+        const o=document.createElement('option');
+        o.value=s.val; o.textContent=s.label;
+        statSel.appendChild(o);
+      });
+    }
   }
-  const sEl=document.getElementById('sch-status-chips');
-  if(sEl && !sEl.dataset.init){
-    sEl.dataset.init='1';
-    sEl.innerHTML='';
-    SCH_STATUSES.forEach(s=>{
-      const chip=document.createElement('button');
-      chip.dataset.val=s.val;
-      chip.textContent=s.label;
-      chip.style.cssText='padding:5px 14px;border-radius:20px;font-size:12px;cursor:pointer;border:1px solid var(--b2);background:var(--panel);color:#333;font-family:var(--sans);transition:all .12s;font-weight:500';
-      chip.onclick=()=>toggleSchChip('status',s.val,chip,s.color);
-      sEl.appendChild(chip);
+  // Populate machine dropdown based on selected group
+  if(machSel){
+    const grpKey = grpSel?.value||'';
+    const curMach = machSel.value;
+    machSel.innerHTML='<option value="">— ทุกเครื่อง —</option>';
+    const grps = grpKey
+      ? MACHINE_GROUPS.filter(g=>g.key===grpKey)
+      : MACHINE_GROUPS;
+    grps.forEach(g=>{
+      const og=document.createElement('optgroup');
+      og.label=g.icon+' '+g.label;
+      g.machines.forEach(m=>{
+        const o=document.createElement('option');
+        o.value=m; o.textContent=m;
+        if(m===curMach) o.selected=true;
+        og.appendChild(o);
+      });
+      machSel.appendChild(og);
     });
   }
 }
 
-function toggleSchChip(type, val, el, color){
-  const set=type==='machine'?schFilter.machines:schFilter.statuses;
-  const activeColor=color||'var(--blue)';
-  if(set.has(val)){
-    set.delete(val);
-    el.style.background='var(--panel)';
-    el.style.color='#333';
-    el.style.borderColor='var(--b2)';
-    el.style.fontWeight=type==='machine'?'400':'500';
-  } else {
-    set.add(val);
-    el.style.background=activeColor;
-    el.style.color='#fff';
-    el.style.borderColor=activeColor;
-    el.style.fontWeight='700';
+function applySchDropFilter(){
+  // When group changes, re-populate machine dropdown
+  const grpSel  = document.getElementById('sch-grp-filter');
+  const machSel = document.getElementById('sch-mach-filter');
+  if(grpSel && machSel){
+    const grpKey = grpSel.value;
+    machSel.innerHTML='<option value="">— ทุกเครื่อง —</option>';
+    const grps = grpKey ? MACHINE_GROUPS.filter(g=>g.key===grpKey) : MACHINE_GROUPS;
+    grps.forEach(g=>{
+      const og=document.createElement('optgroup');
+      og.label=g.icon+' '+g.label;
+      g.machines.forEach(m=>{
+        const o=document.createElement('option');
+        o.value=m; o.textContent=m;
+        og.appendChild(o);
+      });
+      machSel.appendChild(og);
+    });
   }
   renderMachineSchedule();
+}
+
+function toggleSchChip(type, val, el, color){
+  // Legacy — replaced by dropdown filters, kept as no-op
 }
 
 function clearSchFilters(){
   schFilter.machines.clear();
   schFilter.statuses.clear();
-  document.querySelectorAll('#sch-machine-chips button,#sch-status-chips button').forEach(ch=>{
-    ch.style.background='var(--panel)';
-    ch.style.color='#333';
-    ch.style.borderColor='var(--b2)';
-    ch.style.fontWeight='500';
+  ['sch-grp-filter','sch-mach-filter','sch-stat-filter','sch-type-filter'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value='';
   });
   const s=document.getElementById('mp-sch-search');
   if(s) s.value='';
@@ -2292,6 +2328,11 @@ function renderMachineSchedule(){
 
   const q=(document.getElementById('mp-sch-search')?.value||'').toLowerCase();
   const showEmpty=document.getElementById('mp-show-empty')?.checked||false;
+  // Dropdown filter values
+  const dGrp  = document.getElementById('sch-grp-filter')?.value||'';
+  const dMach = document.getElementById('sch-mach-filter')?.value||'';
+  const dStat = document.getElementById('sch-stat-filter')?.value||'';
+  const dType = document.getElementById('sch-type-filter')?.value||'';
 
   // Apply filters
   let allJobs=S.axJobs.filter(j=>isActive(j)&&j.machine);
@@ -2299,12 +2340,18 @@ function renderMachineSchedule(){
     (j.prod||'').toLowerCase().includes(q)||
     (j.name||'').toLowerCase().includes(q)||
     (j.machine||'').toLowerCase().includes(q));
-  // machine chip filter
-  if(schFilter.machines.size>0)
-    allJobs=allJobs.filter(j=>schFilter.machines.has(j.machine));
-  // status chip filter
-  if(schFilter.statuses.size>0)
-    allJobs=allJobs.filter(j=>schFilter.statuses.has(j.oseStatus||j.status||''));
+  if(dMach) allJobs=allJobs.filter(j=>j.machine===dMach);
+  else if(dGrp){
+    const grpMachines=MACHINE_GROUPS.find(g=>g.key===dGrp)?.machines||[];
+    allJobs=allJobs.filter(j=>grpMachines.includes(j.machine));
+  }
+  if(dStat) allJobs=allJobs.filter(j=>(j.oseStatus||j.status||'')===dStat);
+  if(dType) allJobs=allJobs.filter(j=>jobType(j)===dType);
+
+  // Update filter badge
+  const badge=document.getElementById('sch-filter-badge');
+  const activeFilters=[dGrp&&'กลุ่ม:'+dGrp,dMach&&dMach,dStat&&dStat.slice(0,15),dType&&dType].filter(Boolean);
+  if(badge) badge.textContent=activeFilters.length?`🔍 ${activeFilters.join(' · ')}`:'';
 
   const unassigned=S.axJobs.filter(j=>isActive(j)&&!j.machine).length;
   let html='';
@@ -2360,13 +2407,12 @@ function renderMachineSchedule(){
                 <td style="font-size:13px;color:#111;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${j.name||''}">${j.name||'—'}</td>
                 <td style="font-size:13px;text-align:center;color:#111">${j.thick?j.thick+'mm':'—'}</td>
                 <td style="font-family:var(--mono);font-size:13px;text-align:right;color:#111">
-          ${jt==='OSE'
-            ? (coilCount>0
-                ? `<div style="font-weight:700;color:var(--green)">${coilCount} ม้วน</div>
-                   <div style="font-size:10px;color:var(--ink3)">${j.qty?Number(j.qty).toLocaleString():''} เส้น</div>`
-                : (j.qty?Number(j.qty).toLocaleString():'—'))
-            : (j.qty?Number(j.qty).toLocaleString():'—')
-          }
+          ${(()=>{const _cc=j.qtyCoils||Math.round((j.qty||0)/10000)||0;
+            const _jt=j.jobType||jobType(j);
+            return _jt==='OSE'&&_cc>0
+              ? `<div style="font-weight:700;color:var(--green)">${_cc} ม้วน</div><div style="font-size:10px;color:var(--ink3)">${j.qty?Number(j.qty).toLocaleString():''}</div>`
+              : (j.qty?Number(j.qty).toLocaleString():'—');
+          })()}
         </td>
                 <td id="sch-start-${sid}" style="font-size:13px;color:${j.startDate?'#111':'var(--amber)'}">
                   ${j.startDate?j.startDate.slice(0,10):'<span style="color:var(--amber)">ยังไม่กำหนด</span>'}
@@ -4452,7 +4498,7 @@ async function loadMachineList(){
 
 function populateMachineDropdowns(){
   // สร้าง options สำหรับทุก dropdown machine ใน app
-  const selIds = ['prod-machine','qa-machine-no','sch-machine-filter'];
+  const selIds = ['prod-machine','qa-machine-no','sch-mach-filter'];
   selIds.forEach(id=>{
     const sel = document.getElementById(id);
     if(!sel) return;
@@ -5172,9 +5218,9 @@ async function loadDefectCauses(){
       }
       if(items.length){
         qaDefectCauses = items.map(i=>({
-          code:  i.Title||i.fields?.Title||'',
-          label: i.DefectDesc||i.fields?.DefectDesc||i.Title||i.fields?.Title||'',
-          grade: ((i.Grade||i.fields?.Grade||'').replace('Grade ','')).toUpperCase(),
+          code:  i.Title||'',
+          label: i.DefectDesc||i.Title||'',
+          grade: ((i.Grade||'').replace('Grade ','')).toUpperCase(),
         })).filter(d=>d.code);
       }
     }
@@ -5355,21 +5401,21 @@ async function loadQAFromSP(){
     const items = await spGetItems(SP_LISTS.L8,'',200);
     qaRecords = items.map(i=>({
       id:         i.id,
-      OFMNo:      i.fields?.JobNo||'',
-      DefectDate: i.fields?.DefectDate?i.fields.DefectDate.slice(0,10):'',
-      DefectCode: i.fields?.DefectCode||'',
-      DefectDesc: i.fields?.DefectDesc||'',
+      OFMNo:      i.JobNo||'',
+      DefectDate: i.DefectDate?i.DefectDate.slice(0,10):'',
+      DefectCode: i.DefectCode||'',
+      DefectDesc: i.DefectDesc||'',
       Grade:      (() => {
-        const c=i.fields?.DefectCode||'';
+        const c=i.DefectCode||'';
         if(c.startsWith('A')) return 'Grade A';
         if(c.startsWith('B')) return 'Grade B';
         if(c.startsWith('C')) return 'Grade C';
         return '';
       })(),
-      QTYDefect:  i.fields?.QTYDefect||0,
-      Machine:    i.fields?.Machine||'',
-      ReportBy:   i.fields?.ReportBy||'',
-      savedAt:    i.fields?.Modified||'',
+      QTYDefect:  i.QTYDefect||0,
+      Machine:    i.Machine||'',
+      ReportBy:   i.ReportBy||'',
+      savedAt:    i.Modified||'',
     }));
     updateQAStats(); renderQAList();
     showToast(`✅ Load ${qaRecords.length} records`);
@@ -5461,11 +5507,11 @@ async function loadUserRoles(){
     const items = await spGetItems(SP_LISTS.L9,'',100);
     adminRoleItems = items.map(i=>({
       id: i.id,
-      name: i.fields?.Title || '',
-      email: i.fields?.Email || '',
-      role: i.fields?.Role || '',
-      active: i.fields?.Active !== false,
-      remark: i.fields?.Remark || '',
+      name: i.Title || '',
+      email: i.Email || i.email || '',
+      role: i.Role || i.role || '',
+      active: i.Active !== false,
+      remark: i.Remark || '',
     }));
     renderAdminRolesTable();
     showToast(`✅ Load แล้ว ${adminRoleItems.length} records`);
@@ -5592,7 +5638,7 @@ async function syncUserRolesToSP(){
   if(!confirm(`Sync ${USER_ROLES_FALLBACK.length} users ขึ้น SP L9?\n\n(จะ POST เฉพาะที่ยังไม่มีใน SP)`)) return;
   showToast('⏳ กำลัง Sync...');
   const existing = await spGetItems(SP_LISTS.L9,'',100);
-  const existEmails = existing.map(i=>(i.fields?.Email||'').toLowerCase());
+  const existEmails = existing.map(i=>(i.Email||i.email||'').toLowerCase());
   const siteId = await getSiteId();
   const listId = await getListId(SP_LISTS.L9);
   let added=0;
