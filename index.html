@@ -1236,6 +1236,9 @@ const SP_LISTS = {
   PROD_AX: 'ProdCtrl_released_Prod_AX', // Released products จาก AX
 };
 
+// ── State maps (declared early so onclick attrs can reference them) ──
+let prodAXMap = {}; // ItemNumber → {brand, netWt} — populated by loadProdAX()
+
 // ── L9 UserRoles — Fallback hardcode (ใช้ถ้า SP fetch ไม่ได้) ──────
 // admin แก้ได้ที่ SP list โดยตรง ไม่ต้อง redeploy app
 const USER_ROLES_FALLBACK = [
@@ -1585,7 +1588,7 @@ async function debugL6Sample(){
     console.log('L6 first item keys:', keys);
     console.log('L6 first item:', JSON.stringify(items[0],null,2));
     // Show machine-related fields
-    const machKeys = keys.filter(k=>k.toLowerCase().includes('machine')||k==='field_6');
+    const machKeys = keys.filter(k=>k.toLowerCase().includes('machine')||k==='field_6'||k==='MachineNo');
     const machVals = machKeys.map(k=>`${k}: "${items[0][k]}"`).join('\n');
     alert('L6 Machine-related columns:\n\n'+(machVals||'ไม่พบ — ดู Console')+'\n\n'+
           'All keys (first 20):\n'+keys.slice(0,20).join(', '));
@@ -3247,7 +3250,7 @@ async function saveJobSchedule(prod){
   if(!graphToken){showToast('⚠️ login ก่อน');return;}
   if(!j.spId){showToast('⚠️ ไม่พบ spId — Load L6 ก่อน');return;}
   const fields={};
-  if(j.machine){             fields.field_6  = j.machine; }
+  if(j.machine){             fields.MachineNo = j.machine; } // lookup column
   if(j.startDate){           try{ fields.field_7 = new Date(j.startDate).toISOString(); }catch(e){} }
   if(j.endDate){             try{ fields.field_8 = new Date(j.endDate).toISOString(); }catch(e){} }
   if(j.oseStatus||j.status){ fields.field_10 = j.oseStatus||j.status; }
@@ -3492,7 +3495,9 @@ async function loadL6FromSP(){
       width:        parseFloat(f.field_4)||0,
       qtyCoils:     parseFloat(f.field_5)||0,
       machine:      (()=>{
-        const raw = f.MachineName||f.Machine||f.field_6||f.MachineCode||'';
+        // MachineNo is a lookup column from ProdCtrl_Machine
+        // Graph API returns lookup value as MachineNo or field_6
+        const raw = f.MachineNo||f.MachineName||f.Machine||f.field_6||f.MachineCode||'';
         return raw.replace(/\s*\([^)]*\)/g,'').trim();
       })(),
       startDate:    f.StartDate||f.field_7||'',
@@ -3883,7 +3888,7 @@ async function saveEditOSE(){
   if(graphToken && job?.spId){
     const fields={
       field_10: status   ||undefined,
-      field_6:  machine  ||undefined,
+      MachineNo: machine ||undefined, // lookup column (was field_6)
       field_7:  start    ? new Date(start).toISOString() : undefined,
       field_8:  end      ? new Date(end).toISOString()   : undefined,
       field_9:  cap      ? Number(cap)                   : undefined,
@@ -4688,9 +4693,7 @@ async function loadMachineList(){
   populateMachineDropdowns();
 }
 
-// ── Released Prod AX — Brand + Net weight per unit ────────────────
-// Map: ItemNumber → {brand, netWt, productName, fcPcs}
-let prodAXMap = {}; // populated by loadProdAX()
+// prodAXMap declared at top of script
 
 async function loadProdAX(){
   if(!graphToken) return;
