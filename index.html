@@ -3522,7 +3522,8 @@ async function loadL6FromSP(){
       thick:        parseFloat(f.ThicknessMM||f.field_3)||0,
       width:        parseFloat(f.field_4)||0,
       qtyCoils:     parseFloat(f.field_5)||0,
-      machine:      machineIdMap[String(f.MachineNoLookupId||'')]||f.MachineNo||'', // resolve lookup ID → name
+      machine:      machineIdMap[String(f.MachineNoLookupId||'')]  // resolve LookupId → name
+                    ||f.MachineNo||String(f.MachineNoLookupId||''), // fallback: store raw ID
       startDate:    f.StartDate||f.field_7||'',
       endDate:      f.EndDate||f.field_8||'',
       capMinPerCoil:parseFloat(f.field_9)||0,
@@ -3563,6 +3564,15 @@ async function loadL6FromSP(){
 }
 
 function buildMachineListFromL6(){
+  // If machineIdMap has data, resolve any numeric-ID machines to names
+  if(Object.keys(machineIdMap).length){
+    S.axJobs.forEach(j=>{
+      if(j.machine && /^\d+$/.test(j.machine)){
+        // machine stored as numeric ID - resolve to name
+        j.machine = machineIdMap[j.machine] || j.machine;
+      }
+    });
+  }
   // Collect unique MachineNo values from loaded L6 jobs
   const seen = new Set();
   S.axJobs.forEach(j=>{ if(j.machine) seen.add(j.machine); });
@@ -4768,9 +4778,12 @@ async function loadMachineList(){
         machineIdMap = {};
         items.forEach(i=>{
           const name = i.MachineNO||i.field_1||i.Title||'';
-          if(i.id && name) machineIdMap[String(i.id)] = name;
+          if(i.id && name){
+            const cleanName = name.replace(/\s*\([^)]*\)/g,'').trim();
+            machineIdMap[String(i.id)] = cleanName;
+          }
         });
-        machineList = items.map(i=>i.MachineNO||i.field_1||i.Title||'').filter(Boolean).sort();
+        machineList = items.map(i=>(i.MachineNO||i.field_1||i.Title||'').replace(/\s*\([^)]*\)/g,'').trim()).filter(Boolean).sort();
         console.log('machineIdMap:', machineIdMap);
       }
     }
