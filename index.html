@@ -3477,6 +3477,13 @@ async function loadL6FromSP(){
     showProgress('กำลังโหลด OSE/OFM จาก SharePoint L6...',0,1);
     const items=await spGetItems(SP_LISTS.L6,'',500);
     if(!items.length){hideProgress();return;}
+    // DEBUG: log all SP field names to find MachineNo internal name
+    if(items[0]){
+      const allKeys = Object.keys(items[0]);
+      const machKeys = allKeys.filter(k=>k.toLowerCase().includes('machine')||k.toLowerCase().includes('mach'));
+      console.log('L6 SP machine keys:', machKeys, '| values:', machKeys.map(k=>items[0][k]));
+      console.log('L6 SP all keys:', allKeys.join(', '));
+    }
     // ← overwrite ทั้งหมดจาก SP เสมอ ไม่ merge กับ cache เก่า
     S.axJobs=items.map(f=>({
       prod:         f.Title||'',
