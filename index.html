@@ -912,6 +912,7 @@ table.ax-t .ax-total{background:var(--green-lt);color:var(--green);font-weight:6
             style="padding:6px 14px;border:1px solid var(--blue-bd);border-radius:var(--rs);background:var(--blue-bg);color:var(--blue);font-size:13px;cursor:pointer;font-family:var(--sans);font-weight:500">🔄 Load L6</button>
           <button onclick="prodAXMap={};loadProdAX()" id="prod-ax-btn"
             style="padding:6px 14px;border:1px solid var(--purple-bd);border-radius:var(--rs);background:var(--purple-bg);color:var(--purple);font-size:13px;cursor:pointer;font-family:var(--sans);font-weight:500">📦 Load Products</button>
+          <button onclick="syncBrandWeightToL6()" id="sync-brand-btn" style="display:none;padding:6px 14px;border:1px solid var(--teal-bd);border-radius:var(--rs);background:var(--teal-bg);color:var(--teal);font-size:13px;cursor:pointer;font-family:var(--sans);font-weight:500">☁️ Sync Brand+Weight → L6</button>
           <span id="mp-summary-badge" style="font-size:12px;color:var(--ink3)"></span>
         </div>
       </div>
@@ -3497,9 +3498,10 @@ async function loadL6FromSP(){
       gradeB:       parseFloat(f.field_15)||0,
       gradeC:       parseFloat(f.field_16)||0,
       remarks:      f.Remarks||f.field_17||'',
+      totalWt:      parseFloat(f.TotalWeightKG||f.field_19)||0, // SP: TotalWeightKG
       gradeAminus:  parseFloat(f.GradeAminus)||0,
       jobType:      f.JobType||'',
-      brand:        f.Brand||f.field_18||'',
+      brand:        f['_x0e3a_Brand']||f.Brand||f.field_18||'', // SP internal: _x0e3a_Brand
       routeCH:      f.RouteCH||'',
       routePA:      f.RoutePA||'',
       routeORW:     f.RouteORW||'',
@@ -4684,35 +4686,91 @@ async function loadProdAX(){
     items.forEach(i=>{
       const code = i.ItemNumber||i.Title||'';
       if(!code) return;
+      // SP internal names: spaces → _x0020_ or removed
+      const netWtRaw = i['Net weight']||i['Net_x0020_weight']||
+                       i.NetWeight||i.Net_weight||i.Netweight||
+                       i['OData__x0e3a_NetWeight']||0;
       prodAXMap[code] = {
         brand:       i.Brand||'',
-        netWt:       parseFloat(i['Net weight']||i.NetWeight||i.Net_weight||0)||0,
-        productName: i.ProductName||i.Title||'',
-        fcPcs:       parseInt(String(i.FC_pcs||'0').replace(/,/g,''))||0,
-        type:        i.TYPE||'',
+        netWt:       parseFloat(netWtRaw)||0,
+        productName: i.ProductName||'',
+        fcPcs:       parseInt(String(i.FC_pcs||i.FCpcs||'0').replace(/,/g,''))||0,
+        type:        i.TYPE||i.Type||'',
         status:      i.Status||'',
       };
+      // Debug: log first few items
+      if(Object.keys(prodAXMap).length<=3){
+        console.log('prodAX sample:', code, '→ brand:', i.Brand, 'netWt:', parseFloat(netWtRaw)||0, 'keys:', Object.keys(i).join(','));
+      }
     });
     console.log(`✅ Loaded ${Object.keys(prodAXMap).length} released products`);
     showToast(`✅ Released Products: ${Object.keys(prodAXMap).length} รายการ`);
     // Re-render schedule to show brand + weight
     renderMachineSchedule();
+    // Show sync button if L6 jobs loaded
+    if(S.axJobs.length){
+      const syncBtn = document.getElementById('sync-brand-btn');
+      if(syncBtn) syncBtn.style.display='';
+    }
   }catch(e){
     console.warn('loadProdAX error:', e);
   }
 }
 
+// ── Sync Brand + TotalWeight → L6 (PATCH field_18=Brand, field_19=TotalWeight) ─
+async function syncBrandWeightToL6(){
+  if(!graphToken){ showToast('⚠️ Login ก่อนค่ะ'); return; }
+  if(!Object.keys(prodAXMap).length){ showToast('⚠️ Load Products ก่อน'); return; }
+  if(!S.axJobs.length){ showToast('⚠️ Load L6 ก่อน'); return; }
+
+  const jobs = S.axJobs.filter(j=>j.spId && j.itemCode && prodAXMap[j.itemCode]);
+  if(!jobs.length){ showToast('⚠️ ไม่มีใบงานที่ match กับ Released Products'); return; }
+  if(!confirm(`PATCH Brand + น้ำหนัก รวม ${jobs.length} ใบงาน → L6?\n\nข้อมูลที่จะบันทึก:\n- field_18 = Brand (จาก Released Products)\n- field_19 = น้ำหนักรวม kg (Net weight × QTY)`)) return;
+
+  showProgress('กำลัง Sync Brand+Weight → L6...', 0, jobs.length);
+  let ok=0, err=0;
+  for(let i=0; i<jobs.length; i++){
+    const j = jobs[i];
+    showProgress(j.prod+' ('+( i+1)+'/'+jobs.length+')', i+1, jobs.length);
+    const p = prodAXMap[j.itemCode];
+    const totalWt = p.netWt > 0 && j.qty > 0 ? Math.round(p.netWt * j.qty) : 0;
+    const fields = {};
+    if(p.brand)   fields['_x0e3a_Brand'] = p.brand;
+    if(totalWt>0) fields.TotalWeightKG = totalWt;
+    if(!Object.keys(fields).length) continue;
+    try{
+      const result = await spPatchItem(SP_LISTS.L6, j.spId, fields);
+      if(result){ ok++; j.brand=p.brand; j.totalWt=totalWt; }
+      else err++;
+    }catch(e){ err++; }
+  }
+  hideProgress();
+  showToast(`✅ Sync เสร็จ: ${ok} ใบ · ❌ Error: ${err} ใบ`);
+  renderMachineSchedule();
+}
+
 // Helper: lookup brand + weight from prodAXMap by itemCode
 function getProdInfo(j){
   const code = j.itemCode||j.item||'';
-  if(!code || !prodAXMap[code]) return {brand:'', netWt:0, totalWt:0};
-  const p = prodAXMap[code];
-  const qty = j.qty||0;
-  return {
-    brand:   p.brand,
-    netWt:   p.netWt,
-    totalWt: p.netWt > 0 && qty > 0 ? Math.round(p.netWt * qty) : 0,
-  };
+  // ถ้ามีข้อมูลใน prodAXMap → ใช้ก่อน
+  if(code && prodAXMap[code]){
+    const p = prodAXMap[code];
+    const qty = j.qty||0;
+    return {
+      brand:   p.brand,
+      netWt:   p.netWt,
+      totalWt: p.netWt > 0 && qty > 0 ? Math.round(p.netWt * qty) : 0,
+    };
+  }
+  // Fallback: ใช้ค่าที่ sync ไว้ใน L6 แล้ว (field_18, field_19)
+  if(j.brand || j.totalWt){
+    return {
+      brand:   j.brand||'',
+      netWt:   j.totalWt && j.qty ? Math.round(j.totalWt/j.qty*100)/100 : 0,
+      totalWt: j.totalWt||0,
+    };
+  }
+  return {brand:'', netWt:0, totalWt:0};
 }
 
 function populateMachineDropdowns(){
