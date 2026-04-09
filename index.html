@@ -905,7 +905,7 @@ table.ax-t .ax-total{background:var(--green-lt);color:var(--green);font-weight:6
           <button onclick="exportAllXLSX()"
             style="padding:6px 14px;border:1px solid var(--green-bd);border-radius:var(--rs);background:var(--green-bg);color:var(--green);font-size:13px;cursor:pointer;font-family:var(--sans);font-weight:500">📥 Export Excel</button>
           <button id="export-sel-btn" onclick="exportSelectedXLSX()"
-            style="padding:6px 14px;border:1px solid var(--teal-bd);border-radius:var(--rs);background:var(--teal-bg);color:var(--teal);font-size:13px;cursor:pointer;font-family:var(--sans);font-weight:500">📤 Export ที่เลือก</button>
+            style="padding:6px 14px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);color:var(--ink3);font-size:13px;cursor:pointer;font-family:var(--sans);font-weight:500">📤 Export ที่เลือก</button>
           <button onclick="exportForAI()"
             style="padding:6px 14px;border:1px solid var(--purple-bd);border-radius:var(--rs);background:var(--purple-bg);color:var(--purple);font-size:13px;cursor:pointer;font-family:var(--sans);font-weight:500">🤖 Export for AI</button>
           <button onclick="loadL6FromSP().then(()=>{initMasterPlan();showToast('✅ Load L6: '+S.axJobs.length+' jobs');})"
@@ -937,21 +937,21 @@ table.ax-t .ax-total{background:var(--green-lt);color:var(--green);font-weight:6
           </div>
           <div>
             <label style="font-size:10px;font-weight:600;color:#666;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:3px">เครื่องจักร</label>
-            <select id="sch-mach-filter" onchange="applySchDropFilter()"
+            <select id="sch-mach-filter" onchange="renderMachineSchedule()"
               style="padding:5px 8px;border:1px solid var(--b2);border-radius:var(--rs);background:#fff;font-size:12px;outline:none;color:#111;min-width:150px">
               <option value="">— ทุกเครื่อง —</option>
             </select>
           </div>
           <div>
             <label style="font-size:10px;font-weight:600;color:#666;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:3px">สถานะใบงาน</label>
-            <select id="sch-stat-filter" onchange="applySchDropFilter()"
+            <select id="sch-stat-filter" onchange="renderMachineSchedule()"
               style="padding:5px 8px;border:1px solid var(--b2);border-radius:var(--rs);background:#fff;font-size:12px;outline:none;color:#111;min-width:170px">
               <option value="">— ทุกสถานะ —</option>
             </select>
           </div>
           <div>
             <label style="font-size:10px;font-weight:600;color:#666;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:3px">ประเภท</label>
-            <select id="sch-type-filter" onchange="applySchDropFilter()"
+            <select id="sch-type-filter" onchange="renderMachineSchedule()"
               style="padding:5px 8px;border:1px solid var(--b2);border-radius:var(--rs);background:#fff;font-size:12px;outline:none;color:#111;min-width:90px">
               <option value="">— ทั้งหมด —</option>
               <option value="OSE">OSE</option>
@@ -2259,21 +2259,16 @@ function initSchFilterChips(){
       });
     }
   }
-  // Populate machine dropdown based on selected group
-  if(machSel){
-    const grpKey = grpSel?.value||'';
-    const curMach = machSel.value;
+  // Populate machine dropdown only once (on first render)
+  if(machSel && !machSel.dataset.init){
+    machSel.dataset.init='1';
     machSel.innerHTML='<option value="">— ทุกเครื่อง —</option>';
-    const grps = grpKey
-      ? MACHINE_GROUPS.filter(g=>g.key===grpKey)
-      : MACHINE_GROUPS;
-    grps.forEach(g=>{
+    MACHINE_GROUPS.forEach(g=>{
       const og=document.createElement('optgroup');
       og.label=g.icon+' '+g.label;
       g.machines.forEach(m=>{
         const o=document.createElement('option');
         o.value=m; o.textContent=m;
-        if(m===curMach) o.selected=true;
         og.appendChild(o);
       });
       machSel.appendChild(og);
@@ -2282,11 +2277,12 @@ function initSchFilterChips(){
 }
 
 function applySchDropFilter(){
-  // When group changes, re-populate machine dropdown
+  // Only called when GROUP changes — repopulates machine dropdown, then renders
   const grpSel  = document.getElementById('sch-grp-filter');
   const machSel = document.getElementById('sch-mach-filter');
   if(grpSel && machSel){
     const grpKey = grpSel.value;
+    const prevMach = machSel.value; // preserve current selection
     machSel.innerHTML='<option value="">— ทุกเครื่อง —</option>';
     const grps = grpKey ? MACHINE_GROUPS.filter(g=>g.key===grpKey) : MACHINE_GROUPS;
     grps.forEach(g=>{
@@ -2295,6 +2291,7 @@ function applySchDropFilter(){
       g.machines.forEach(m=>{
         const o=document.createElement('option');
         o.value=m; o.textContent=m;
+        if(m===prevMach) o.selected=true; // restore if still in group
         og.appendChild(o);
       });
       machSel.appendChild(og);
@@ -2501,9 +2498,19 @@ function selectAllJobs(el){
 }
 function updateExportSelBtn(){
   const btn = document.getElementById('export-sel-btn');
-  if(btn) btn.textContent = selectedJobs.size > 0
-    ? `📤 Export ที่เลือก (${selectedJobs.size})`
-    : '📤 Export ที่เลือก';
+  if(btn){
+    const n = selectedJobs.size;
+    btn.textContent = n > 0 ? `📤 Export ที่เลือก (${n})` : '📤 Export ที่เลือก';
+    if(n > 0){
+      btn.style.borderColor='var(--teal-bd)';
+      btn.style.background='var(--teal-bg)';
+      btn.style.color='var(--teal)';
+    } else {
+      btn.style.borderColor='var(--b2)';
+      btn.style.background='var(--panel)';
+      btn.style.color='var(--ink3)';
+    }
+  }
   const badge = document.getElementById('mp-sel-count');
   const numEl = document.getElementById('mp-sel-num');
   if(badge){ badge.style.display = selectedJobs.size > 0 ? '' : 'none'; }
@@ -2519,75 +2526,76 @@ function exportAllXLSX(){
 }
 function _doExportXLSX(jobs, baseName){
   if(!jobs.length){ showToast('⚠️ ไม่มีข้อมูล'); return; }
-  const rows = jobs.map(j=>{
-    const jt = jobType(j);
-    const oseRef = jt==='OFM'
-      ? S.axJobs.filter(x=>jobType(x)==='OSE'&&x.item===j.prod).map(x=>x.prod).join(', ')
-      : jt==='OSE' ? (j.item||'') : '';
-    // OSE: จำนวนม้วน coil = qty / 10,000
-    const coilQty = jt==='OSE'
-      ? (j.qtyCoils||Math.round((j.qty||0)/10000)||'—')
-      : (j.qty||'');
-    return {
-      'หมายเลขงาน':   j.prod||'',
-      'ประเภท':        jt,
-      'ชื่องาน/สูตร':  j.name||'',
-      'ความหนา(mm)':  j.thick||'',
-      'จำนวน(เส้น)':  jt==='OSE'?'':j.qty||'',
-      'ม้วน coil(OSE)':jt==='OSE'?coilQty:'',
-      'OSE/OFM คู่':   oseRef,
-      'เครื่องจักร':   j.machine||'',
-      'วันที่เริ่ม':   j.startDate?j.startDate.slice(0,10):'',
-      'วันที่จบ':      j.endDate?j.endDate.slice(0,10):'',
-      'สถานะ':         j.oseStatus||j.status||'',
-      '→ ลบคม/เกลียว':j.routeCH||'',
-      '→ แพ็คกิ้ง':   j.routePA||'',
-      '→ ข้อต่อ/อื่นๆ':j.routeORW||'',
-      'หมายเหตุ':      j.remarks||'',
-    };
-  });
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.json_to_sheet(rows);
-  // Column widths
-  ws['!cols'] = [
-    {wch:14},{wch:6},{wch:50},{wch:10},{wch:10},{wch:10},
-    {wch:16},{wch:20},{wch:12},{wch:12},{wch:28},{wch:16},{wch:16},{wch:14},{wch:30}
-  ];
-  XLSX.utils.book_append_sheet(wb, ws, 'Jobs');
-
-  // Sheet 2: จัดกลุ่มตามเครื่อง (ใช้ jobs ที่ select เท่านั้น)
-  const machRows = [];
-  MACHINE_GROUPS.forEach(grp=>{
-    grp.machines.forEach(m=>{
-      const mJobs = jobs.filter(j=>j.machine===m);
-      if(!mJobs.length) return;
-      machRows.push({'กลุ่มเครื่อง':grp.label,'เครื่อง':m,'หมายเลขงาน':'---','ชื่องาน':'','ความหนา':'','วันเริ่ม':'','วันจบ':'','สถานะ':''});
-      mJobs.sort((a,b)=>(a.startDate||'').localeCompare(b.startDate||'')).forEach(j=>{
-        const jt2 = jobType(j);
-        const coilQ = jt2==='OSE'?(j.qtyCoils||Math.round((j.qty||0)/10000)||''):'';
-        machRows.push({
-          'กลุ่มเครื่อง': grp.label,
-          'เครื่อง':       m,
-          'หมายเลขงาน':   j.prod||'',
-          'ชื่องาน':       j.name||'',
-          'ความหนา':       j.thick?j.thick+'mm':'',
-          'วันเริ่ม':      j.startDate?j.startDate.slice(0,10):'',
-          'วันจบ':         j.endDate?j.endDate.slice(0,10):'',
-          'สถานะ':         j.oseStatus||j.status||'',
-          'ม้วน coil':     coilQ,
+  if(typeof XLSX==='undefined'){ showToast('⚠️ XLSX library ยังไม่โหลด'); return; }
+  try{
+    const rows = jobs.map(j=>{
+      const jt = jobType(j);
+      const oseRef = jt==='OFM'
+        ? S.axJobs.filter(x=>jobType(x)==='OSE'&&x.item===j.prod).map(x=>x.prod).join(', ')
+        : jt==='OSE' ? (j.item||'') : '';
+      const coilQty = jt==='OSE'
+        ? (j.qtyCoils||Math.round((j.qty||0)/10000)||'—')
+        : (j.qty||'');
+      return {
+        'หมายเลขงาน':    j.prod||'',
+        'ประเภท':         jt,
+        'ชื่องาน/สูตร':   j.name||'',
+        'ความหนา(mm)':   j.thick||'',
+        'จำนวน(เส้น)':   jt==='OSE'?'':j.qty||'',
+        'ม้วน coil(OSE)': jt==='OSE'?coilQty:'',
+        'OSE/OFM คู่':    oseRef,
+        'เครื่องจักร':    j.machine||'',
+        'วันที่เริ่ม':    j.startDate?j.startDate.slice(0,10):'',
+        'วันที่จบ':       j.endDate?j.endDate.slice(0,10):'',
+        'สถานะ':          j.oseStatus||j.status||'',
+        '→ ลบคม/เกลียว': j.routeCH||'',
+        '→ แพ็คกิ้ง':    j.routePA||'',
+        '→ ข้อต่อ/อื่นๆ': j.routeORW||'',
+        'หมายเหตุ':       j.remarks||'',
+      };
+    });
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws['!cols'] = [
+      {wch:14},{wch:6},{wch:50},{wch:10},{wch:10},{wch:10},
+      {wch:16},{wch:20},{wch:12},{wch:12},{wch:28},{wch:16},{wch:16},{wch:14},{wch:30}
+    ];
+    XLSX.utils.book_append_sheet(wb, ws, 'Jobs');
+    // Sheet 2: By Machine
+    const machRows = [];
+    MACHINE_GROUPS.forEach(grp=>{
+      grp.machines.forEach(m=>{
+        const mJobs = jobs.filter(j=>j.machine===m);
+        if(!mJobs.length) return;
+        machRows.push({'กลุ่มเครื่อง':grp.label,'เครื่อง':m,'หมายเลขงาน':'---','ชื่องาน':'','ความหนา':'','วันเริ่ม':'','วันจบ':'','สถานะ':'','ม้วน coil':''});
+        mJobs.sort((a,b)=>(a.startDate||'').localeCompare(b.startDate||'')).forEach(j=>{
+          const jt2=jobType(j);
+          machRows.push({
+            'กลุ่มเครื่อง': grp.label,
+            'เครื่อง':       m,
+            'หมายเลขงาน':   j.prod||'',
+            'ชื่องาน':       j.name||'',
+            'ความหนา':       j.thick?j.thick+'mm':'',
+            'วันเริ่ม':      j.startDate?j.startDate.slice(0,10):'',
+            'วันจบ':         j.endDate?j.endDate.slice(0,10):'',
+            'สถานะ':         j.oseStatus||j.status||'',
+            'ม้วน coil':     jt2==='OSE'?(j.qtyCoils||Math.round((j.qty||0)/10000)||''):'',
+          });
         });
       });
     });
-  });
-  if(machRows.length){
-    const ws2 = XLSX.utils.json_to_sheet(machRows);
-    ws2['!cols'] = [{wch:14},{wch:20},{wch:14},{wch:44},{wch:10},{wch:12},{wch:12},{wch:28},{wch:10}];
-    XLSX.utils.book_append_sheet(wb, ws2, 'ByMachine');
+    if(machRows.length){
+      const ws2 = XLSX.utils.json_to_sheet(machRows);
+      ws2['!cols']=[{wch:14},{wch:20},{wch:14},{wch:44},{wch:10},{wch:12},{wch:12},{wch:28},{wch:10}];
+      XLSX.utils.book_append_sheet(wb, ws2, 'ByMachine');
+    }
+    const dateStr = new Date().toLocaleDateString('th-TH',{year:'numeric',month:'2-digit',day:'2-digit'}).replace(/\//g,'');
+    xlsxDownload(wb, `${baseName}_${dateStr}.xlsx`);
+    showToast(`✅ Export ${jobs.length} ใบงาน → Excel`);
+  }catch(e){
+    console.error('Export error:', e);
+    showToast('❌ Export ไม่สำเร็จ: '+(e.message||String(e)));
   }
-
-  const dateStr = new Date().toLocaleDateString('th-TH',{year:'numeric',month:'2-digit',day:'2-digit'}).replace(/\//g,'');
-  xlsxDownload(wb, `${baseName}_${dateStr}.xlsx`);
-  showToast(`✅ Export ${jobs.length} ใบงาน → Excel`);
 }
 
 function setUASort(by, btn){
@@ -4498,7 +4506,7 @@ async function loadMachineList(){
 
 function populateMachineDropdowns(){
   // สร้าง options สำหรับทุก dropdown machine ใน app
-  const selIds = ['prod-machine','qa-machine-no','sch-mach-filter'];
+  const selIds = ['prod-machine','qa-machine-no']; // sch-mach-filter managed by initSchFilterChips
   selIds.forEach(id=>{
     const sel = document.getElementById(id);
     if(!sel) return;
