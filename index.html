@@ -390,8 +390,7 @@ table.ax-t .ax-total{background:var(--green-lt);color:var(--green);font-weight:6
           <option value="1.Start-งานกำหนดวันแล้ว">1.Start — กำหนดวันแล้ว</option>
           <option value="Pick-หยิบวัตถุดิบ">Pick — หยิบวัตถุดิบ</option>
         </select>
-        <button onclick="loadL6FromSP().then(()=>{renderOSEPending();showToast('✅ Load L6 แล้ว');})"
-          style="padding:8px 16px;border:1px solid var(--blue-bd);border-radius:var(--rs);background:var(--blue-bg);color:var(--blue);font-size:13px;cursor:pointer;font-family:var(--sans);font-weight:600;white-space:nowrap">🔄 Load L6</button>
+        <button onclick="irLoadL6()" style="padding:8px 16px;border:1px solid var(--blue-bd);border-radius:var(--rs);background:var(--blue-bg);color:var(--blue);font-size:13px;cursor:pointer;font-family:var(--sans);font-weight:600;white-space:nowrap">🔄 Load L6</button>
       </div>
 
       <!-- ใบงาน OSE header -->
@@ -1913,6 +1912,8 @@ function navigate(id){
   if(tab) tab.classList.add('active');
   if(id==='packing'){renderPackingList();if(graphToken&&!S.mcids.length)loadL4FromSP();}
   if(id==='ose-plan'){
+    const stF=document.getElementById('ir-status-filter');
+    if(stF) stF.value='';  // reset filter ทุกครั้ง
     renderOSEPending();renderOSEPlanned();
     if(!S.axJobs.length){
       if(graphToken) loadL6FromSP();
@@ -3999,6 +4000,17 @@ async function saveEditOSE(){
   renderOSEPending();
   alert(`✅ อัปเดต ${editOSEId} → ${status}`);
 }
+async function irLoadL6(){
+  if(!graphToken){
+    showToast('⏳ กำลัง login Microsoft...');
+    await doMSLogin();
+  }
+  if(!graphToken){ showToast('⚠️ Login ไม่สำเร็จ'); return; }
+  await loadL6FromSP();
+  renderOSEPending();
+  showToast('✅ Load L6 แล้ว: '+S.axJobs.filter(j=>(j.prod||'').startsWith('OSE')).length+' ใบงาน OSE');
+}
+
 function renderOSEPending(){
   const el=document.getElementById('ose-pending-list');
   const role=S.user?.role||'';
