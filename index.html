@@ -1927,12 +1927,9 @@ function navigate(id){
   if(id==='qa'){
     renderQAJobSelect();renderQAList();updateQAStats();
     if(!qaDefectCauses.length) loadDefectCauses();
-    // populate machine dropdown จาก machineList
-    const mSel = document.getElementById('qa-machine-no');
-    if(mSel && mSel.options.length <= 1){
-      if(!machineList.length) loadMachineList().then(()=>populateMachineDropdowns());
-      else populateMachineDropdowns();
-    }
+    // populate machine dropdown จาก machineList (SP ProdCtrl_Machine)
+    if(!machineList.length) loadMachineList();
+    else populateMachineDropdowns();
   }
   if(id==='master-plan'){initMasterPlan();}
   if(id==='dash') renderDash();
