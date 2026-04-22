@@ -4002,13 +4002,23 @@ async function saveEditOSE(){
 }
 async function irLoadL6(){
   if(!graphToken){
-    showToast('⏳ กำลัง login Microsoft...');
-    await doMSLogin();
+    showToast('⏳ กำลัง connect Microsoft...');
+    try{
+      if(!msalInstance){ initMSAL(); }
+      const resp = await msalInstance.loginPopup({
+        scopes:['User.Read','Sites.ReadWrite.All','Files.ReadWrite.All']
+      });
+      if(resp?.accessToken) graphToken = resp.accessToken;
+    }catch(e){
+      showToast('⚠️ Connect ไม่สำเร็จ: '+e.message);
+      return;
+    }
   }
-  if(!graphToken){ showToast('⚠️ Login ไม่สำเร็จ'); return; }
+  if(!graphToken){ showToast('⚠️ ไม่มี token — ลองใหม่'); return; }
   await loadL6FromSP();
   renderOSEPending();
-  showToast('✅ Load L6 แล้ว: '+S.axJobs.filter(j=>(j.prod||'').startsWith('OSE')).length+' ใบงาน OSE');
+  const n = S.axJobs.filter(j=>(j.prod||'').startsWith('OSE')).length;
+  showToast('✅ Load L6 แล้ว: '+n+' ใบงาน OSE');
 }
 
 function renderOSEPending(){
