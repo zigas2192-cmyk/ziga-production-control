@@ -2888,16 +2888,24 @@ function renderUnassigned(){
       let oseRef='<span style="color:#bbb">—</span>';
       if(jt==='OFM'){
         const paired=S.axJobs.filter(x=>jobType(x)==='OSE'&&x.item===j.prod);
-        oseRef=paired.length
-          ? paired.map(x=>{
-              const xst=x.oseStatus||x.status||'';
-              const xc=OSE_STATUS_COLOR[xst]||'p-gray';
-              return `<div style="margin-bottom:3px">
-                <div style="font-family:var(--mono);font-size:12px;font-weight:700;color:#1a7a1a">${x.prod}</div>
-                <span class="pill ${xc}" style="font-size:9px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block" title="${xst}">${xst.slice(0,18)||'ไม่ระบุ'}</span>
-              </div>`;
-            }).join('')
-          : '<span style="color:#bbb">—</span>';
+        if(paired.length){
+          oseRef=paired.map(x=>{
+            const xst=x.oseStatus||x.status||'';
+            const xc=OSE_STATUS_COLOR[xst]||'p-gray';
+            return `<div style="margin-bottom:3px">
+              <div style="font-family:var(--mono);font-size:12px;font-weight:700;color:#1a7a1a">${x.prod}</div>
+              <span class="pill ${xc}" style="font-size:9px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block" title="${xst}">${xst.slice(0,18)||'ไม่ระบุ'}</span>
+            </div>`;
+          }).join('');
+        } else if(j.item || j.oseStatus){
+          // fallback: ใช้ field_1 (OSE no.) + field_10 (status) ของ OFM row เอง
+          const xst=j.oseStatus||j.status||'';
+          const xc=OSE_STATUS_COLOR[xst]||'p-gray';
+          oseRef=`<div style="margin-bottom:3px">
+            ${j.item?`<div style="font-family:var(--mono);font-size:12px;font-weight:700;color:#1a7a1a">${j.item}</div>`:''}
+            ${xst?`<span class="pill ${xc}" style="font-size:9px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block" title="${xst}">${xst.slice(0,18)}</span>`:''}
+          </div>`;
+        }
       } else if(jt==='OSE'){
         oseRef=j.item
           ? `<div style="font-family:var(--mono);font-size:12px;font-weight:700;color:#1259A5">${j.item}</div>`
