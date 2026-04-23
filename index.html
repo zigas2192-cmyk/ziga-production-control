@@ -3478,17 +3478,17 @@ async function updateOSEOFMRef(prod, val){
       .then(ok=>{ if(ok) showToast('✅ บันทึก OSE↔OFM: '+prod); else showToast('❌ บันทึกไม่สำเร็จ'); })
       .catch(()=>showToast('❌ บันทึก error'));
   }
-  // Also PATCH OFM row: field_1 = OSE number, field_10 = "OSE no. สถานะ"
+  // Also PATCH OFM row: field_1 = OSE number, field_10 = OSE status (valid choice)
   if(graphToken && val){
     const ofmJob = S.axJobs.find(j=>j.prod===val);
     if(ofmJob?.spId){
       const oseStatus = j.oseStatus||j.status||'';
-      const combinedStatus = oseStatus ? `${prod}: ${oseStatus}` : prod;
-      const ofmFields = {field_1: prod, field_10: combinedStatus};
-      // Update local state immediately
+      const ofmFields = {field_1: prod};
+      if(oseStatus) ofmFields.field_10 = oseStatus;
+      // Update local state: store OSE ref separately for display
       ofmJob.item = prod;
-      ofmJob.oseStatus = combinedStatus;
-      ofmJob.status = combinedStatus;
+      ofmJob.oseRef = prod;       // OSE number
+      if(oseStatus){ ofmJob.oseStatus = oseStatus; ofmJob.status = oseStatus; }
       spPatchItem(SP_LISTS.L6, ofmJob.spId, ofmFields)
         .then(ok=>{ if(ok) renderMachineSchedule(); })
         .catch(()=>{});
@@ -3515,12 +3515,12 @@ async function saveOSEMappingRow(prod){
       const ofmJob = S.axJobs.find(o=>o.prod===j.item);
       if(ofmJob?.spId){
         const oseStatus = j.oseStatus||j.status||'';
-        const combinedStatus = oseStatus ? `${prod}: ${oseStatus}` : prod;
-        const ofmFields = {field_1: prod, field_10: combinedStatus};
-        // Update local state immediately
+        const ofmFields = {field_1: prod};
+        if(oseStatus) ofmFields.field_10 = oseStatus;
+        // Update local state: store OSE ref separately for display
         ofmJob.item = prod;
-        ofmJob.oseStatus = combinedStatus;
-        ofmJob.status = combinedStatus;
+        ofmJob.oseRef = prod;       // OSE number
+        if(oseStatus){ ofmJob.oseStatus = oseStatus; ofmJob.status = oseStatus; }
         await spPatchItem(SP_LISTS.L6, ofmJob.spId, ofmFields);
         renderMachineSchedule();
       }
