@@ -3485,7 +3485,11 @@ async function updateOSEOFMRef(prod, val){
       const oseStatus = j.oseStatus||j.status||'';
       const ofmFields = {field_1: prod};
       if(oseStatus) ofmFields.field_10 = oseStatus;
+      // Update local state immediately
+      ofmJob.item = prod;
+      if(oseStatus){ ofmJob.oseStatus = oseStatus; ofmJob.status = oseStatus; }
       spPatchItem(SP_LISTS.L6, ofmJob.spId, ofmFields)
+        .then(ok=>{ if(ok) renderMachineSchedule(); })
         .catch(()=>{});
     }
   }
@@ -3512,7 +3516,11 @@ async function saveOSEMappingRow(prod){
         const oseStatus = j.oseStatus||j.status||'';
         const ofmFields = {field_1: prod};
         if(oseStatus) ofmFields.field_10 = oseStatus;
+        // Update local state immediately
+        ofmJob.item = prod;
+        if(oseStatus){ ofmJob.oseStatus = oseStatus; ofmJob.status = oseStatus; }
         await spPatchItem(SP_LISTS.L6, ofmJob.spId, ofmFields);
+        renderMachineSchedule();
       }
     }
   } else {
