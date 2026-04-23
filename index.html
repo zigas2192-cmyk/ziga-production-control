@@ -3472,11 +3472,22 @@ async function updateOSEOFMRef(prod, val){
   const j=S.axJobs.find(j=>j.prod===prod);
   if(!j) return;
   j.item=val;
-  // Auto-save OFMRef to SP L6
+  // Auto-save OFMRef to SP L6 (OSE row: field_1 = OFM number)
   if(graphToken && j.spId){
-    spPatchItem(SP_LISTS.L6, j.spId, {field_1: val||''})  // OFMRef = field_1
+    spPatchItem(SP_LISTS.L6, j.spId, {field_1: val||''})
       .then(ok=>{ if(ok) showToast('✅ บันทึก OSE↔OFM: '+prod); else showToast('❌ บันทึกไม่สำเร็จ'); })
       .catch(()=>showToast('❌ บันทึก error'));
+  }
+  // Also PATCH OFM row: field_1 = OSE number, field_10 = OSE status
+  if(graphToken && val){
+    const ofmJob = S.axJobs.find(j=>j.prod===val);
+    if(ofmJob?.spId){
+      const oseStatus = j.oseStatus||j.status||'';
+      const ofmFields = {field_1: prod};
+      if(oseStatus) ofmFields.field_10 = oseStatus;
+      spPatchItem(SP_LISTS.L6, ofmJob.spId, ofmFields)
+        .catch(()=>{});
+    }
   }
 }
 
@@ -3486,7 +3497,7 @@ async function saveOSEMappingRow(prod){
   if(!graphToken){alert('กรุณา login ด้วย Microsoft ก่อน');return;}
   if(!j.spId){alert('ไม่พบ SP ID — reload L6 ก่อน');return;}
   const fields={
-    field_1:  j.item||undefined,  // OFMRef = field_1 (SP internal name)
+    field_1:  j.item||undefined,  // OFMRef = field_1 (OSE row → OFM number)
     field_11: j.priority?Number(j.priority):undefined,
     field_7:  j.startDate?new Date(j.startDate).toISOString():undefined,
   };
@@ -3494,6 +3505,16 @@ async function saveOSEMappingRow(prod){
   const ok=await spPatchItem(SP_LISTS.L6, j.spId, fields);
   if(ok){
     showToast(`✅ บันทึก ${prod} แล้ว`);
+    // Also PATCH OFM row: field_1 = OSE number
+    if(j.item){
+      const ofmJob = S.axJobs.find(o=>o.prod===j.item);
+      if(ofmJob?.spId){
+        const oseStatus = j.oseStatus||j.status||'';
+        const ofmFields = {field_1: prod};
+        if(oseStatus) ofmFields.field_10 = oseStatus;
+        await spPatchItem(SP_LISTS.L6, ofmJob.spId, ofmFields);
+      }
+    }
   } else {
     alert('❌ บันทึกไม่สำเร็จ');
   }
@@ -4847,6 +4868,8 @@ async function loadProdAX(){
       };
 
     });
+    // Debug: log first item keys to find Thickness internal name
+    if(items.length) console.log('🔍 PROD_AX sample item keys:', Object.keys(items[0]), '\nsample:', JSON.stringify(items[0]).slice(0,500));
     console.log(`✅ Loaded ${Object.keys(prodAXMap).length} released products`);
     showToast(`✅ Released Products: ${Object.keys(prodAXMap).length} รายการ`);
     // Re-render schedule to show brand + weight
