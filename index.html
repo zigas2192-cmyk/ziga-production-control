@@ -911,7 +911,7 @@ table.ax-t .ax-total{background:var(--green-lt);color:var(--green);font-weight:6
             style="padding:6px 14px;border:1px solid var(--blue-bd);border-radius:var(--rs);background:var(--blue-bg);color:var(--blue);font-size:13px;cursor:pointer;font-family:var(--sans);font-weight:500">🔄 Load L6</button>
           <button onclick="prodAXMap={};loadProdAX()" id="prod-ax-btn"
             style="padding:6px 14px;border:1px solid var(--purple-bd);border-radius:var(--rs);background:var(--purple-bg);color:var(--purple);font-size:13px;cursor:pointer;font-family:var(--sans);font-weight:500">📦 Load Products</button>
-          <button onclick="syncBrandWeightToL6()" id="sync-brand-btn" style="display:none;padding:6px 14px;border:1px solid var(--teal-bd);border-radius:var(--rs);background:var(--teal-bg);color:var(--teal);font-size:13px;cursor:pointer;font-family:var(--sans);font-weight:500">☁️ Sync Brand+Weight → L6</button>
+          <button onclick="syncBrandWeightToL6()" id="sync-brand-btn" style="display:none;padding:6px 14px;border:1px solid var(--teal-bd);border-radius:var(--rs);background:var(--teal-bg);color:var(--teal);font-size:13px;cursor:pointer;font-family:var(--sans);font-weight:500">☁️ Sync Brand+Weight+Thickness → L6</button>
           <span id="mp-summary-badge" style="font-size:12px;color:var(--ink3)"></span>
         </div>
       </div>
@@ -4836,9 +4836,11 @@ async function loadProdAX(){
       if(!code) return;
       const netWtRaw = parseFloat(i.field_5)||0;
       const brandRaw = i.field_9||'';
+      const thicknessRaw = parseFloat(i.Thickness)||0;
       prodAXMap[code] = {
         brand:       brandRaw,
         netWt:       netWtRaw,
+        thickness:   thicknessRaw,
         productName: i.field_1||'',
         type:        i.field_8||'',
         status:      i.field_2||'',
@@ -4875,9 +4877,9 @@ async function syncBrandWeightToL6(){
     showToast(`⚠️ ไม่มีใบงานที่ match — ไม่มี spId: ${noSpId}, ไม่มี itemCode: ${noCode}`);
     return;
   }
-  if(!confirm(`Sync Brand + น้ำหนัก → L6 จำนวน ${jobs.length} ใบงาน?\n\nข้อมูลที่จะบันทึก:\n- _x0e3a_Brand = Brand\n- TotalWeightKG = น้ำหนักรวม kg`)) return;
+  if(!confirm(`Sync Brand + น้ำหนัก + Thickness → L6 จำนวน ${jobs.length} ใบงาน?\n\nข้อมูลที่จะบันทึก:\n- _x0e3a_Brand = Brand\n- TotalWeightKG = น้ำหนักรวม kg\n- field_3 = Thickness (mm)`)) return;
 
-  showProgress('กำลัง Sync Brand+Weight → L6...', 0, jobs.length);
+  showProgress('กำลัง Sync Brand+Weight+Thickness → L6...', 0, jobs.length);
   let ok=0, err=0;
   for(let i=0; i<jobs.length; i++){
     const j = jobs[i];
@@ -4885,12 +4887,13 @@ async function syncBrandWeightToL6(){
     const p = prodAXMap[j.itemCode];
     const totalWt = p.netWt > 0 && j.qty > 0 ? Math.round(p.netWt * j.qty) : 0;
     const fields = {};
-    if(p.brand)   fields['_x0e3a_Brand'] = p.brand;
-    if(totalWt>0) fields.TotalWeightKG = totalWt;
+    if(p.brand)       fields['_x0e3a_Brand'] = p.brand;
+    if(totalWt>0)     fields.TotalWeightKG = totalWt;
+    if(p.thickness>0) fields.field_3 = p.thickness;
     if(!Object.keys(fields).length) continue;
     try{
       const result = await spPatchItem(SP_LISTS.L6, j.spId, fields);
-      if(result){ ok++; j.brand=p.brand; j.totalWt=totalWt; }
+      if(result){ ok++; j.brand=p.brand; j.totalWt=totalWt; if(p.thickness>0) j.thickness=p.thickness; }
       else err++;
     }catch(e){ err++; }
   }
