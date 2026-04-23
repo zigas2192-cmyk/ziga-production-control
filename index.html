@@ -6289,35 +6289,9 @@ window.addEventListener('load', async function(){
 
     // ลอง re-acquire token
     if(!graphToken){
-      // ลอง silent MSAL ก่อน (ถ้ามี refresh token อยู่)
-      if(msalInstance && S.user?.email){
-        msalInstance.acquireTokenSilent({
-          scopes:['User.Read','Sites.ReadWrite.All','Files.ReadWrite.All'],
-          account: (msalInstance.getAllAccounts ? msalInstance.getAllAccounts()[0] : {})
-        }).then(resp=>{
-          if(resp?.accessToken){
-            graphToken = resp.accessToken;
-            document.getElementById('reconnect-banner')?.remove();
-            console.log('✅ Silent token re-acquired');
-            loadL4FromSP();
-            loadL6FromSP();
-          }
-        }).catch(()=>{
-          // Silent ไม่ได้ → แสดง banner ให้ user กด Connect เอง
-          showToast('🔑 กด Connect เพื่อ sync SharePoint');
-          const banner = document.createElement('div');
-          banner.id = 'reconnect-banner';
-          banner.style.cssText = 'position:fixed;top:52px;left:0;right:0;background:#1259A5;color:#fff;text-align:center;padding:10px 16px;font-size:13px;z-index:500;display:flex;align-items:center;justify-content:center;gap:12px';
-          banner.innerHTML = `<span>⚠️ ยังไม่ได้ connect SharePoint</span>
-            <button onclick="doMSLogin().then(()=>{document.getElementById('reconnect-banner')?.remove();loadL4FromSP();loadL6FromSP();})"
-              style="background:#fff;color:#1259A5;border:none;border-radius:6px;padding:5px 14px;font-size:12px;cursor:pointer;font-weight:600">
-              🔑 Connect
-            </button>`;
-          document.body.appendChild(banner);
-        });
-      } else {
-        // ไม่มี MSAL → banner ปกติ
-        showToast('🔑 กด Connect เพื่อ sync SharePoint');
+      // PKCE shim ไม่มี acquireTokenSilent → แสดง banner ให้ user กด Connect เอง
+      showToast('🔑 กด Connect เพื่อ sync SharePoint');
+      if(!document.getElementById('reconnect-banner')){
         const banner = document.createElement('div');
         banner.id = 'reconnect-banner';
         banner.style.cssText = 'position:fixed;top:52px;left:0;right:0;background:#1259A5;color:#fff;text-align:center;padding:10px 16px;font-size:13px;z-index:500;display:flex;align-items:center;justify-content:center;gap:12px';
