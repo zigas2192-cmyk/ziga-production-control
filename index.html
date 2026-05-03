@@ -531,6 +531,9 @@ table.ax-t .ax-total{background:var(--green-lt);color:var(--green);font-weight:6
           <button class="btn" id="dp-sync-btn" onclick="syncCAPToDailyPlan()" style="display:none;background:var(--teal);color:#0d0f14;font-weight:600">
             ☁️ Sync CAP → Daily Plan
           </button>
+          <button class="btn" onclick="debugDailyPlanFields()" style="background:var(--panel);color:var(--ink3);border:1px solid var(--bd);font-size:11px" title="Log Daily Plan field internal names to Console">
+            🔍 Debug Fields
+          </button>
           <button class="btn" onclick="exportDailyPlanXLSX()" style="background:var(--panel);color:var(--ink);border:1px solid var(--bd)">
             📥 Export Excel
           </button>
@@ -4986,6 +4989,7 @@ function getDailyPlanRowStatus(r){
   if(Math.abs(r.capValue - cap.capValue) > epsilon) return 'needs-sync';
   if(Math.abs(r.setUpMin - cap.setUpMin) > epsilon) return 'needs-sync';
   if(Math.abs(r.totalWorkMin - cap.totalWorkMin) > epsilon) return 'needs-sync';
+  if(Math.abs((r.stdLossMin||0) - (cap.stdLossMin||0)) > epsilon) return 'needs-sync';
   return 'matched';
 }
 
@@ -5125,8 +5129,9 @@ async function syncCAPToDailyPlan(){
     showProgress(`${r.jobNo||r.calCap} (${i+1}/${targets.length})`,i+1,targets.length);
     const fields = {
       CapValue:       cap.capValue,
-      SetUp_min0:     cap.setUpMin,     // internal name 'SetUp_min0' (user confirmed)
-      TotalWork_min0: cap.totalWorkMin, // internal name 'TotalWork_min0' (by analogy)
+      SetUp_min0:     cap.setUpMin,
+      TotalWork_min:  cap.totalWorkMin,
+      StdLoss_min:    cap.stdLossMin,
     };
     try{
       const result = await spPatchItem(SP_LISTS.DAILY_PLAN, r.spId, fields);
@@ -5135,6 +5140,7 @@ async function syncCAPToDailyPlan(){
         r.capValue     = cap.capValue;
         r.setUpMin     = cap.setUpMin;
         r.totalWorkMin = cap.totalWorkMin;
+        r.stdLossMin   = cap.stdLossMin;
       }else{
         err++;
         errors.push(`${r.jobNo||r.spId}: PATCH failed`);
@@ -5149,6 +5155,38 @@ async function syncCAPToDailyPlan(){
   if(errors.length) console.warn('Sync errors:',errors);
   showToast(`✅ Sync เสร็จ: ${ok} แถว · ❌ Error: ${err} แถว`);
   renderDailyPlanList();
+}
+
+// ── Debug: ดู internal field names ของ Daily Plan จริงๆ จาก SP ──────
+async function debugDailyPlanFields(){
+  if(!graphToken){ showToast('⚠️ Login ก่อน'); return; }
+  showToast('⏳ กำลัง fetch Daily Plan columns...');
+  try{
+    const siteId = await getSiteId();
+    const listId = await getListId(SP_LISTS.DAILY_PLAN);
+    if(!siteId||!listId){ showToast('❌ หา list ไม่เจอ'); return; }
+    // Fetch columns
+    const r = await graphGet(`/sites/${siteId}/lists/${listId}/columns?$select=name,displayName,readOnly,hidden,type`);
+    const cols = (r?.value||[])
+      .filter(c=>!c.hidden && !['ContentType','Attachments','Edit','ItemChildCount','FolderChildCount','_UIVersionString','_ComplianceFlags','_ComplianceTag','_ComplianceTagWrittenTime','_ComplianceTagUserId'].includes(c.name))
+      .map(c=>({
+        display: c.displayName,
+        internal: c.name,
+        type: c.type||c.text?'text':(c.number?'number':(c.lookup?'lookup':'?')),
+        readOnly: c.readOnly||false,
+      }));
+    console.log(`📋 Daily Plan columns (${cols.length}):`);
+    console.table(cols);
+    // Specifically find the cap-related fields
+    const capFields = cols.filter(c=>
+      ['CapValue','SetUp','TotalWork','StdLoss','CapPerDay'].some(k=>c.display.includes(k)||c.internal.includes(k))
+    );
+    console.log('🎯 CAP-related fields:', capFields);
+    showToast(`✅ Daily Plan: ${cols.length} columns (ดู Console > console.table)`);
+  }catch(e){
+    console.error('debugDailyPlanFields error:',e);
+    showToast('❌ Error: '+e.message);
+  }
 }
 
 function exportDailyPlanXLSX(){
