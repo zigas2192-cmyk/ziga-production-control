@@ -517,38 +517,53 @@ table.ax-t .ax-total{background:var(--green-lt);color:var(--green);font-weight:6
 
     <!-- ⑤ OFM วางแผน -->
     <div class="page" id="page-ofm-plan">
-      <div class="pg-hd"><div class="pg-title">วางแผน OFM/ORW</div>
-        <div class="pg-sub">เลือก JOB → กำหนดเครื่อง + เวลา + Cap → จำนวนตามแผน auto-คำนวณ</div></div>
-      <div class="g2">
-        <div class="card">
-          <div class="card-title">เพิ่มแผนงาน</div>
-          <div class="ff"><label>วันที่</label><input class="fi" type="date" id="ofm-date"></div>
-          <div class="ff"><label>เลือก JOB No.</label>
-            <select class="fi sel" id="ofm-job" onchange="onOFMJobChange()"><option value="">-- เลือก --</option></select></div>
-          <div id="ofm-job-detail" style="display:none;background:var(--panel);border-radius:var(--rs);padding:8px 11px;margin-bottom:9px;font-size:11px;line-height:1.6;color:var(--ink3)"></div>
-          <div class="g2">
-            <div class="ff"><label>เครื่องจักร</label>
-              <select class="fi sel" id="ofm-machine">
-                <option>RF_04</option><option>RF_05</option><option>RF_06</option><option>RF_07</option><option>RF_08</option>
-                <option>TA_A03</option><option>TA_A04</option><option>TA_A05</option><option>TA_A06</option>
-                <option>CH_A02</option><option>CH_A03</option><option>CH_A05</option><option>CH_A06</option>
-                <option>LO_R01+PA_M01</option><option>LO_R04</option><option>LO_R08+PA_M08</option>
-                <option>ข้อต่อ-เกลียว</option><option>ข้อต่อ-ชุบ</option><option>ดันตะเข็บ</option>
-              </select></div>
-            <div class="ff"><label>ช่วงเวลา</label><input class="fi" id="ofm-time" placeholder="08.00-17.00"></div>
-            <div class="ff"><label>Cap</label><input class="fi" type="number" id="ofm-cap" oninput="calcOFM()"></div>
-            <div class="ff"><label>หน่วย</label>
-              <select class="fi sel" id="ofm-unit" onchange="calcOFM()">
-                <option>เส้น/นาที</option><option>เมตร/นาที</option><option>ชิ้น/นาที</option><option>นาที/ลูก</option>
-              </select></div>
-            <div class="ff"><label>ชั่วโมงทำงาน</label><input class="fi" type="number" id="ofm-hours" step="0.5" oninput="calcOFM()"></div>
-            <div class="ff"><label>ตามแผน (auto)</label><input class="fi auto" id="ofm-plan-qty" readonly></div>
-          </div>
-          <div class="btn-row"><button class="btn btn-p" onclick="addOFMPlan()">+ เพิ่มแผน</button></div>
+      <div class="pg-hd">
+        <div class="pg-title">วางแผน OFM/ORW · Daily Plan + CAP Sync</div>
+        <div class="pg-sub">โหลด ProdCtrl_2026-FM-PN-03_DAILY PLAN แล้ว match กับ ProdCtrl_CAP ผ่าน CalCap → sync ค่า CapValue, SetUp_min, TotalWork_min กลับ Daily Plan</div>
+      </div>
+
+      <!-- Action Bar -->
+      <div class="card" style="margin-bottom:12px">
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+          <button class="btn btn-p" onclick="loadDailyPlanAndCAP()" style="background:var(--blue);color:#fff">
+            🔄 Load Daily Plan + CAP
+          </button>
+          <button class="btn" id="dp-sync-btn" onclick="syncCAPToDailyPlan()" style="display:none;background:var(--teal);color:#0d0f14;font-weight:600">
+            ☁️ Sync CAP → Daily Plan
+          </button>
+          <button class="btn" onclick="exportDailyPlanXLSX()" style="background:var(--panel);color:var(--ink);border:1px solid var(--bd)">
+            📥 Export Excel
+          </button>
+          <div style="flex:1"></div>
+          <div id="dp-stats" style="font-size:12px;color:var(--ink3);font-family:var(--mono)">—</div>
         </div>
-        <div class="card">
-          <div class="card-title">แผนวันนี้ <span class="pill p-purple" id="ofm-plan-count">0</span></div>
-          <div id="ofm-plan-list"><div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center">ยังไม่มีแผน</div></div>
+      </div>
+
+      <!-- Filter Bar -->
+      <div class="card" style="margin-bottom:12px">
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+          <input class="fi" id="dp-search" placeholder="🔍 ค้นหา JOB / OFMRef / ชื่องาน / CalCap..." 
+                 oninput="renderDailyPlanList()" style="flex:1;min-width:240px;font-size:12px">
+          <select class="fi sel" id="dp-machine-filter" onchange="renderDailyPlanList()" style="font-size:12px;max-width:200px">
+            <option value="">ทุกเครื่องจักร</option>
+          </select>
+          <select class="fi sel" id="dp-status-filter" onchange="renderDailyPlanList()" style="font-size:12px;max-width:200px">
+            <option value="">ทุกสถานะ</option>
+            <option value="matched">✅ Match แล้ว</option>
+            <option value="needs-sync">⚠️ ต้อง Sync</option>
+            <option value="no-match">❌ ไม่ match CAP</option>
+            <option value="no-calcap">⚠️ ไม่มี CalCap</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Daily Plan Table -->
+      <div class="card">
+        <div class="card-title">รายการแผนผลิตประจำวัน <span class="pill p-purple" id="dp-count">0</span></div>
+        <div id="dp-table-wrap" style="overflow-x:auto;max-height:70vh">
+          <div style="color:var(--ink3);font-size:12px;padding:30px;text-align:center">
+            กด <b style="color:var(--blue)">🔄 Load Daily Plan + CAP</b> เพื่อเริ่มต้น
+          </div>
         </div>
       </div>
     </div>
@@ -1233,10 +1248,15 @@ const SP_LISTS = {
   L9:  'L9_EmployeeZiGA',
   MACH:'ProdCtrl_Machine',            // รายชื่อเครื่องจักร
   PROD_AX: 'ProdCtrl_released_Prod_AX', // Released products จาก AX
+  CAP:     'test',                     // ProdCtrl_CAP — internal name 'test' (กำลังการผลิต)
+  DAILY_PLAN: 'ProdCtrl_2026-FM-PN-03_DAILY PLAN',  // FM-PN-03 Daily Plan (รวมแผนรายวัน)
 };
 
 // ── State maps (declared early so onclick attrs can reference them) ──
 let prodAXMap = {}; // ItemNumber → {brand, netWt} — populated by loadProdAX()
+let capMap = {};    // CAP Title → {capValue, setUpMin, totalWorkMin, capUnit, stdLossMin, capPerDay} — populated by loadCAP()
+let capIdMap = {};  // SP item ID → CAP Title (resolve CalCapLookupId)
+let dailyPlanRows = []; // DAILY PLAN rows — populated by loadDailyPlan()
 
 // ── L9 UserRoles — Fallback hardcode (ใช้ถ้า SP fetch ไม่ได้) ──────
 // admin แก้ได้ที่ SP list โดยตรง ไม่ต้อง redeploy app
@@ -1922,7 +1942,15 @@ function navigate(id){
   }
   if(id==='slit') renderSlitOSEList();
   if(id==='ax') renderAX();
-  if(id==='ofm-plan'){buildOFMJobSelect();renderOFMPlanList();}
+  if(id==='ofm-plan'){
+    // ถ้ามีข้อมูลแล้ว → render เลย
+    // ถ้ายังไม่มี → แสดง empty state ให้ user กดปุ่ม Load เอง (manual sync)
+    if(dailyPlanRows.length){
+      renderDailyPlanList();
+      const btn = document.getElementById('dp-sync-btn');
+      if(btn) btn.style.display = '';
+    }
+  }
   if(id==='prod') renderProdList();
   if(id==='prod'){
     const t=new Date().toISOString().slice(0,10);
@@ -3556,6 +3584,8 @@ async function loadL6FromSP(){
   try{
     // Ensure machineIdMap is ready (needed to resolve MachineNoLookupId)
     if(!Object.keys(machineIdMap).length) await loadMachineList();
+    // Ensure capMap is ready (needed to resolve SelectRouteLookupId → CalCap)
+    if(!Object.keys(capMap).length) await loadCAP();
     showProgress('กำลังโหลด OSE/OFM จาก SharePoint L6...',0,1);
     const items=await spGetItems(SP_LISTS.L6,'',500);
     if(!items.length){hideProgress();return;}
@@ -3599,18 +3629,66 @@ async function loadL6FromSP(){
       size:           f.Size||'',              // Size ← SP L6 (sync จาก AX)
       pcsPerBundle:   parseFloat(f.PcsPerBundle_RF)||0,  // PcsPerBundle_RF ← SP L6
       pcsPerBundleFG: parseFloat(f.PcsPerBundle_FG)||0,  // PcsPerBundle_FG ← SP L6
+      // ── CalCap (Lookup → ProdCtrl_CAP) — internal name 'SelectRoute'
+      calCapId:       f.SelectRouteLookupId ? String(f.SelectRouteLookupId) : '',
+      calCap:         f.SelectRouteLookupId ? (capIdMap[String(f.SelectRouteLookupId)]||'') : '',
+      capValue:       parseFloat(f.CapValue)||0,  // ค่าปัจจุบันใน L6
       created:        f.Created||'',    // วันที่ upload ใบงาน
       spId:           f.id||'',
       used:           false,
     }));
     hideProgress();
-    renderOSEPending();buildOFMJobSelect();saveState();
+    renderOSEPending();saveState();
     console.log(`✅ Loaded ${S.axJobs.length} jobs from L6`);
     saveState();
     // Build machine list from MachineNo values in L6 data
     buildMachineListFromL6();
+    // Auto-sync CapValue from CAP → L6 (background, ทำหลัง render เสร็จ)
+    setTimeout(()=>autoSyncCapValueFromCAP(),300);
   }catch(e){hideProgress();console.error('loadL6 error:',e);}
   finally{_loadingL6=false;}
+}
+
+// ── Auto-sync CapValue from CAP → L6 (เรียกหลัง loadL6FromSP เสร็จ) ──
+// Mapping:  ProdCtrl_CAP.field_9 (CapValue) → L6.CapValue
+// Join key: L6.SelectRouteLookupId → resolve via capIdMap → CAP.Title
+async function autoSyncCapValueFromCAP(){
+  if(!graphToken) return;
+  if(!S.axJobs.length) return;
+  if(!Object.keys(capMap).length){
+    console.warn('autoSyncCapValueFromCAP: capMap empty, skipping');
+    return;
+  }
+  // หา rows ที่มี CalCap match CAP และ CapValue ใน L6 ต่างจาก CAP
+  const targets = S.axJobs.filter(j=>{
+    if(!j.spId || !j.calCap) return false;
+    const cap = capMap[j.calCap];
+    if(!cap) return false;
+    return Math.abs((j.capValue||0) - (cap.capValue||0)) > 0.001;
+  });
+  if(!targets.length){
+    console.log('✅ CapValue: ทุก row sync แล้ว ไม่มีอะไรต้องอัปเดต');
+    return;
+  }
+  console.log(`⏳ Auto-sync CapValue → L6: ${targets.length} rows`);
+  showToast(`⏳ Sync CapValue → L6: ${targets.length} ใบ...`);
+  let ok=0, err=0;
+  for(let i=0;i<targets.length;i++){
+    const j = targets[i];
+    const cap = capMap[j.calCap];
+    try{
+      const result = await spPatchItem(SP_LISTS.L6, j.spId, {CapValue: cap.capValue});
+      if(result){ ok++; j.capValue = cap.capValue; }
+      else err++;
+    }catch(e){
+      err++;
+      console.warn('autoSyncCapValue error',j.spId,e?.message||e);
+    }
+  }
+  console.log(`✅ CapValue sync: ${ok} ok · ${err} err`);
+  if(ok>0) showToast(`✅ Sync CapValue → L6: ${ok} ใบ${err?` · ❌ ${err}`:''}`);
+  // Refresh schedule view if it's visible
+  if(typeof renderMachineSchedule==='function') renderMachineSchedule();
 }
 
 function buildMachineListFromL6(){
@@ -3895,7 +3973,7 @@ async function applyAX(){
 
   // Always update local state
   S.axJobs=[...S._pendingAX];
-  renderOSEPending();buildOFMJobSelect();saveState();
+  renderOSEPending();saveState();
 
   if(!graphToken){
     // ลอง login ก่อน
@@ -4765,53 +4843,338 @@ function renderAX(){
 }
 
 // ─── OFM PLAN ─────────────────────────────────────────────────────
-function buildOFMJobSelect(){
-  const sel=document.getElementById('ofm-job');
-  const jobs=S.axJobs.filter(j=>j.type!=='OSE');
-  sel.innerHTML='<option value="">-- เลือก --</option>'+
-    jobs.map(j=>`<option value="${j.prod}">[${j.type}] ${j.prod} — ${j.name.slice(0,40)}</option>`).join('');
+// ─── OFM PLAN — Daily Plan + CAP Sync ───────────────────────────────
+// โครงสร้าง:
+//   ProdCtrl_CAP (internal: 'test')
+//     Title         = key (CalCap value, เช่น 'SL02_thin_s8')
+//     field_9       = CapValue
+//     field_11      = TotalWork_min
+//     field_12      = SetUp_min
+//     field_10      = CapUnit
+//     StdLoss_min   = StdLoss_min (calc)
+//     CapPerDay     = CapPerDay (calc)
+//
+//   ProdCtrl_2026-FM-PN-03_DAILY PLAN
+//     CalCap (Lookup) → คืน CalCapLookupId (numeric SP id ของ CAP)
+//     CapValue, SetUp_min, TotalWork_min  ← target fields ที่จะ PATCH
+
+async function loadCAP(){
+  if(!graphToken) return;
+  try{
+    showProgress('กำลังโหลด ProdCtrl_CAP...',0,1);
+    const items = await spGetItems(SP_LISTS.CAP,'',500);
+    capMap = {};
+    capIdMap = {};
+    items.forEach(i=>{
+      const key = i.Title||'';
+      if(!key) return;
+      capIdMap[String(i.id)] = key;
+      capMap[key] = {
+        spId:         i.id,
+        capValue:     parseFloat(i.field_9)||0,
+        setUpMin:     parseFloat(i.field_12)||0,
+        totalWorkMin: parseFloat(i.field_11)||0,
+        capUnit:      i.field_10||'',
+        stdLossMin:   parseFloat(i.StdLoss_min)||0,
+        capPerDay:    parseFloat((i.CapPerDay||'').toString().replace(/,/g,''))||0,
+        station:      i.field_2||'',
+        jobType:      i.field_3||'',
+        shift:        i.field_8||'',
+      };
+    });
+    hideProgress();
+    console.log(`✅ Loaded ${Object.keys(capMap).length} CAP entries`);
+    if(items.length) console.log('🔍 CAP sample keys:', Object.keys(items[0]).slice(0,20));
+  }catch(e){
+    hideProgress();
+    console.error('loadCAP error:',e);
+    showToast('❌ Load CAP error: '+(e.message||e));
+  }
 }
-function onOFMJobChange(){
-  const v=document.getElementById('ofm-job').value;
-  const job=S.axJobs.find(j=>j.prod===v);
-  const det=document.getElementById('ofm-job-detail');
-  if(job){det.style.display='block';det.innerHTML=`${job.prod} · ${job.status}<br>${job.name}<br>QTY: ${job.qty.toLocaleString()}`;}
-  else det.style.display='none';
-  calcOFM();
+
+async function loadDailyPlan(){
+  if(!graphToken) return;
+  try{
+    showProgress('กำลังโหลด Daily Plan...',0,1);
+    const items = await spGetItems(SP_LISTS.DAILY_PLAN,'',500);
+    dailyPlanRows = items.map(f=>{
+      // CalCap = Lookup → SP returns CalCapLookupId (numeric) → resolve via capIdMap
+      const calCapId = f.CalCapLookupId ? String(f.CalCapLookupId) : '';
+      const calCapKey = capIdMap[calCapId] || f.CalCap || '';
+      return {
+        spId:           f.id,
+        title:          f.Title||'',
+        location:       f.Location||'',
+        machineNo:      f.MachineNoLookupId ? (machineIdMap[String(f.MachineNoLookupId)]||String(f.MachineNoLookupId)) : (f.MachineNo||''),
+        machineNoId:    f.MachineNoLookupId||'',
+        jobNo:          f.JOB_x0020_No||f['JOB No']||f.JOB_No||'',  // Lookup display
+        jobNoId:        f.JOB_x0020_NoLookupId||f['JOB NoLookupId']||'',
+        ofmRef:         f['JOB No: OFMRef']||f.JOB_No_OFMRef||'',
+        jobName:        f['JOB No: ชื่องาน']||f.JOB_No_ชื่องาน||'',
+        brand:          f['JOB No: ฺแบรนด์สินค้า']||f['JOB No: แบรนด์สินค้า']||'',
+        size:           f['JOB No: Size']||'',
+        thickness:      parseFloat(f['JOB No: ความหนา'])||0,
+        qtyPlanLines:   parseFloat((f['JOB No: QtyPlanLines']||'').toString().replace(/,/g,''))||0,
+        calCap:         calCapKey,            // resolved CAP Title (key)
+        calCapId:       calCapId,
+        empRes:         f.EmpRes||'',
+        capValue:       parseFloat(f.CapValue)||0,
+        setUpMin:       parseFloat(f.SetUp_min)||0,
+        totalWorkMin:   parseFloat(f.TotalWork_min)||0,
+        stdLossMin:     parseFloat(f.StdLoss_min)||0,
+        capPerDay:      parseFloat(f.CapPerDay)||0,
+        capUnit:        f['CalCap: หน่วย']||f.CalCap_หน่วย||'',
+        planStartDate:  f.PlanStartDate||'',
+        planEndDate:    f.PlanEndDate||'',
+      };
+    });
+    hideProgress();
+    console.log(`✅ Loaded ${dailyPlanRows.length} Daily Plan rows`);
+    if(items.length) console.log('🔍 DailyPlan sample keys:', Object.keys(items[0]).slice(0,30));
+  }catch(e){
+    hideProgress();
+    console.error('loadDailyPlan error:',e);
+    showToast('❌ Load Daily Plan error: '+(e.message||e));
+  }
 }
-function calcOFM(){
-  const cap=parseFloat(document.getElementById('ofm-cap').value)||0;
-  const hrs=parseFloat(document.getElementById('ofm-hours').value)||0;
-  const unit=document.getElementById('ofm-unit').value;
-  let qty=0;
-  if(unit==='นาที/ลูก') qty=cap>0?Math.floor(hrs*60/cap):0;
-  else qty=Math.floor(cap*hrs*60);
-  document.getElementById('ofm-plan-qty').value=qty>0?qty.toLocaleString():'';
+
+// Combined loader (button trigger)
+async function loadDailyPlanAndCAP(){
+  if(!graphToken){ showToast('⚠️ Login ก่อนค่ะ'); return; }
+  // Ensure machineIdMap (for resolving machine lookup in daily plan)
+  if(!Object.keys(machineIdMap).length) await loadMachineList();
+  await loadCAP();
+  await loadDailyPlan();
+  // Show sync button
+  const btn = document.getElementById('dp-sync-btn');
+  if(btn) btn.style.display = '';
+  // Populate machine filter dropdown
+  populateDailyPlanMachineFilter();
+  // Render
+  renderDailyPlanList();
+  showToast(`✅ CAP: ${Object.keys(capMap).length} · Daily Plan: ${dailyPlanRows.length}`);
 }
-function addOFMPlan(){
-  const jobProd=document.getElementById('ofm-job').value;
-  if(!jobProd){alert('เลือก JOB ก่อน');return;}
-  const job=S.axJobs.find(j=>j.prod===jobProd);
-  S.ofmPlans.push({id:Date.now(),job:{...job},date:document.getElementById('ofm-date').value,
-    machine:document.getElementById('ofm-machine').value,time:document.getElementById('ofm-time').value,
-    cap:parseFloat(document.getElementById('ofm-cap').value)||0,unit:document.getElementById('ofm-unit').value,
-    hours:parseFloat(document.getElementById('ofm-hours').value)||0,
-    planQty:document.getElementById('ofm-plan-qty').value,actual:null});
-  renderOFMPlanList();renderProdList();
-  document.getElementById('ofm-job').value='';document.getElementById('ofm-job-detail').style.display='none';
-  ['ofm-cap','ofm-hours','ofm-plan-qty','ofm-time'].forEach(id=>document.getElementById(id).value='');
+
+function populateDailyPlanMachineFilter(){
+  const sel = document.getElementById('dp-machine-filter');
+  if(!sel) return;
+  const machines = [...new Set(dailyPlanRows.map(r=>r.machineNo).filter(Boolean))].sort();
+  sel.innerHTML = '<option value="">ทุกเครื่องจักร</option>' +
+    machines.map(m=>`<option value="${m}">${m}</option>`).join('');
 }
-function renderOFMPlanList(){
-  const el=document.getElementById('ofm-plan-list');
-  document.getElementById('ofm-plan-count').textContent=S.ofmPlans.length;
-  el.innerHTML=S.ofmPlans.map(p=>`
-    <div class="ose-row" style="border-left:3px solid var(--purple)">
-      <div style="display:flex;align-items:center;justify-content:space-between">
-        <div class="ose-no" style="font-size:12px">${p.job.prod}</div>
-        ${p.actual?'<span class="pill p-ok">บันทึกแล้ว</span>':'<span class="pill p-amber">รอกรอก</span>'}
-      </div>
-      <div class="ose-sub">${p.machine} · ${p.time||''} · ตามแผน: ${p.planQty||'-'}</div>
-    </div>`).join('')||'<div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center">ยังไม่มีแผน</div>';
+
+// Determine sync status of a daily plan row
+function getDailyPlanRowStatus(r){
+  if(!r.calCap) return 'no-calcap';
+  const cap = capMap[r.calCap];
+  if(!cap) return 'no-match';
+  // Compare current values vs CAP — if any differ → needs sync
+  const epsilon = 0.001;
+  if(Math.abs(r.capValue - cap.capValue) > epsilon) return 'needs-sync';
+  if(Math.abs(r.setUpMin - cap.setUpMin) > epsilon) return 'needs-sync';
+  if(Math.abs(r.totalWorkMin - cap.totalWorkMin) > epsilon) return 'needs-sync';
+  return 'matched';
+}
+
+function renderDailyPlanList(){
+  const wrap = document.getElementById('dp-table-wrap');
+  if(!wrap) return;
+
+  const search = (document.getElementById('dp-search')?.value||'').toLowerCase().trim();
+  const machineF = document.getElementById('dp-machine-filter')?.value||'';
+  const statusF = document.getElementById('dp-status-filter')?.value||'';
+
+  let rows = dailyPlanRows.slice();
+  if(search){
+    rows = rows.filter(r=>(
+      (r.jobNo||'').toLowerCase().includes(search) ||
+      (r.ofmRef||'').toLowerCase().includes(search) ||
+      (r.jobName||'').toLowerCase().includes(search) ||
+      (r.calCap||'').toLowerCase().includes(search) ||
+      (r.machineNo||'').toLowerCase().includes(search)
+    ));
+  }
+  if(machineF) rows = rows.filter(r=>r.machineNo===machineF);
+  if(statusF) rows = rows.filter(r=>getDailyPlanRowStatus(r)===statusF);
+
+  // Stats
+  const totalLoaded = dailyPlanRows.length;
+  const matched   = dailyPlanRows.filter(r=>getDailyPlanRowStatus(r)==='matched').length;
+  const needsSync = dailyPlanRows.filter(r=>getDailyPlanRowStatus(r)==='needs-sync').length;
+  const noMatch   = dailyPlanRows.filter(r=>getDailyPlanRowStatus(r)==='no-match').length;
+  const noCalCap  = dailyPlanRows.filter(r=>getDailyPlanRowStatus(r)==='no-calcap').length;
+  const stats = document.getElementById('dp-stats');
+  if(stats) stats.innerHTML = `รวม: <b>${totalLoaded}</b> · ✅ Match: <b style="color:var(--teal)">${matched}</b> · ⚠️ Sync: <b style="color:var(--amber)">${needsSync}</b> · ❌ No CAP: <b style="color:var(--red)">${noMatch}</b> · ⚠️ No CalCap: <b style="color:var(--ink3)">${noCalCap}</b>`;
+
+  document.getElementById('dp-count').textContent = rows.length;
+
+  if(!rows.length){
+    wrap.innerHTML = '<div style="color:var(--ink3);font-size:12px;padding:30px;text-align:center">ไม่พบรายการตาม filter</div>';
+    return;
+  }
+
+  const fmt = n => n ? Number(n).toLocaleString(undefined,{maximumFractionDigits:2}) : '-';
+  const fmtDate = d => d ? new Date(d).toLocaleDateString('th-TH',{day:'2-digit',month:'2-digit',year:'2-digit'}) : '-';
+
+  let html = `
+    <table style="width:100%;border-collapse:collapse;font-size:11px;font-family:var(--mono)">
+      <thead style="position:sticky;top:0;background:var(--panel);z-index:1">
+        <tr style="border-bottom:2px solid var(--bd);text-align:left">
+          <th style="padding:6px 8px;white-space:nowrap">Status</th>
+          <th style="padding:6px 8px;white-space:nowrap">วันที่</th>
+          <th style="padding:6px 8px;white-space:nowrap">Machine</th>
+          <th style="padding:6px 8px;white-space:nowrap">JOB No</th>
+          <th style="padding:6px 8px;white-space:nowrap">OFMRef</th>
+          <th style="padding:6px 8px;min-width:200px">ชื่องาน</th>
+          <th style="padding:6px 8px;white-space:nowrap">Brand</th>
+          <th style="padding:6px 8px;white-space:nowrap">Size</th>
+          <th style="padding:6px 8px;white-space:nowrap">หนา</th>
+          <th style="padding:6px 8px;text-align:right;white-space:nowrap">QTY</th>
+          <th style="padding:6px 8px;white-space:nowrap;color:var(--blue)">CalCap</th>
+          <th style="padding:6px 8px;text-align:right;white-space:nowrap">CapValue<br><span style="color:var(--teal);font-weight:400">(CAP)</span></th>
+          <th style="padding:6px 8px;text-align:right;white-space:nowrap">SetUp<br><span style="color:var(--teal);font-weight:400">(CAP)</span></th>
+          <th style="padding:6px 8px;text-align:right;white-space:nowrap">TotalWork<br><span style="color:var(--teal);font-weight:400">(CAP)</span></th>
+          <th style="padding:6px 8px;white-space:nowrap">หน่วย</th>
+        </tr>
+      </thead>
+      <tbody>`;
+
+  rows.forEach(r=>{
+    const st = getDailyPlanRowStatus(r);
+    const cap = capMap[r.calCap];
+    let badge = '';
+    let bgColor = '';
+    if(st==='matched'){      badge = '<span class="pill p-ok">✅ Match</span>'; }
+    else if(st==='needs-sync'){ badge = '<span class="pill p-amber">⚠️ Sync</span>'; bgColor='background:rgba(245,158,11,0.04)'; }
+    else if(st==='no-match'){   badge = '<span class="pill p-red">❌ No CAP</span>'; bgColor='background:rgba(239,68,68,0.04)'; }
+    else {                      badge = '<span class="pill" style="background:var(--panel);color:var(--ink3)">— No CalCap</span>'; }
+
+    // Show CAP values in green if there's a match, in red if mismatch from row's stored value
+    const capValShow      = cap ? `<span style="color:var(--teal)">${fmt(cap.capValue)}</span>` : `<span style="color:var(--ink3)">${fmt(r.capValue)}</span>`;
+    const setUpShow       = cap ? `<span style="color:var(--teal)">${fmt(cap.setUpMin)}</span>` : `<span style="color:var(--ink3)">${fmt(r.setUpMin)}</span>`;
+    const totalWorkShow   = cap ? `<span style="color:var(--teal)">${fmt(cap.totalWorkMin)}</span>` : `<span style="color:var(--ink3)">${fmt(r.totalWorkMin)}</span>`;
+    const unitShow        = cap?.capUnit || r.capUnit || '';
+
+    html += `
+      <tr style="border-bottom:1px solid var(--bd);${bgColor}">
+        <td style="padding:6px 8px;white-space:nowrap">${badge}</td>
+        <td style="padding:6px 8px;white-space:nowrap;color:var(--ink2)">${fmtDate(r.planStartDate)}</td>
+        <td style="padding:6px 8px;white-space:nowrap">${r.machineNo||'-'}</td>
+        <td style="padding:6px 8px;white-space:nowrap;color:var(--blue)">${r.jobNo||'-'}</td>
+        <td style="padding:6px 8px;white-space:nowrap;color:var(--ink2)">${r.ofmRef||'-'}</td>
+        <td style="padding:6px 8px">${r.jobName||'-'}</td>
+        <td style="padding:6px 8px;white-space:nowrap">${r.brand||'-'}</td>
+        <td style="padding:6px 8px;white-space:nowrap">${r.size||'-'}</td>
+        <td style="padding:6px 8px;text-align:right;white-space:nowrap">${r.thickness||'-'}</td>
+        <td style="padding:6px 8px;text-align:right;white-space:nowrap">${fmt(r.qtyPlanLines)}</td>
+        <td style="padding:6px 8px;white-space:nowrap;color:var(--blue);font-weight:600">${r.calCap||'-'}</td>
+        <td style="padding:6px 8px;text-align:right;white-space:nowrap">${capValShow}</td>
+        <td style="padding:6px 8px;text-align:right;white-space:nowrap">${setUpShow}</td>
+        <td style="padding:6px 8px;text-align:right;white-space:nowrap">${totalWorkShow}</td>
+        <td style="padding:6px 8px;white-space:nowrap;color:var(--ink3);font-size:10px">${unitShow}</td>
+      </tr>`;
+  });
+
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+async function syncCAPToDailyPlan(){
+  if(!graphToken){ showToast('⚠️ Login ก่อนค่ะ'); return; }
+  if(!Object.keys(capMap).length){ showToast('⚠️ Load CAP ก่อน'); return; }
+  if(!dailyPlanRows.length){ showToast('⚠️ Load Daily Plan ก่อน'); return; }
+
+  // Find rows that need sync (have CalCap matching CAP, AND values differ)
+  const targets = dailyPlanRows.filter(r=>{
+    if(!r.calCap || !capMap[r.calCap]) return false;
+    return getDailyPlanRowStatus(r)==='needs-sync';
+  });
+
+  if(!targets.length){
+    const noCalCap = dailyPlanRows.filter(r=>!r.calCap).length;
+    const noMatch  = dailyPlanRows.filter(r=>r.calCap && !capMap[r.calCap]).length;
+    showToast(`✅ ทุกแถวที่ match อยู่ในสถานะ Synced แล้ว · No CalCap: ${noCalCap} · No CAP match: ${noMatch}`);
+    return;
+  }
+
+  if(!confirm(`Sync CAP → Daily Plan จำนวน ${targets.length} แถว?\n\n` +
+              `ค่าที่จะอัปเดต (3 fields):\n` +
+              `  • CapValue       (จาก CAP.field_9)\n` +
+              `  • SetUp_min      (จาก CAP.field_12)\n` +
+              `  • TotalWork_min  (จาก CAP.field_11)`)) return;
+
+  showProgress('กำลัง Sync CAP → Daily Plan...',0,targets.length);
+  let ok=0, err=0;
+  const errors = [];
+  for(let i=0;i<targets.length;i++){
+    const r = targets[i];
+    const cap = capMap[r.calCap];
+    showProgress(`${r.jobNo||r.calCap} (${i+1}/${targets.length})`,i+1,targets.length);
+    const fields = {
+      CapValue:      cap.capValue,
+      SetUp_min:     cap.setUpMin,
+      TotalWork_min: cap.totalWorkMin,
+    };
+    try{
+      const result = await spPatchItem(SP_LISTS.DAILY_PLAN, r.spId, fields);
+      if(result){
+        ok++;
+        // update local state so re-render shows synced
+        r.capValue     = cap.capValue;
+        r.setUpMin     = cap.setUpMin;
+        r.totalWorkMin = cap.totalWorkMin;
+      }else{
+        err++;
+        errors.push(`${r.jobNo||r.spId}: PATCH failed`);
+      }
+    }catch(e){
+      err++;
+      errors.push(`${r.jobNo||r.spId}: ${e.message||e}`);
+      console.error('Sync row error:',r.spId,e);
+    }
+  }
+  hideProgress();
+  if(errors.length) console.warn('Sync errors:',errors);
+  showToast(`✅ Sync เสร็จ: ${ok} แถว · ❌ Error: ${err} แถว`);
+  renderDailyPlanList();
+}
+
+function exportDailyPlanXLSX(){
+  if(!dailyPlanRows.length){ showToast('⚠️ ยังไม่มีข้อมูล'); return; }
+  if(typeof XLSX==='undefined'){ showToast('⚠️ XLSX library ยังไม่โหลด'); return; }
+  const data = dailyPlanRows.map(r=>{
+    const cap = capMap[r.calCap];
+    const st = getDailyPlanRowStatus(r);
+    const stLabel = st==='matched'?'Match':(st==='needs-sync'?'Sync':(st==='no-match'?'No CAP':'No CalCap'));
+    return {
+      'Status':         stLabel,
+      'PlanStartDate':  r.planStartDate ? new Date(r.planStartDate).toLocaleString('th-TH') : '',
+      'PlanEndDate':    r.planEndDate ? new Date(r.planEndDate).toLocaleString('th-TH') : '',
+      'Machine':        r.machineNo,
+      'JOB No':         r.jobNo,
+      'OFMRef':         r.ofmRef,
+      'ชื่องาน':        r.jobName,
+      'Brand':          r.brand,
+      'Size':           r.size,
+      'หนา':           r.thickness,
+      'QTY (เส้น)':     r.qtyPlanLines,
+      'CalCap':         r.calCap,
+      'CapValue (cur)': r.capValue,
+      'CapValue (CAP)': cap?.capValue||'',
+      'SetUp_min (cur)':    r.setUpMin,
+      'SetUp_min (CAP)':    cap?.setUpMin||'',
+      'TotalWork_min (cur)':r.totalWorkMin,
+      'TotalWork_min (CAP)':cap?.totalWorkMin||'',
+      'หน่วย':         cap?.capUnit||r.capUnit,
+      'ผู้รับผิดชอบ':   r.empRes,
+    };
+  });
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'DailyPlan_CAP');
+  const fname = `DailyPlan_CAP_${new Date().toISOString().slice(0,10)}.xlsx`;
+  if(typeof xlsxDownload==='function') xlsxDownload(wb,fname);
+  else XLSX.writeFile(wb,fname);
 }
 
 // ─── PROD บันทึก — ดึงจาก L6 ──────────────────────────────────────
