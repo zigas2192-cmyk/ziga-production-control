@@ -3648,7 +3648,8 @@ async function loadL6FromSP(){
       // ── CalCap (Lookup → ProdCtrl_CAP) — internal name 'SelectRoute'
       calCapId:       f.SelectRouteLookupId ? String(f.SelectRouteLookupId) : '',
       calCap:         f.SelectRouteLookupId ? (capIdMap[String(f.SelectRouteLookupId)]||'') : '',
-      capValue:       parseFloat(f.CapValue)||0,  // ค่าปัจจุบันใน L6
+      capValue:       parseFloat(f.CapValue)||0,
+      capPerDay:      parseFloat((f.CapPerDay||'').toString().replace(/,/g,''))||0,
       created:        f.Created||'',    // วันที่ upload ใบงาน
       spId:           f.id||'',
       used:           false,
@@ -3675,35 +3676,37 @@ async function autoSyncCapValueFromCAP(){
     console.warn('autoSyncCapValueFromCAP: capMap empty, skipping');
     return;
   }
-  // หา rows ที่มี CalCap match CAP และ CapValue ใน L6 ต่างจาก CAP
+  // หา rows ที่มี CalCap match CAP และ CapValue หรือ CapPerDay ต่างจาก CAP
   const targets = S.axJobs.filter(j=>{
     if(!j.spId || !j.calCap) return false;
     const cap = capMap[j.calCap];
     if(!cap) return false;
-    return Math.abs((j.capValue||0) - (cap.capValue||0)) > 0.001;
+    return Math.abs((j.capValue||0) - (cap.capValue||0)) > 0.001
+        || Math.abs((j.capPerDay||0) - (cap.capPerDay||0)) > 0.001;
   });
   if(!targets.length){
-    console.log('✅ CapValue: ทุก row sync แล้ว ไม่มีอะไรต้องอัปเดต');
+    console.log('✅ CapValue+CapPerDay: ทุก row sync แล้ว ไม่มีอะไรต้องอัปเดต');
     return;
   }
-  console.log(`⏳ Auto-sync CapValue → L6: ${targets.length} rows`);
-  showToast(`⏳ Sync CapValue → L6: ${targets.length} ใบ...`);
+  console.log(`⏳ Auto-sync CapValue+CapPerDay → L6: ${targets.length} rows`);
+  showToast(`⏳ Sync CapValue+CapPerDay → L6: ${targets.length} ใบ...`);
   let ok=0, err=0;
   for(let i=0;i<targets.length;i++){
     const j = targets[i];
     const cap = capMap[j.calCap];
+    const fields = {CapValue: cap.capValue};
+    if(cap.capPerDay > 0) fields.CapPerDay = cap.capPerDay;
     try{
-      const result = await spPatchItem(SP_LISTS.L6, j.spId, {CapValue: cap.capValue});
-      if(result){ ok++; j.capValue = cap.capValue; }
+      const result = await spPatchItem(SP_LISTS.L6, j.spId, fields);
+      if(result){ ok++; j.capValue = cap.capValue; j.capPerDay = cap.capPerDay; }
       else err++;
     }catch(e){
       err++;
-      console.warn('autoSyncCapValue error',j.spId,e?.message||e);
+      console.warn('autoSyncCap error',j.spId,e?.message||e);
     }
   }
-  console.log(`✅ CapValue sync: ${ok} ok · ${err} err`);
-  if(ok>0) showToast(`✅ Sync CapValue → L6: ${ok} ใบ${err?` · ❌ ${err}`:''}`);
-  // Refresh schedule view if it's visible
+  console.log(`✅ CapValue+CapPerDay sync: ${ok} ok · ${err} err`);
+  if(ok>0) showToast(`✅ Sync CapValue+CapPerDay → L6: ${ok} ใบ${err?` · ❌ ${err}`:''}`);
   if(typeof renderMachineSchedule==='function') renderMachineSchedule();
 }
 
@@ -4990,6 +4993,7 @@ function getDailyPlanRowStatus(r){
   if(Math.abs(r.setUpMin - cap.setUpMin) > epsilon) return 'needs-sync';
   if(Math.abs(r.totalWorkMin - cap.totalWorkMin) > epsilon) return 'needs-sync';
   if(Math.abs((r.stdLossMin||0) - (cap.stdLossMin||0)) > epsilon) return 'needs-sync';
+  if(Math.abs((r.capPerDay||0) - (cap.capPerDay||0)) > epsilon) return 'needs-sync';
   return 'matched';
 }
 
@@ -5132,6 +5136,7 @@ async function syncCAPToDailyPlan(){
       SetUp_min0:     cap.setUpMin,
       TotalWork_min:  cap.totalWorkMin,
       StdLoss_min:    cap.stdLossMin,
+      CapPerDay:      cap.capPerDay,
     };
     try{
       const result = await spPatchItem(SP_LISTS.DAILY_PLAN, r.spId, fields);
@@ -5141,6 +5146,7 @@ async function syncCAPToDailyPlan(){
         r.setUpMin     = cap.setUpMin;
         r.totalWorkMin = cap.totalWorkMin;
         r.stdLossMin   = cap.stdLossMin;
+        r.capPerDay    = cap.capPerDay;
       }else{
         err++;
         errors.push(`${r.jobNo||r.spId}: PATCH failed`);
