@@ -1497,6 +1497,12 @@ async function graphPatch(path, body) {
     headers: { Authorization: `Bearer ${graphToken}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
+  if(!resp.ok){
+    const errText = await resp.text();
+    let errMsg = errText;
+    try{ const j=JSON.parse(errText); errMsg=j?.error?.message||j?.error?.code||errText; }catch(e){}
+    console.error(`❌ Graph PATCH ${resp.status}:`, errMsg, '\nFields:', JSON.stringify(body));
+  }
   return resp.ok;
 }
 
@@ -5106,9 +5112,9 @@ async function syncCAPToDailyPlan(){
 
   if(!confirm(`Sync CAP → Daily Plan จำนวน ${targets.length} แถว?\n\n` +
               `ค่าที่จะอัปเดต (3 fields):\n` +
-              `  • CapValue       (จาก CAP.field_9)\n` +
-              `  • SetUp_min      (จาก CAP.field_12)\n` +
-              `  • TotalWork_min  (จาก CAP.field_11)`)) return;
+              `  • CapValue        (internal: CapValue)\n` +
+              `  • SetUp_min       (internal: SetUp_min0)\n` +
+              `  • TotalWork_min   (internal: TotalWork_min0)`)) return;
 
   showProgress('กำลัง Sync CAP → Daily Plan...',0,targets.length);
   let ok=0, err=0;
@@ -5118,15 +5124,14 @@ async function syncCAPToDailyPlan(){
     const cap = capMap[r.calCap];
     showProgress(`${r.jobNo||r.calCap} (${i+1}/${targets.length})`,i+1,targets.length);
     const fields = {
-      CapValue:      cap.capValue,
-      SetUp_min:     cap.setUpMin,
-      TotalWork_min: cap.totalWorkMin,
+      CapValue:       cap.capValue,
+      SetUp_min0:     cap.setUpMin,     // internal name 'SetUp_min0' (user confirmed)
+      TotalWork_min0: cap.totalWorkMin, // internal name 'TotalWork_min0' (by analogy)
     };
     try{
       const result = await spPatchItem(SP_LISTS.DAILY_PLAN, r.spId, fields);
       if(result){
         ok++;
-        // update local state so re-render shows synced
         r.capValue     = cap.capValue;
         r.setUpMin     = cap.setUpMin;
         r.totalWorkMin = cap.totalWorkMin;
