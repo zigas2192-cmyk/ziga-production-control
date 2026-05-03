@@ -1248,7 +1248,7 @@ const SP_LISTS = {
   L9:  'L9_EmployeeZiGA',
   MACH:'ProdCtrl_Machine',            // รายชื่อเครื่องจักร
   PROD_AX: 'ProdCtrl_released_Prod_AX', // Released products จาก AX
-  CAP:     'test',                     // ProdCtrl_CAP — internal name 'test' (กำลังการผลิต)
+  CAP:     'ProdCtrl_CAP',             // ProdCtrl_CAP (display name) — internal URL slug = 'test'
   DAILY_PLAN: 'ProdCtrl_2026-FM-PN-03_DAILY PLAN',  // FM-PN-03 Daily Plan (รวมแผนรายวัน)
 };
 
@@ -1515,10 +1515,17 @@ async function getListId(listName) {
   if (_listIdCache[listName]) return _listIdCache[listName];
   const siteId = await getSiteId();
   if (!siteId) return null;
-  const r = await graphGet(`/sites/${siteId}/lists?$filter=displayName eq '${listName}'`);
-  const id = r?.value?.[0]?.id ?? null;
-  if(!id) console.error('getListId: not found:', listName, '— available:', r?.value?.map(l=>l.displayName));
-  else { console.log('getListId ✓', listName, id); _listIdCache[listName] = id; }
+  // Try displayName first
+  let r = await graphGet(`/sites/${siteId}/lists?$filter=displayName eq '${listName}'`);
+  let id = r?.value?.[0]?.id ?? null;
+  // Fallback: match by internal name (URL slug) — for lists where listName is the SP internal name
+  if(!id){
+    const all = await graphGet(`/sites/${siteId}/lists?$top=200&$select=id,name,displayName`);
+    const found = all?.value?.find(l => l.name === listName || l.displayName === listName);
+    if(found) id = found.id;
+    if(!id) console.error('getListId: not found:', listName, '— available displayNames:', all?.value?.map(l=>l.displayName).slice(0,30));
+  }
+  if(id){ console.log('getListId ✓', listName, id); _listIdCache[listName] = id; }
   return id;
 }
 
