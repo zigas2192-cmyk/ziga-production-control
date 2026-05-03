@@ -3593,12 +3593,15 @@ async function loadL6FromSP(){
       gradeAminus:  parseFloat(f.GradeAminus)||0,
       jobType:      f.JobType||'',
       brand:        f['_x0e3a_Brand']||f.Brand||f.field_18||'', // SP internal: _x0e3a_Brand
-      routeCH:      f.RouteCH||'',
-      routePA:      f.RoutePA||'',
-      routeORW:     f.RouteORW||'',
-      created:      f.Created||'',    // วันที่ upload ใบงาน
-      spId:         f.id||'',
-      used:         false,
+      routeCH:        f.RouteCH||'',
+      routePA:        f.RoutePA||'',
+      routeORW:       f.RouteORW||'',
+      size:           f.Size||'',              // Size ← SP L6 (sync จาก AX)
+      pcsPerBundle:   parseFloat(f.PcsPerBundle_RF)||0,  // PcsPerBundle_RF ← SP L6
+      pcsPerBundleFG: parseFloat(f.PcsPerBundle_FG)||0,  // PcsPerBundle_FG ← SP L6
+      created:        f.Created||'',    // วันที่ upload ใบงาน
+      spId:           f.id||'',
+      used:           false,
     }));
     hideProgress();
     renderOSEPending();buildOFMJobSelect();saveState();
@@ -4877,12 +4880,15 @@ async function loadProdAX(){
       const brandRaw = i.field_9||'';
       const thicknessRaw = parseFloat(i.Thickness)||0;
       prodAXMap[code] = {
-        brand:       brandRaw,
-        netWt:       netWtRaw,
-        thickness:   thicknessRaw,
-        productName: i.field_1||'',
-        type:        i.field_8||'',
-        status:      i.field_2||'',
+        brand:          brandRaw,
+        netWt:          netWtRaw,
+        thickness:      thicknessRaw,
+        productName:    i.field_1||'',
+        type:           i.field_8||'',
+        status:         i.field_2||'',
+        size:           i.Size||'',
+        pcsPerBundle:   parseFloat(i.PcsPerBundle)||0,
+        pcsPerBundleFG: parseFloat(i.PcsPerBundle_FG)||0,
       };
 
     });
@@ -4918,7 +4924,7 @@ async function syncBrandWeightToL6(){
     showToast(`⚠️ ไม่มีใบงานที่ match — ไม่มี spId: ${noSpId}, ไม่มี itemCode: ${noCode}`);
     return;
   }
-  if(!confirm(`Sync Brand + น้ำหนัก + Thickness → L6 จำนวน ${jobs.length} ใบงาน?\n\nข้อมูลที่จะบันทึก:\n- _x0e3a_Brand = Brand\n- TotalWeightKG = น้ำหนักรวม kg\n- field_3 = Thickness (mm)`)) return;
+  if(!confirm(`Sync Brand + น้ำหนัก + Thickness + Size + PcsPerBundle → L6 จำนวน ${jobs.length} ใบงาน?\n\nข้อมูลที่จะบันทึก:\n- _x0e3a_Brand = Brand\n- TotalWeightKG = น้ำหนักรวม kg\n- field_3 = Thickness (mm)\n- Size = ขนาด\n- PcsPerBundle_RF = จำนวน/มัด (RF)\n- PcsPerBundle_FG = จำนวน/มัด (FG)`)) return;
 
   showProgress('กำลัง Sync Brand+Weight+Thickness → L6...', 0, jobs.length);
   let ok=0, err=0;
@@ -4928,13 +4934,23 @@ async function syncBrandWeightToL6(){
     const p = prodAXMap[j.itemCode];
     const totalWt = p.netWt > 0 && j.qty > 0 ? Math.round(p.netWt * j.qty) : 0;
     const fields = {};
-    if(p.brand)       fields['_x0e3a_Brand'] = p.brand;
-    if(totalWt>0)     fields.TotalWeightKG = totalWt;
-    if(p.thickness>0) fields.field_3 = p.thickness;
+    if(p.brand)            fields['_x0e3a_Brand']    = p.brand;
+    if(totalWt>0)          fields.TotalWeightKG       = totalWt;
+    if(p.thickness>0)      fields.field_3             = p.thickness;
+    if(p.size)             fields.Size                = p.size;
+    if(p.pcsPerBundle>0)   fields.PcsPerBundle_RF     = p.pcsPerBundle;
+    if(p.pcsPerBundleFG>0) fields.PcsPerBundle_FG     = p.pcsPerBundleFG;
     if(!Object.keys(fields).length) continue;
     try{
       const result = await spPatchItem(SP_LISTS.L6, j.spId, fields);
-      if(result){ ok++; j.brand=p.brand; j.totalWt=totalWt; if(p.thickness>0) j.thickness=p.thickness; }
+      if(result){
+        ok++;
+        j.brand=p.brand; j.totalWt=totalWt;
+        if(p.thickness>0)      j.thickness=p.thickness;
+        if(p.size)             j.size=p.size;
+        if(p.pcsPerBundle>0)   j.pcsPerBundle=p.pcsPerBundle;
+        if(p.pcsPerBundleFG>0) j.pcsPerBundleFG=p.pcsPerBundleFG;
+      }
       else err++;
     }catch(e){ err++; }
   }
@@ -4951,20 +4967,26 @@ function getProdInfo(j){
     const p = prodAXMap[code];
     const qty = j.qty||0;
     return {
-      brand:   p.brand,
-      netWt:   p.netWt,
-      totalWt: p.netWt > 0 && qty > 0 ? Math.round(p.netWt * qty) : 0,
+      brand:          p.brand,
+      netWt:          p.netWt,
+      totalWt:        p.netWt > 0 && qty > 0 ? Math.round(p.netWt * qty) : 0,
+      size:           p.size||'',
+      pcsPerBundle:   p.pcsPerBundle||0,
+      pcsPerBundleFG: p.pcsPerBundleFG||0,
     };
   }
-  // Fallback: ใช้ค่าที่ sync ไว้ใน L6 แล้ว (field_18, field_19)
+  // Fallback: ใช้ค่าที่ sync ไว้ใน L6 แล้ว
   if(j.brand || j.totalWt){
     return {
-      brand:   j.brand||'',
-      netWt:   j.totalWt && j.qty ? Math.round(j.totalWt/j.qty*100)/100 : 0,
-      totalWt: j.totalWt||0,
+      brand:          j.brand||'',
+      netWt:          j.totalWt && j.qty ? Math.round(j.totalWt/j.qty*100)/100 : 0,
+      totalWt:        j.totalWt||0,
+      size:           j.size||'',
+      pcsPerBundle:   j.pcsPerBundle||0,
+      pcsPerBundleFG: j.pcsPerBundleFG||0,
     };
   }
-  return {brand:'', netWt:0, totalWt:0};
+  return {brand:'', netWt:0, totalWt:0, size:'', pcsPerBundle:0, pcsPerBundleFG:0};
 }
 
 function populateMachineDropdowns(){
