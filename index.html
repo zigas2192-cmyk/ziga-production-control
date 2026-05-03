@@ -1509,6 +1509,45 @@ async function graphPatch(path, body) {
   return resp.ok;
 }
 
+// ── Graph API $batch — PATCH หลาย items พร้อมกัน (max 20 ต่อ batch) ──
+// requests = [{spId, fields}, ...] — ใช้แทน spPatchItem loop สำหรับ bulk update
+async function graphBatchPatch(listName, requests){
+  if(!graphToken || !requests.length) return {ok:0, err:0};
+  const siteId = await getSiteId();
+  const listId = await getListId(listName);
+  if(!siteId || !listId) return {ok:0, err:requests.length};
+  const CHUNK = 20; // Graph API batch limit
+  let ok=0, err=0;
+  for(let start=0; start<requests.length; start+=CHUNK){
+    const chunk = requests.slice(start, start+CHUNK);
+    const batchBody = {
+      requests: chunk.map((r,i)=>({
+        id:      String(i+1),
+        method:  'PATCH',
+        url:     `/sites/${siteId}/lists/${listId}/items/${r.spId}/fields`,
+        headers: {'Content-Type':'application/json'},
+        body:    r.fields,
+      }))
+    };
+    try{
+      const resp = await fetch('https://graph.microsoft.com/v1.0/$batch',{
+        method:'POST',
+        headers:{Authorization:`Bearer ${graphToken}`,'Content-Type':'application/json'},
+        body: JSON.stringify(batchBody),
+      });
+      if(!resp.ok){ err+=chunk.length; console.error('Batch request failed',resp.status); continue; }
+      const data = await resp.json();
+      (data.responses||[]).forEach(r=>{
+        if(r.status>=200 && r.status<300) ok++;
+        else{ err++; console.warn(`Batch item ${r.id} failed: ${r.status}`, r.body?.error?.message||''); }
+      });
+    }catch(e){ err+=chunk.length; console.error('graphBatchPatch error:',e); }
+    // Rate-limit safety: รอ 200ms ระหว่าง batch เพื่อไม่ให้ throttle
+    if(start+CHUNK < requests.length) await new Promise(res=>setTimeout(res,200));
+  }
+  return {ok, err};
+}
+
 async function getSiteId() {
   if (spSiteId) return spSiteId;
   console.log('getSiteId: fetching', SP_SITE_PATH);
@@ -1573,11 +1612,24 @@ async function spGetItems(listName, filter = '', top = 500) {
   const listId = await getListId(listName);
   if (!siteId || !listId) return [];
   const q = filter ? `&$filter=${encodeURIComponent(filter)}` : '';
-  const r = await graphGet(
-    `/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=${top}${q}`,
-    { 'Prefer': 'HonorNonIndexedQueriesWarningMayFailRandomly' }
-  );
-  return r?.value?.map(i => ({...i.fields, id: i.id})) ?? [];
+  const prefer = { 'Prefer': 'HonorNonIndexedQueriesWarningMayFailRandomly' };
+  // ── Paginated fetch — ตาม @odata.nextLink จนหมด ────────────────
+  const allItems = [];
+  let url = `/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=${top}${q}`;
+  let pageCount = 0;
+  while(url){
+    const r = await graphGet(url, prefer);
+    if(!r) break;
+    const page = r.value || [];
+    page.forEach(i => allItems.push({...i.fields, id: i.id}));
+    // nextLink คือ absolute URL — ต้อง strip https://graph.microsoft.com/v1.0 ออกก่อน
+    const next = r['@odata.nextLink'] || null;
+    url = next ? next.replace('https://graph.microsoft.com/v1.0','') : null;
+    pageCount++;
+    if(pageCount > 200){ console.warn('spGetItems: safety stop at 200 pages'); break; } // ~100,000 rows max
+  }
+  if(pageCount > 1) console.log(`spGetItems ${listName}: ${allItems.length} rows (${pageCount} pages)`);
+  return allItems;
 }
 
 async function spAddItem(listName, fields) {
@@ -3688,22 +3740,23 @@ async function autoSyncCapValueFromCAP(){
     console.log('✅ CapValue+CapPerDay: ทุก row sync แล้ว ไม่มีอะไรต้องอัปเดต');
     return;
   }
-  console.log(`⏳ Auto-sync CapValue+CapPerDay → L6: ${targets.length} rows`);
+  console.log(`⏳ Auto-sync CapValue+CapPerDay → L6: ${targets.length} rows (batch mode)`);
   showToast(`⏳ Sync CapValue+CapPerDay → L6: ${targets.length} ใบ...`);
-  let ok=0, err=0;
-  for(let i=0;i<targets.length;i++){
-    const j = targets[i];
+  // สร้าง batch requests (20 rows ต่อ 1 API call)
+  const batchReqs = targets.map(j=>{
     const cap = capMap[j.calCap];
     const fields = {CapValue: cap.capValue};
     if(cap.capPerDay > 0) fields.CapPerDay = cap.capPerDay;
-    try{
-      const result = await spPatchItem(SP_LISTS.L6, j.spId, fields);
-      if(result){ ok++; j.capValue = cap.capValue; j.capPerDay = cap.capPerDay; }
-      else err++;
-    }catch(e){
-      err++;
-      console.warn('autoSyncCap error',j.spId,e?.message||e);
-    }
+    return {spId: j.spId, fields};
+  });
+  const {ok, err} = await graphBatchPatch(SP_LISTS.L6, batchReqs);
+  // อัปเดต local state สำหรับ rows ที่ success
+  if(ok > 0){
+    targets.forEach(j=>{
+      const cap = capMap[j.calCap];
+      j.capValue = cap.capValue;
+      j.capPerDay = cap.capPerDay;
+    });
   }
   console.log(`✅ CapValue+CapPerDay sync: ${ok} ok · ${err} err`);
   if(ok>0) showToast(`✅ Sync CapValue+CapPerDay → L6: ${ok} ใบ${err?` · ❌ ${err}`:''}`);
