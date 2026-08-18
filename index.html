@@ -6091,7 +6091,12 @@ async function saveUserRole(){
 
   if(!email || !role){ showToast('⚠️ กรุณาใส่ Email และ Role'); return; }
 
-  const fields = { Title: name, email: email, Role: role, Active: active, Remark: remark };
+  // map app role → SP ROLE choices (prod, mgmt, ir, office, ap, as, slit, qa)
+  // เพิ่ม choices ครบใน SP แล้ว หรือ map ถ้า SP ยังไม่มี
+  const roleMap = { mgmt:'mgmt', ap:'ap', as:'as', ir:'ir', slit:'slit', qa:'qa', prod:'prod', office:'office', supervisor:'prod' };
+  const spRole = roleMap[role] || role;
+
+  const fields = { Title: name, email: email, ROLE: spRole, Active: active, Remark: remark };
   const siteId = await getSiteId();
 
   try{
@@ -6143,7 +6148,7 @@ async function syncUserRolesToSP(){
   let added=0;
   for(const u of USER_ROLES_FALLBACK){
     if(existEmails.includes(u.email.toLowerCase())) continue;
-    const fields = { Title: u.name, email: u.email, Role: u.role, Active: u.active, Remark:'' };
+    const fields = { Title: u.name, email: u.email, ROLE: u.role, Active: u.active, Remark:'' };
     const resp = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`,{
       method:'POST',
       headers:{ Authorization:`Bearer ${graphToken}`, 'Content-Type':'application/json' },
