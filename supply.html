@@ -1,0 +1,1197 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>ZIGA · เบิกวัสดุสิ้นเปลือง</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%231A1916'/><text y='24' x='5' font-size='22' font-family='monospace' fill='%230D6B50'>F</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"></noscript>
+<script src="./xlsx.full.min.js"></script>
+<script>
+if(typeof XLSX === 'undefined'){
+  document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"><\/script>');
+}
+</script>
+<script>
+// ── Lightweight MSAL shim (no external CDN needed) ───────────────
+// Uses OAuth2 Authorization Code + PKCE flow via popup
+const msal = (() => {
+  class PublicClientApplication {
+    constructor(cfg){ this.cfg=cfg; this._token=null; }
+    async loginPopup(req){
+      const {clientId,authority,redirectUri}=this.cfg.auth;
+      const scopes=(req.scopes||['openid']).join(' ');
+      // Generate PKCE
+      const verifier=_randomStr(64);
+      const challenge=await _sha256b64(verifier);
+      sessionStorage.setItem('pkce_v',verifier);
+      const state=_randomStr(16);
+      const nonce=_randomStr(16);
+      sessionStorage.setItem('oauth_state',state);
+      const authUrl=`${authority}/oauth2/v2.0/authorize?`+
+        `client_id=${encodeURIComponent(clientId)}`+
+        `&response_type=code`+
+        `&redirect_uri=${encodeURIComponent(redirectUri)}`+
+        `&scope=${encodeURIComponent(scopes+' openid profile')}`+
+        `&state=${state}&nonce=${nonce}`+
+        `&code_challenge=${challenge}&code_challenge_method=S256`;
+      return new Promise((resolve,reject)=>{
+        const popup=window.open(authUrl,'mslogin','width=480,height=640,left=200,top=100');
+        if(!popup){reject(new Error('Pop-up blocked — กรุณา allow pop-up สำหรับ site นี้'));return;}
+        const timer=setInterval(async()=>{
+          try{
+            if(!popup||popup.closed){clearInterval(timer);reject(new Error('Pop-up closed'));return;}
+            let url;
+            try{url=new URL(popup.location.href);}catch(e){return;}
+            if(url.origin===new URL(redirectUri).origin){
+              clearInterval(timer);
+              const code=url.searchParams.get('code');
+              const retState=url.searchParams.get('state');
+              popup.close();
+              if(!code){reject(new Error('No code returned'));return;}
+              if(retState!==sessionStorage.getItem('oauth_state')){reject(new Error('State mismatch'));return;}
+              // Exchange code for token
+              const tv=sessionStorage.getItem('pkce_v');
+              const resp=await fetch(`${authority}/oauth2/v2.0/token`,{
+                method:'POST',
+                headers:{'Content-Type':'application/x-www-form-urlencoded'},
+                body:`client_id=${encodeURIComponent(clientId)}`+
+                  `&grant_type=authorization_code`+
+                  `&code=${encodeURIComponent(code)}`+
+                  `&redirect_uri=${encodeURIComponent(redirectUri)}`+
+                  `&code_verifier=${encodeURIComponent(tv)}`+
+                  `&scope=${encodeURIComponent(scopes+' openid profile')}`
+              });
+              if(!resp.ok){const t=await resp.text();reject(new Error('Token error: '+t));return;}
+              const data=await resp.json();
+              this._token=data.access_token;
+              // Decode id_token to get user info
+              const payload=JSON.parse(atob(data.id_token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+              resolve({accessToken:data.access_token,account:{username:payload.preferred_username||payload.upn||payload.email||'',name:payload.name||''}});
+            }
+          }catch(e){if(!e.message?.includes('cross-origin'))console.warn(e);}
+        },500);
+      });
+    }
+    handleRedirectPromise(){return Promise.resolve(null);}
+  }
+  function _randomStr(n){const a=new Uint8Array(n);crypto.getRandomValues(a);return btoa(String.fromCharCode(...a)).replace(/[+/=]/g,'').slice(0,n);}
+  async function _sha256b64(s){const b=new TextEncoder().encode(s);const h=await crypto.subtle.digest('SHA-256',b);return btoa(String.fromCharCode(...new Uint8Array(h))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');}
+  return {PublicClientApplication};
+})();
+console.log('✅ MSAL shim loaded (PKCE)');
+console.log('✅ MSAL shim loaded (PKCE)');
+</script>
+<style>
+:root{
+  --bg:#F5F4F0;--card:#FFF;--panel:#ECEAE4;--panel2:#E0DDD5;
+  --ink:#1A1916;--ink2:#46443E;--ink3:#847F74;--ink4:#C0BDB4;
+  --b:rgba(0,0,0,.08);--b2:rgba(0,0,0,.14);
+  --blue:#1259A5;--blue-bg:#E5F0FB;--blue-bd:#7DB3E8;
+  --green:#236B23;--green-bg:#E8F3E8;--green-bd:#7BBF7B;--green-lt:#F2F9F2;
+  --amber:#7A470A;--amber-bg:#FEF0D8;--amber-bd:#E89A2A;
+  --red:#A01E1E;--red-bg:#FBEBEB;--red-bd:#EF9090;
+  --purple:#433FA8;--purple-bg:#EEEDFE;--purple-bd:#A8A2E8;
+  --teal:#0D6B50;--teal-bg:#E0F5EE;--teal-bd:#55C8A0;
+  --sans:'IBM Plex Sans Thai',sans-serif;--mono:'IBM Plex Mono',monospace;
+  --r:10px;--rs:6px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;display:flex;flex-direction:column;-webkit-tap-highlight-color:transparent}
+
+#login-overlay{position:fixed;inset:0;z-index:9999;background:rgba(26,25,22,.92);display:flex;align-items:center;justify-content:center;padding:16px;overflow-y:auto}
+.login-box{background:var(--card);border-radius:14px;padding:24px 26px;width:100%;max-width:420px;margin:auto}
+.login-logo{font-size:18px;font-weight:600;margin-bottom:2px}
+.login-logo span{color:var(--teal)}
+.login-sub{font-size:11px;color:var(--ink3);margin-bottom:18px}
+.login-err{display:none;background:var(--red-bg);border:1px solid var(--red-bd);color:var(--red);font-size:12px;padding:9px 12px;border-radius:var(--rs);margin-bottom:12px}
+
+.shell{display:flex;flex-direction:column;height:100%}
+#topnav{background:var(--ink);color:#fff;display:flex;align-items:center;height:46px;padding:0 12px;flex-shrink:0}
+.nav-brand{font-size:12px;font-weight:500;margin-right:10px;white-space:nowrap;flex-shrink:0}
+.nav-brand span{color:#55C8A0}
+.nav-tabs{display:flex;overflow-x:auto;flex:1;scrollbar-width:none}
+.nav-tabs::-webkit-scrollbar{display:none}
+.nav-tab{padding:0 13px;height:46px;display:flex;align-items:center;font-size:13px;cursor:pointer;white-space:nowrap;color:rgba(255,255,255,.45);border-bottom:2px solid transparent;flex-shrink:0}
+.nav-tab.active{color:#fff;border-bottom-color:#55C8A0}
+.nav-user{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:12px;color:rgba(255,255,255,.5);cursor:pointer;flex-shrink:0;padding-left:10px;white-space:nowrap}
+.nav-user:hover{color:#fff}
+.content{flex:1;overflow-y:auto;padding:14px;padding-bottom:80px}
+.page{display:none}.page.active{display:block}
+
+.pg-hd{margin-bottom:12px}
+.pg-title{font-size:18px;font-weight:600}
+.pg-sub{font-size:12px;color:var(--ink3);margin-top:2px}
+.card{background:var(--card);border:1px solid var(--b);border-radius:var(--r);padding:14px 16px;margin-bottom:10px}
+.card-title{font-size:14px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.ff{margin-bottom:9px}
+.ff label{display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);margin-bottom:4px}
+.fi{width:100%;padding:10px 12px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);font-size:15px;color:var(--ink);font-family:var(--sans);outline:none}
+.fi:focus{border-color:var(--teal-bd);background:#fff}
+.fi-big{font-size:26px;font-weight:500;font-family:var(--mono);text-align:center;padding:12px}
+.btn{padding:9px 16px;border-radius:var(--rs);font-size:13px;font-weight:500;cursor:pointer;border:1px solid;font-family:var(--sans);display:inline-flex;align-items:center;gap:5px}
+.btn-p{background:var(--teal);border-color:var(--teal);color:#fff}
+.btn-s{background:transparent;border-color:var(--b2);color:var(--ink2)}
+.btn-red{background:var(--red);border-color:var(--red);color:#fff}
+.btn-full{width:100%;justify-content:center;padding:14px;font-size:16px;border-radius:var(--r);margin-top:6px}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+.btn-row{display:flex;gap:7px;flex-wrap:wrap}
+.pill{display:inline-block;font-size:11px;font-weight:500;padding:3px 8px;border-radius:10px;border:1px solid;white-space:nowrap}
+.p-ok{background:var(--green-bg);border-color:var(--green-bd);color:var(--green)}
+.p-blue{background:var(--blue-bg);border-color:var(--blue-bd);color:var(--blue)}
+.p-amber{background:var(--amber-bg);border-color:var(--amber-bd);color:var(--amber)}
+.p-red{background:var(--red-bg);border-color:var(--red-bd);color:var(--red)}
+.p-gray{background:var(--panel);border-color:var(--b2);color:var(--ink3)}
+.mono{font-family:var(--mono)}
+.muted{color:var(--ink3);font-size:12px}
+
+/* ── STEPPER ── */
+.steps{display:flex;gap:4px;margin-bottom:14px}
+.step-dot{flex:1;height:4px;border-radius:2px;background:var(--panel2)}
+.step-dot.done{background:var(--teal)}
+.step-hd{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.step-no{width:24px;height:24px;border-radius:50%;background:var(--teal);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0}
+.step-t{font-size:15px;font-weight:600}
+.sel-box{background:var(--teal-bg);border:1px solid var(--teal-bd);border-radius:var(--rs);padding:9px 12px;margin-bottom:10px;display:flex;align-items:center;gap:8px;cursor:pointer}
+.sel-box .sb-l{font-size:11px;color:var(--ink3);width:52px;flex-shrink:0}
+.sel-box .sb-v{font-size:14px;font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sel-box .sb-x{font-size:11px;color:var(--teal);text-decoration:underline;flex-shrink:0}
+
+/* ── LISTS ── */
+.opt-list{max-height:340px;overflow-y:auto;border:1px solid var(--b);border-radius:var(--rs);background:var(--card)}
+.opt{padding:11px 13px;border-bottom:1px solid var(--b);cursor:pointer;display:flex;align-items:center;gap:10px}
+.opt:last-child{border-bottom:none}
+.opt:active{background:var(--teal-bg)}
+.opt-code{font-family:var(--mono);font-size:12px;color:var(--ink3);width:104px;flex-shrink:0;word-break:break-all}
+.opt-name{flex:1;font-size:14px;min-width:0}
+.opt-unit{font-size:11px;color:var(--ink3);flex-shrink:0}
+.grp-hd{font-size:11px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.05em;margin:12px 0 6px}
+.mbtns{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:6px}
+.mbtn{padding:12px 6px;border:1px solid var(--b2);border-radius:var(--rs);background:var(--panel);text-align:center;font-size:12px;font-family:var(--mono);cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mbtn:active{background:var(--teal-bg);border-color:var(--teal-bd)}
+.mbtn.recent{background:var(--teal-bg);border-color:var(--teal-bd);color:var(--teal)}
+
+/* ── BOM PANEL ── */
+.bom{background:var(--blue-bg);border:1px solid var(--blue-bd);border-radius:var(--rs);padding:11px 13px;margin-bottom:10px}
+.bom-row{display:flex;justify-content:space-between;font-size:13px;padding:3px 0}
+.bom-row b{font-family:var(--mono)}
+.bom.warn{background:var(--amber-bg);border-color:var(--amber-bd)}
+
+/* ── CART ── */
+.cart{border:1px solid var(--b);border-radius:var(--rs);overflow:hidden;margin-bottom:10px}
+.cart-item{padding:10px 12px;border-bottom:1px solid var(--b);display:flex;gap:9px;align-items:flex-start}
+.cart-item:last-child{border-bottom:none}
+.ci-main{flex:1;min-width:0}
+.ci-t{font-size:13px;font-weight:500}
+.ci-s{font-size:11px;color:var(--ink3);margin-top:2px}
+.ci-q{font-family:var(--mono);font-size:15px;font-weight:600;flex-shrink:0}
+.ci-x{color:var(--red);cursor:pointer;font-size:16px;flex-shrink:0;padding:0 3px}
+
+table.tb{width:100%;border-collapse:collapse;font-size:13px}
+table.tb th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);padding:7px 8px;border-bottom:1px solid var(--b2);white-space:nowrap}
+table.tb td{padding:8px;border-bottom:1px solid var(--b);vertical-align:top}
+.tb-wrap{overflow-x:auto}
+
+#sp-toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1A1916;color:#fff;padding:11px 18px;border-radius:8px;font-size:13px;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.4);opacity:0;transition:opacity .2s;max-width:90vw;text-align:center}
+.spin{display:inline-block;width:13px;height:13px;border:2px solid var(--b2);border-top-color:var(--teal);border-radius:50%;animation:sp .7s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<!-- ═══ LOGIN ═══ -->
+<div id="login-overlay">
+  <div class="login-box">
+    <div class="login-logo">ZIGA <span>· เบิกวัสดุสิ้นเปลือง</span></div>
+    <div class="login-sub" id="login-sub">FM-WH-04 · ระบบใหม่ · เข้าด้วยบัญชี @ziga.co.th</div>
+    <div class="login-err" id="ms-login-err"></div>
+    <button class="btn btn-p btn-full" onclick="doMSLogin()">
+      <svg width="18" height="18" viewBox="0 0 21 21" fill="none"><rect x="1" y="1" width="9" height="9" fill="#F25022"/><rect x="11" y="1" width="9" height="9" fill="#7FBA00"/><rect x="1" y="11" width="9" height="9" fill="#00A4EF"/><rect x="11" y="11" width="9" height="9" fill="#FFB900"/></svg>
+      เข้าสู่ระบบด้วย Microsoft
+    </button>
+  </div>
+</div>
+
+<!-- ═══ SHELL ═══ -->
+<div class="shell">
+  <div id="topnav">
+    <div class="nav-brand">ZIGA <span>FS</span></div>
+    <div class="nav-tabs" id="nav-tabs"></div>
+    <div class="nav-user" onclick="logout()" id="nav-user"></div>
+  </div>
+  <div class="content">
+
+    <!-- ─── หน้าเบิก ─── -->
+    <div class="page active" id="pg-req">
+      <div class="steps">
+        <div class="step-dot" id="sd1"></div><div class="step-dot" id="sd2"></div>
+        <div class="step-dot" id="sd3"></div><div class="step-dot" id="sd4"></div>
+      </div>
+      <div id="req-selected"></div>
+      <div id="req-body"></div>
+      <div id="req-cart"></div>
+    </div>
+
+    <!-- ─── ใบของฉัน ─── -->
+    <div class="page" id="pg-my">
+      <div class="pg-hd">
+        <div class="pg-title">ใบเบิกของฉัน</div>
+        <div class="pg-sub">30 วันล่าสุด</div>
+      </div>
+      <div class="btn-row" style="margin-bottom:10px">
+        <button class="btn btn-s" onclick="loadMyRequests()">🔄 โหลดใหม่</button>
+      </div>
+      <div id="my-list"><div class="muted">กำลังโหลด…</div></div>
+    </div>
+
+    <!-- ─── เครื่องมือ (fs / mgmt) ─── -->
+    <div class="page" id="pg-tools">
+      <div class="pg-hd">
+        <div class="pg-title">เครื่องมือระบบ</div>
+        <div class="pg-sub">ใช้ตอน setup — ผลลัพธ์ออกที่ Console (F12)</div>
+      </div>
+      <div class="card">
+        <div class="card-title">🔧 ตรวจ internal name ของคอลัมน์</div>
+        <div class="muted" style="margin-bottom:10px">กดแล้วเปิด Console → คัดลอกบรรทัด <span class="mono">FIELD_DUMP</span> ส่งกลับให้ Claude</div>
+        <div class="btn-row">
+          <button class="btn btn-s" onclick="dumpFields('L11')">L11 Master</button>
+          <button class="btn btn-s" onclick="dumpFields('L12')">L12 BOM</button>
+          <button class="btn btn-s" onclick="dumpFields('L13')">L13 Txn</button>
+          <button class="btn btn-s" onclick="dumpFields('L14')">L14 ใบเบิก</button>
+          <button class="btn btn-s" onclick="dumpFields('L6')">L6 ใบงาน</button>
+          <button class="btn btn-s" onclick="dumpFields('MACH')">Machine</button>
+          <button class="btn btn-s" onclick="dumpFields('DAILY_PLAN')">Daily Plan</button>
+        </div>
+        <div class="btn-row" style="margin-top:8px">
+          <button class="btn btn-p" onclick="dumpAllFields()">📋 Dump ทั้งหมดทีเดียว</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">🗂 สถานะ cache</div>
+        <div id="cache-info" class="muted"></div>
+        <div class="btn-row" style="margin-top:10px">
+          <button class="btn btn-s" onclick="reloadMasters()">🔄 โหลด master ใหม่</button>
+          <button class="btn btn-red" onclick="clearCache()">ล้าง cache</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">🧪 ทดสอบเชื่อมต่อ</div>
+        <div class="btn-row"><button class="btn btn-s" onclick="testConnection()">ทดสอบอ่าน SP ทุก list</button></div>
+        <div id="test-out" class="muted" style="margin-top:10px"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+<script>
+/* ══════════════════════════════════════════════════════════════
+   ZIGA FS — ระบบเบิกวัสดุสิ้นเปลือง  (Phase 1)
+   หน้าเบิก + ใบของฉัน + เครื่องมือ setup
+   ══════════════════════════════════════════════════════════════ */
+
+// ─── AZURE / SP CONFIG ────────────────────────────────────────
+const AZURE_CONFIG = {
+  clientId: '36956c3a-0377-428a-a981-2a253d0154de',
+  tenantId: '2c7e3ab4-6d2f-491e-87cc-8be0a96f1a68',
+  redirectUri: window.location.origin + window.location.pathname,
+};
+const SP_SITE_PATH = 'zigainnovation.sharepoint.com:/sites/msteams_1fdd76:';
+const SP_LISTS = {
+  L6:         'PrdCtrl_M6_OSE_Production',
+  L11:        'ProdCtrl_L11_Supply_Master',
+  L12:        'ProdCtrl_L12_BOM_Supply',
+  L13:        'ProdCtrl_L13_Supply_Txn',
+  L14:        'ProdCtrl_L14_Supply_Request',
+  MACH:       'ProdCtrl_Machine',
+  DAILY_PLAN: 'ProdCtrl_2026-FM-PN-03_DAILY PLAN',
+  L9:         'L9_EmployeeZiGA',
+};
+
+/* ─── FIELD MAP ────────────────────────────────────────────────
+   ⚠️ แก้ที่นี่จุดเดียวถ้า internal name ไม่ตรง
+   ใช้ปุ่ม "Dump ทั้งหมด" ในแท็บเครื่องมือ แล้วส่ง console กลับมา
+   ค่าเป็น array = ลองไล่ทีละตัวจนเจอ                              */
+const F = {
+  L11: { code:['MatCode','Title'], name:['MatName'], unit:['Unit'],
+         group:['MatGroup'], cls:['MatClass'], tier:['Tier'], active:['Active'] },
+  L12: { fg:['FGItem'], code:['MatCode'], name:['MatName'], unit:['Unit'],
+         qtyPer:['QtyPer'], active:['Active'] },
+  L13: { period:['Period'], type:['TxnType'], code:['MatCode'], name:['MatName'],
+         qty:['Qty'], unit:['Unit'], job:['JobNo'], mach:['MachineNo'],
+         date:['TxnDate'], ref:['RefNo'], note:['Note'], by:['CreatedBy'],
+         codeLk:'MatCodeLookupId', jobLk:'JobNoLookupId', machLk:'MachineNoLookupId' },
+  L14: { reqNo:['ReqNo'], line:['LineNo'], code:['MatCode'], name:['MatName'], unit:['Unit'],
+         qtyReq:['QtyRequest'], qtyIss:['QtyIssued'], type:['IssueType'],
+         job:['JobNo'], item:['ItemNumber'], mach:['MachineNo'], status:['Status'],
+         reqBy:['RequestBy'], reqName:['RequestByName'], reqDate:['RequestDate'],
+         issBy:['IssueBy'], issDate:['IssueDate'], reject:['RejectReason'],
+         txnRef:['TxnRef'], note:['Note'],
+         codeLk:'MatCodeLookupId', jobLk:'JobNoLookupId', machLk:'MachineNoLookupId' },
+  L6:  { job:['Title'], item:['Itemnumber'], qtyLine:['QTYLine','field_12'],
+         status:['OSEStatus','field_10'], type:['JobType'], size:['Size'],
+         machLk:'MachineNoLookupId' },
+  MACH:{ no:['MachineNO','Title'], name:['MachineName','Title'] },
+};
+const STATUS = { WAIT:'รอจ่าย', DONE:'จ่ายแล้ว', NO:'ไม่จ่าย' };
+const FS_USERS = ['nutthakul@ziga.co.th','maetinee@ziga.co.th'];
+const ALLOWED_DOMAIN = '@ziga.co.th';
+
+// ─── UTIL ─────────────────────────────────────────────────────
+// NBSP + double-space cleanup — ต้องทำก่อน join ทุกครั้ง (เจอ 118 รหัส)
+function norm(s){
+  if(s===null||s===undefined) return '';
+  return String(s).normalize('NFKC').replace(/\u00a0/g,' ').replace(/\s+/g,' ').trim();
+}
+// อ่านค่าจาก item โดยลองหลายชื่อคอลัมน์
+function pick(obj, names){
+  if(!obj) return '';
+  const list = Array.isArray(names) ? names : [names];
+  for(const n of list){ if(obj[n]!==undefined && obj[n]!==null && obj[n]!=='') return obj[n]; }
+  return '';
+}
+function num(v){ const n=parseFloat(v); return isNaN(n)?0:n; }
+function fmtQty(n){
+  const v = num(n);
+  if(Math.abs(v-Math.round(v))<1e-9) return String(Math.round(v));
+  // ค่าน้อย (QtyPer ต่ำสุด 0.00025) ห้ามปัดเป็น 0 → ใช้ทศนิยมมากขึ้น
+  const dec = Math.abs(v)<0.01 ? 5 : (Math.abs(v)<1 ? 4 : 2);
+  return v.toFixed(dec).replace(/0+$/,'').replace(/\.$/,'');
+}
+function pad(n,w){ return String(n).padStart(w,'0'); }
+function nowLocal(){
+  const d=new Date(), z=d.getTimezoneOffset()*60000;
+  return new Date(d-z).toISOString().slice(0,19);
+}
+function makeReqNo(){
+  const d=new Date();
+  return 'RQ-'+String(d.getFullYear()).slice(2)+pad(d.getMonth()+1,2)+pad(d.getDate(),2)
+        +'-'+pad(d.getHours(),2)+pad(d.getMinutes(),2)+pad(d.getSeconds(),2);
+}
+function period(){ const d=new Date(); return d.getFullYear()+'-'+pad(d.getMonth()+1,2); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function showToast(msg){
+  let t=document.getElementById('sp-toast');
+  if(!t){t=document.createElement('div');t.id='sp-toast';document.body.appendChild(t);}
+  t.textContent=msg;t.style.opacity=1;
+  clearTimeout(t._h); t._h=setTimeout(()=>{t.style.opacity=0;},3200);
+}
+
+// ─── GRAPH ────────────────────────────────────────────────────
+let msalInstance=null, graphToken=null, spSiteId=null;
+const _listIdCache={};
+
+function initMSAL(){
+  if(typeof msal==='undefined'){ console.error('MSAL shim missing'); return false; }
+  try{
+    msalInstance = new msal.PublicClientApplication({
+      auth:{ clientId:AZURE_CONFIG.clientId,
+             authority:'https://login.microsoftonline.com/'+AZURE_CONFIG.tenantId,
+             redirectUri:AZURE_CONFIG.redirectUri },
+      cache:{ cacheLocation:'sessionStorage' },
+    });
+    return true;
+  }catch(e){ console.error('MSAL init error:',e); return false; }
+}
+async function msalLogin(){
+  if(!msalInstance) return null;
+  try{
+    const resp = await msalInstance.loginPopup({ scopes:['User.Read','Sites.ReadWrite.All'] });
+    graphToken = resp.accessToken;
+    return resp.account;
+  }catch(e){ console.error('MSAL login failed:',e); return null; }
+}
+async function graphGet(path, extraHeaders){
+  if(!graphToken) return null;
+  const h = Object.assign({Authorization:'Bearer '+graphToken,'Content-Type':'application/json'}, extraHeaders||{});
+  const resp = await fetch('https://graph.microsoft.com/v1.0'+path,{headers:h});
+  if(!resp.ok){ console.error('Graph GET',resp.status,path); return null; }
+  return resp.json();
+}
+async function graphPost(path, body){
+  if(!graphToken) return null;
+  const resp = await fetch('https://graph.microsoft.com/v1.0'+path,{
+    method:'POST', headers:{Authorization:'Bearer '+graphToken,'Content-Type':'application/json'},
+    body:JSON.stringify(body)});
+  if(!resp.ok){
+    const t=await resp.text(); let m=t;
+    try{ const j=JSON.parse(t); m=(j.error&&(j.error.message||j.error.code))||t; }catch(e){}
+    console.error('❌ Graph POST '+resp.status+':',m,'\nPayload:',JSON.stringify(body).slice(0,400));
+    return null;
+  }
+  return resp.json();
+}
+async function graphPatch(path, body){
+  if(!graphToken) return false;
+  const resp = await fetch('https://graph.microsoft.com/v1.0'+path,{
+    method:'PATCH', headers:{Authorization:'Bearer '+graphToken,'Content-Type':'application/json'},
+    body:JSON.stringify(body)});
+  if(!resp.ok){
+    const t=await resp.text(); let m=t;
+    try{ const j=JSON.parse(t); m=(j.error&&(j.error.message||j.error.code))||t; }catch(e){}
+    console.error('❌ Graph PATCH '+resp.status+':',m,'\nFields:',JSON.stringify(body));
+  }
+  return resp.ok;
+}
+async function getSiteId(){
+  if(spSiteId) return spSiteId;
+  const s = await graphGet('/sites/'+SP_SITE_PATH);
+  if(!s){ console.error('getSiteId failed:',SP_SITE_PATH); return null; }
+  spSiteId = s.id; return spSiteId;
+}
+async function getListId(listName){
+  if(_listIdCache[listName]) return _listIdCache[listName];
+  const siteId = await getSiteId(); if(!siteId) return null;
+  let r = await graphGet('/sites/'+siteId+"/lists?$filter=displayName eq '"+listName+"'");
+  let id = (r&&r.value&&r.value[0]) ? r.value[0].id : null;
+  if(!id){
+    const all = await graphGet('/sites/'+siteId+'/lists?$top=200&$select=id,name,displayName');
+    const found = all&&all.value ? all.value.find(l=>l.name===listName||l.displayName===listName) : null;
+    if(found) id=found.id;
+    if(!id) console.error('getListId not found:',listName);
+  }
+  if(id) _listIdCache[listName]=id;
+  return id;
+}
+async function spGetItems(listName, filter, top){
+  const siteId=await getSiteId(), listId=await getListId(listName);
+  if(!siteId||!listId) return [];
+  const q = filter ? '&$filter='+encodeURIComponent(filter) : '';
+  const prefer = {'Prefer':'HonorNonIndexedQueriesWarningMayFailRandomly'};
+  const out=[]; let url='/sites/'+siteId+'/lists/'+listId+'/items?$expand=fields&$top='+(top||500)+q; let pg=0;
+  while(url){
+    const r = await graphGet(url, prefer); if(!r) break;
+    (r.value||[]).forEach(i=>out.push(Object.assign({}, i.fields, {id:i.id})));
+    const next = r['@odata.nextLink']||null;
+    url = next ? next.replace('https://graph.microsoft.com/v1.0','') : null;
+    if(++pg>200){ console.warn('spGetItems safety stop'); break; }
+  }
+  return out;
+}
+async function spAddItem(listName, fields){
+  const siteId=await getSiteId(), listId=await getListId(listName);
+  if(!siteId||!listId){ console.error('spAddItem: list not found',listName); return null; }
+  return graphPost('/sites/'+siteId+'/lists/'+listId+'/items', {fields:fields});
+}
+async function spPatchItem(listName, itemId, fields){
+  const siteId=await getSiteId(), listId=await getListId(listName);
+  if(!siteId||!listId) return false;
+  return graphPatch('/sites/'+siteId+'/lists/'+listId+'/items/'+itemId+'/fields', fields);
+}
+// POST หลายแถวพร้อมกัน — max 20/call
+async function spBatchAdd(listName, rowsFields){
+  if(!graphToken||!rowsFields.length) return {ok:0,err:0,ids:[]};
+  const siteId=await getSiteId(), listId=await getListId(listName);
+  if(!siteId||!listId) return {ok:0,err:rowsFields.length,ids:[]};
+  let ok=0,err=0; const ids=[];
+  for(let s=0;s<rowsFields.length;s+=20){
+    const chunk=rowsFields.slice(s,s+20);
+    const body={ requests: chunk.map((f,i)=>({
+      id:String(i+1), method:'POST',
+      url:'/sites/'+siteId+'/lists/'+listId+'/items',
+      headers:{'Content-Type':'application/json'},
+      body:{fields:f} })) };
+    try{
+      const resp=await fetch('https://graph.microsoft.com/v1.0/$batch',{
+        method:'POST', headers:{Authorization:'Bearer '+graphToken,'Content-Type':'application/json'},
+        body:JSON.stringify(body)});
+      if(!resp.ok){ err+=chunk.length; console.error('batch failed',resp.status); continue; }
+      const data=await resp.json();
+      (data.responses||[]).forEach(r=>{
+        if(r.status>=200&&r.status<300){ ok++; if(r.body&&r.body.id) ids.push(r.body.id); }
+        else{ err++; console.warn('batch item '+r.id+' failed '+r.status, r.body&&r.body.error?r.body.error.message:''); }
+      });
+    }catch(e){ err+=chunk.length; console.error('spBatchAdd',e); }
+    if(s+20<rowsFields.length) await new Promise(r=>setTimeout(r,200));
+  }
+  return {ok:ok,err:err,ids:ids};
+}
+
+// ─── STATE ────────────────────────────────────────────────────
+const S = {
+  user:null, role:null, page:'req',
+  mats:[], bom:[], bomByFg:{}, bomCodes:new Set(),
+  machines:[], machIdMap:{}, machNameMap:{},
+  jobs:[], jobById:{},
+  step:1, sel:{mat:null, mach:null, job:null, noJob:false},
+  cart:[], issued:{},
+  recentMats:[], recentMach:[],
+};
+const CACHE_KEY='ziga_fs_cache', CACHE_VER=1, CACHE_TTL=24*60*60*1000;
+const RECENT_KEY='ziga_fs_recent';
+
+function saveCache(){
+  try{
+    localStorage.setItem(CACHE_KEY, JSON.stringify({
+      v:CACHE_VER, at:Date.now(),
+      mats:S.mats, bom:S.bom, machines:S.machines, jobs:S.jobs,
+    }));
+  }catch(e){ console.warn('cache save failed (quota?)',e); }
+}
+function loadCache(){
+  try{
+    const raw=localStorage.getItem(CACHE_KEY); if(!raw) return false;
+    const c=JSON.parse(raw);
+    if(c.v!==CACHE_VER || Date.now()-c.at>CACHE_TTL) return false;
+    S.mats=c.mats||[]; S.bom=c.bom||[]; S.machines=c.machines||[]; S.jobs=c.jobs||[];
+    rebuildIndexes(); return S.mats.length>0;
+  }catch(e){ return false; }
+}
+function clearCache(){
+  try{ localStorage.removeItem(CACHE_KEY); }catch(e){}
+  showToast('ล้าง cache แล้ว — โหลดใหม่'); reloadMasters();
+}
+function loadRecent(){
+  try{ const r=JSON.parse(localStorage.getItem(RECENT_KEY)||'{}');
+    S.recentMats=r.mats||[]; S.recentMach=r.mach||[]; }catch(e){}
+}
+function pushRecent(kind, val){
+  const arr = kind==='mat' ? S.recentMats : S.recentMach;
+  const i=arr.indexOf(val); if(i>=0) arr.splice(i,1);
+  arr.unshift(val); if(arr.length>8) arr.pop();
+  try{ localStorage.setItem(RECENT_KEY, JSON.stringify({mats:S.recentMats, mach:S.recentMach})); }catch(e){}
+}
+function rebuildIndexes(){
+  S.bomByFg={}; S.bomCodes=new Set();
+  S.bom.forEach(b=>{
+    if(!S.bomByFg[b.fg]) S.bomByFg[b.fg]=[];
+    S.bomByFg[b.fg].push(b); S.bomCodes.add(b.code);
+  });
+  S.machIdMap={}; S.machNameMap={};
+  S.machines.forEach(m=>{ S.machIdMap[String(m.id)]=m.no; S.machNameMap[m.no]=m.id; });
+  S.jobById={}; S.jobs.forEach(j=>{ S.jobById[j.job]=j; });
+}
+
+// ─── ROLE ─────────────────────────────────────────────────────
+function resolveSupplyRole(email, displayName){
+  const e=(email||'').toLowerCase();
+  if(!e.endsWith(ALLOWED_DOMAIN)) return null;
+  return { role: FS_USERS.indexOf(e)>=0 ? 'fs' : 'emp', name: displayName||e, email:e };
+}
+async function fetchRoleFromL9(email){
+  try{
+    const items = await spGetItems(SP_LISTS.L9, "fields/email eq '"+email+"'", 1);
+    const it=items[0]; if(!it) return null;
+    if(it.Active===false) return null;
+    const raw=String(it.ROLE||it.Role||'').toLowerCase();
+    if(raw==='fs'||raw==='store') return {role:'fs', name:it.EmployeeName||it.Title||email};
+    return null; // L9 ไม่มี fs → ใช้ domain rule ต่อ
+  }catch(e){ return null; }
+}
+
+// ─── SESSION ──────────────────────────────────────────────────
+const SESSION_KEY='ziga_session';
+function saveSession(){
+  try{ localStorage.setItem(SESSION_KEY, JSON.stringify({
+    email:S.user.email, name:S.user.name, roleId:S.role, savedAt:Date.now() })); }catch(e){}
+}
+function restoreSession(){
+  try{
+    const raw=localStorage.getItem(SESSION_KEY); if(!raw) return false;
+    const s=JSON.parse(raw);
+    if(Date.now()-s.savedAt > 12*60*60*1000){ localStorage.removeItem(SESSION_KEY); return false; }
+    if(!s.email || !String(s.email).toLowerCase().endsWith(ALLOWED_DOMAIN)) return false;
+    S.user={email:String(s.email).toLowerCase(), name:s.name||s.email};
+    S.role = (s.roleId==='fs'||s.roleId==='emp') ? s.roleId
+           : (FS_USERS.indexOf(String(s.email).toLowerCase())>=0 ? 'fs' : 'emp');
+    return true;
+  }catch(e){ return false; }
+}
+function logout(){
+  if(!confirm('ออกจากระบบ?')) return;
+  try{ localStorage.removeItem(SESSION_KEY); }catch(e){}
+  location.reload();
+}
+
+// ─── LOGIN ────────────────────────────────────────────────────
+async function doMSLogin(){
+  const errEl=document.getElementById('ms-login-err');
+  const btn=document.querySelector('#login-overlay button');
+  errEl.style.display='none';
+  if(!msalInstance && !initMSAL()){
+    errEl.textContent='เชื่อมต่อ Microsoft ไม่ได้ — ตรวจสอบ Client ID';
+    errEl.style.display='block'; return;
+  }
+  const orig = btn ? btn.innerHTML : '';
+  try{
+    if(btn) btn.textContent='⏳ กำลัง login…';
+    const account = await msalLogin();
+    if(!account){ throw new Error('Login ไม่สำเร็จ กรุณาลองใหม่'); }
+    const email=(account.username||'').toLowerCase();
+    const base = resolveSupplyRole(email, account.name);
+    if(!base){
+      throw new Error('บัญชี '+email+' ไม่ใช่ '+ALLOWED_DOMAIN+' — ไม่มีสิทธิ์เข้าใช้');
+    }
+    if(btn) btn.textContent='⏳ กำลังดึงสิทธิ์…';
+    const l9 = await fetchRoleFromL9(email);
+    S.user={email:email, name:(l9&&l9.name)||base.name};
+    S.role=(l9&&l9.role)||base.role;
+    saveSession();
+    await enterApp(true);
+  }catch(e){
+    errEl.textContent=e.message||String(e);
+    errEl.style.display='block';
+    if(btn) btn.innerHTML=orig;
+  }
+}
+
+async function enterApp(freshLogin){
+  document.getElementById('login-overlay').style.display='none';
+  document.getElementById('nav-user').textContent =
+    (S.role==='fs'?'🏬 ':'👷 ') + (S.user.name||S.user.email).split(' ').slice(0,2).join(' ');
+  buildNav();
+  loadRecent();
+  const hadCache = loadCache();
+  if(hadCache){ showToast('โหลด master จาก cache: '+S.mats.length+' รหัส'); renderReq(); }
+  else renderReq();
+  if(graphToken){ await reloadMasters(hadCache); }
+  else showReconnect();
+}
+function showReconnect(){
+  if(document.getElementById('reconnect-banner')) return;
+  const b=document.createElement('div');
+  b.id='reconnect-banner';
+  b.style.cssText='position:fixed;top:46px;left:0;right:0;background:#1259A5;color:#fff;text-align:center;padding:9px 14px;font-size:13px;z-index:500;display:flex;align-items:center;justify-content:center;gap:10px';
+  b.innerHTML='<span>⚠️ ยังไม่ได้เชื่อม SharePoint</span>'
+    +'<button onclick="reconnect()" style="background:#fff;color:#1259A5;border:none;border-radius:6px;padding:5px 14px;font-size:12px;font-weight:600;cursor:pointer">🔑 Connect</button>';
+  document.body.appendChild(b);
+}
+async function reconnect(){
+  if(!msalInstance && !initMSAL()) return;
+  const acct=await msalLogin();
+  if(!acct){ showToast('❌ เชื่อมต่อไม่สำเร็จ'); return; }
+  const el=document.getElementById('reconnect-banner'); if(el) el.remove();
+  await reloadMasters();
+}
+
+// ─── NAV ──────────────────────────────────────────────────────
+const NAV = [
+  {id:'req',   label:'📝 เบิกของ',    roles:['emp','fs']},
+  {id:'my',    label:'📋 ใบของฉัน',   roles:['emp','fs']},
+  {id:'tools', label:'⚙️ เครื่องมือ', roles:['fs']},
+];
+function buildNav(){
+  const el=document.getElementById('nav-tabs');
+  el.innerHTML = NAV.filter(t=>t.roles.indexOf(S.role)>=0)
+    .map(t=>'<div class="nav-tab'+(t.id===S.page?' active':'')+'" onclick="navigate(\''+t.id+'\')">'+t.label+'</div>').join('');
+}
+function navigate(id){
+  S.page=id;
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  const pg=document.getElementById('pg-'+id); if(pg) pg.classList.add('active');
+  buildNav();
+  if(id==='my') loadMyRequests();
+  if(id==='tools') renderCacheInfo();
+}
+
+// ─── LOAD MASTERS ─────────────────────────────────────────────
+let _loading=false;
+async function reloadMasters(silent){
+  if(_loading) return; _loading=true;
+  try{
+    if(!silent) showToast('⏳ กำลังโหลด master…');
+    const [mats, bom, machs, jobs] = await Promise.all([
+      spGetItems(SP_LISTS.L11,'',500),
+      spGetItems(SP_LISTS.L12,'',500),
+      spGetItems(SP_LISTS.MACH,'',200),
+      spGetItems(SP_LISTS.L6,'',500),
+    ]);
+    if(mats.length){
+      S.mats = mats.filter(m=>pick(m,F.L11.active)!==false).map(m=>({
+        code: norm(pick(m,F.L11.code)),
+        name: norm(pick(m,F.L11.name)),
+        unit: norm(pick(m,F.L11.unit))||'-',
+        group:norm(pick(m,F.L11.group)),
+        tier: norm(pick(m,F.L11.tier)),
+        id:   m.id,
+      })).filter(m=>m.code);
+    }
+    if(bom.length){
+      S.bom = bom.filter(b=>pick(b,F.L12.active)!==false).map(b=>({
+        fg:   norm(pick(b,F.L12.fg)),
+        code: norm(pick(b,F.L12.code)),
+        name: norm(pick(b,F.L12.name)),
+        unit: norm(pick(b,F.L12.unit)),
+        qtyPer: num(pick(b,F.L12.qtyPer)),
+      })).filter(b=>b.fg&&b.code);
+    }
+    if(machs.length){
+      S.machines = machs.map(m=>({ no:norm(pick(m,F.MACH.no)), id:m.id }))
+                        .filter(m=>m.no);
+    }
+    if(jobs.length){
+      S.jobs = jobs.map(j=>({
+        job:  norm(pick(j,F.L6.job)),
+        item: norm(pick(j,F.L6.item)),
+        qty:  num(pick(j,F.L6.qtyLine)),
+        status:norm(pick(j,F.L6.status)),
+        type: norm(pick(j,F.L6.type)),
+        machId: j[F.L6.machLk] ? String(j[F.L6.machLk]) : '',
+        id:   j.id,
+      })).filter(j=>j.job);
+    }
+    rebuildIndexes(); saveCache();
+    console.log('✅ master: L11='+S.mats.length+' L12='+S.bom.length+' MACH='+S.machines.length+' L6='+S.jobs.length);
+    if(!silent) showToast('✅ '+S.mats.length+' รหัส · '+S.bom.length+' สูตร · '+S.machines.length+' เครื่อง');
+    if(S.page==='req') renderReq();
+    renderCacheInfo();
+  }catch(e){ console.error('reloadMasters',e); showToast('❌ โหลด master ไม่สำเร็จ'); }
+  finally{ _loading=false; }
+}
+
+// ─── MACHINE GROUPING (hardcode — ชื่อไทยไม่มี prefix) ────────
+const MG_THAI = ['สายข้อต่อ','ข้อต่อ','ดันตะเข็บ','ล้าง','กด','อัด'];
+function machGroup(no){
+  const n=norm(no).toUpperCase();
+  if(/^RF/.test(n))  return 'RF · เครื่องรีด';
+  if(/^CH/.test(n))  return 'CH · ลบคม';
+  if(/^TA/.test(n))  return 'TA · เกลียว';
+  if(/^(LO|PA)/.test(n)) return 'LO/PA · แพ็ค';
+  if(/^CU/.test(n))  return 'CU · ตัด';
+  if(/^BE/.test(n))  return 'BE · ดัดโค้ง';
+  if(/^SL/.test(n))  return 'SL · สลิท';
+  for(const t of MG_THAI){ if(norm(no).indexOf(t)>=0) return 'สายข้อต่อ'; }
+  return 'อื่นๆ';
+}
+const MG_ORDER = ['RF · เครื่องรีด','CH · ลบคม','TA · เกลียว','LO/PA · แพ็ค','CU · ตัด',
+                  'BE · ดัดโค้ง','SL · สลิท','สายข้อต่อ','อื่นๆ'];
+
+// ─── ประเภทการเบิก — ระบบตัดสินเอง ───────────────────────────
+function issueTypeOf(code){
+  const c=norm(code).toUpperCase();
+  if(S.bomCodes.has(norm(code))) return 'BOM';
+  if(/^W[-B]/.test(c)) return 'REPAIR';
+  return 'GENERAL';
+}
+const TYPE_UI = {
+  BOM:    {icon:'🔵', label:'เบิกตามสูตร', cls:'p-blue',  needJob:true},
+  REPAIR: {icon:'🟠', label:'ซ่อม/อะไหล่', cls:'p-amber', needJob:false},
+  GENERAL:{icon:'⚪', label:'ใช้ทั่วไป',   cls:'p-gray',  needJob:false},
+};
+
+// ─── หน้าเบิก — STEPPER ───────────────────────────────────────
+function setStep(n){ S.step=n; renderReq(); }
+function resetReq(){
+  S.sel={mat:null, mach:null, job:null, noJob:false};
+  S.step=1; renderReq();
+}
+function renderReq(){
+  for(let i=1;i<=4;i++){
+    const d=document.getElementById('sd'+i);
+    if(d) d.className='step-dot'+(i<=S.step?' done':'');
+  }
+  renderReqSelected();
+  const body=document.getElementById('req-body');
+  if(S.step===1) body.innerHTML=viewMat();
+  else if(S.step===2) body.innerHTML=viewMach();
+  else if(S.step===3) body.innerHTML=viewJob();
+  else body.innerHTML=viewQty();
+  renderCart();
+  if(S.step===1){ const q=document.getElementById('mat-q'); if(q&&window.innerWidth>760) q.focus(); }
+  if(S.step===4){ const q=document.getElementById('qty-in'); if(q) q.focus(); }
+}
+function renderReqSelected(){
+  const s=S.sel; let h='';
+  if(s.mat && S.step>1){
+    const t=TYPE_UI[issueTypeOf(s.mat.code)];
+    h+='<div class="sel-box" onclick="setStep(1)"><div class="sb-l">วัสดุ</div>'
+      +'<div class="sb-v">'+t.icon+' <span class="mono">'+esc(s.mat.code)+'</span> '+esc(s.mat.name)+'</div>'
+      +'<div class="sb-x">แก้</div></div>';
+  }
+  if(s.mach && S.step>2){
+    h+='<div class="sel-box" onclick="setStep(2)"><div class="sb-l">เครื่อง</div>'
+      +'<div class="sb-v mono">'+esc(s.mach)+'</div><div class="sb-x">แก้</div></div>';
+  }
+  if(S.step>3 && (s.job||s.noJob)){
+    h+='<div class="sel-box" onclick="setStep(3)"><div class="sb-l">ใบงาน</div>'
+      +'<div class="sb-v mono">'+(s.job?esc(s.job.job):'— ไม่ผูกใบงาน —')+'</div>'
+      +'<div class="sb-x">แก้</div></div>';
+  }
+  document.getElementById('req-selected').innerHTML=h;
+}
+
+// ── STEP 1: วัสดุ ──
+function viewMat(){
+  if(!S.mats.length){
+    return '<div class="card"><div class="muted">ยังไม่มีข้อมูลวัสดุ — กด <b>เครื่องมือ → โหลด master ใหม่</b> '
+      +'หรือยังไม่ได้สร้าง List <span class="mono">'+SP_LISTS.L11+'</span></div></div>';
+  }
+  let h='<div class="step-hd"><div class="step-no">1</div><div class="step-t">เลือกวัสดุ</div></div>'
+    +'<input class="fi" id="mat-q" placeholder="พิมพ์รหัส หรือ ชื่อวัสดุ…" oninput="renderMatList()" autocomplete="off">';
+  h+='<div id="mat-list"></div>';
+  setTimeout(renderMatList,0);
+  return h;
+}
+function renderMatList(){
+  const el=document.getElementById('mat-list'); if(!el) return;
+  const qEl=document.getElementById('mat-q');
+  const q=norm(qEl?qEl.value:'').toLowerCase();
+  let h='';
+  if(!q && S.recentMats.length){
+    const rec=S.recentMats.map(c=>S.mats.find(m=>m.code===c)).filter(Boolean);
+    if(rec.length){
+      h+='<div class="grp-hd">ล่าสุดที่เบิก</div><div class="opt-list">'+rec.map(matRow).join('')+'</div>';
+    }
+  }
+  const list = q ? S.mats.filter(m=>m.code.toLowerCase().indexOf(q)>=0 || m.name.toLowerCase().indexOf(q)>=0).slice(0,60)
+                 : S.mats.slice(0,40);
+  h+='<div class="grp-hd">'+(q?'ผลค้นหา '+list.length+' รายการ':'ทั้งหมด '+S.mats.length+' รหัส (พิมพ์เพื่อค้นหา)')+'</div>';
+  h+= list.length ? '<div class="opt-list">'+list.map(matRow).join('')+'</div>'
+                  : '<div class="muted" style="padding:14px">ไม่พบวัสดุที่ตรงกับ "'+esc(q)+'"</div>';
+  el.innerHTML=h;
+}
+function matRow(m){
+  const t=TYPE_UI[issueTypeOf(m.code)];
+  return '<div class="opt" onclick="pickMat(\''+esc(m.code).replace(/'/g,"\\'")+'\')">'
+    +'<div class="opt-code">'+esc(m.code)+'</div>'
+    +'<div class="opt-name">'+esc(m.name)+' <span class="pill '+t.cls+'">'+t.icon+' '+t.label+'</span></div>'
+    +'<div class="opt-unit">'+esc(m.unit)+'</div></div>';
+}
+function pickMat(code){
+  const m=S.mats.find(x=>x.code===code); if(!m) return;
+  S.sel.mat=m; pushRecent('mat',code);
+  setStep(2);
+}
+
+// ── STEP 2: เครื่อง ──
+function viewMach(){
+  if(!S.machines.length){
+    return '<div class="step-hd"><div class="step-no">2</div><div class="step-t">เลือกเครื่อง</div></div>'
+      +'<div class="card"><div class="muted">ยังไม่มีรายชื่อเครื่อง — โหลด master ใหม่</div></div>'
+      +'<button class="btn btn-s btn-full" onclick="pickMach(\'\')">ข้าม (ไม่ระบุเครื่อง)</button>';
+  }
+  let h='<div class="step-hd"><div class="step-no">2</div><div class="step-t">เลือกเครื่อง</div></div>';
+  if(S.recentMach.length){
+    h+='<div class="grp-hd">ล่าสุดที่ใช้</div><div class="mbtns">'
+      +S.recentMach.map(n=>'<div class="mbtn recent" onclick="pickMach(\''+esc(n)+'\')">'+esc(n)+'</div>').join('')
+      +'</div>';
+  }
+  const grp={};
+  S.machines.forEach(m=>{ const g=machGroup(m.no); (grp[g]=grp[g]||[]).push(m.no); });
+  MG_ORDER.forEach(g=>{
+    if(!grp[g]) return;
+    h+='<div class="grp-hd">'+esc(g)+' ('+grp[g].length+')</div><div class="mbtns">'
+      +grp[g].map(n=>'<div class="mbtn" onclick="pickMach(\''+esc(n)+'\')">'+esc(n)+'</div>').join('')
+      +'</div>';
+  });
+  h+='<button class="btn btn-s btn-full" style="margin-top:14px" onclick="pickMach(\'\')">ไม่ระบุเครื่อง</button>';
+  return h;
+}
+function pickMach(no){
+  S.sel.mach=no||'';
+  if(no) pushRecent('mach',no);
+  S.sel.job=null; S.sel.noJob=false;
+  setStep(3);
+}
+
+// ── STEP 3: ใบงาน ──
+function activeJobs(){
+  return S.jobs.filter(j=>{
+    const st=j.status||'';
+    return st.indexOf('4.End')!==0 && st.indexOf('5.Cancle')!==0;
+  });
+}
+function jobsForMachine(no){
+  if(!no) return [];
+  const spId=S.machNameMap[no]; if(!spId) return [];
+  return activeJobs().filter(j=>j.machId===String(spId));
+}
+function viewJob(){
+  const type=issueTypeOf(S.sel.mat.code);
+  const t=TYPE_UI[type];
+  let h='<div class="step-hd"><div class="step-no">3</div><div class="step-t">ใบงาน</div></div>';
+  h+='<div class="muted" style="margin-bottom:10px">ประเภท: <span class="pill '+t.cls+'">'+t.icon+' '+t.label+'</span> '
+    +(t.needJob?'— <b>ต้องระบุใบงาน</b> เพื่อเทียบสูตร':'— ไม่บังคับระบุใบงาน')+'</div>';
+  const cand=jobsForMachine(S.sel.mach);
+  if(cand.length){
+    h+='<div class="grp-hd">ใบงานบนเครื่อง '+esc(S.sel.mach)+' ('+cand.length+')</div><div class="opt-list">'
+      +cand.slice(0,20).map(jobRow).join('')+'</div>';
+  }else if(S.sel.mach){
+    h+='<div class="card"><div class="muted">ไม่พบใบงาน active ที่ผูกกับเครื่อง '
+      +esc(S.sel.mach)+' — ค้นหาเองด้านล่าง</div></div>';
+  }
+  h+='<div class="grp-hd">ค้นหาใบงานเอง (ORW / MEMO ที่ยังไม่ลงแผน)</div>'
+    +'<input class="fi" id="job-q" placeholder="พิมพ์เลขใบงาน เช่น OFM26-002…" oninput="renderJobSearch()" autocomplete="off">'
+    +'<div id="job-res"></div>';
+  if(!t.needJob){
+    h+='<button class="btn btn-s btn-full" style="margin-top:14px" onclick="pickNoJob()">— ไม่ผูกใบงาน —</button>';
+  }else{
+    h+='<div class="muted" style="margin-top:12px;text-align:center">วัสดุนี้อยู่ในสูตร BOM จึงต้องระบุใบงาน</div>';
+  }
+  return h;
+}
+function jobRow(j){
+  return '<div class="opt" onclick="pickJob(\''+esc(j.job)+'\')">'
+    +'<div class="opt-code">'+esc(j.job)+'</div>'
+    +'<div class="opt-name">'+esc(j.item||'-')+' <span class="muted">'+fmtQty(j.qty)+' เส้น</span></div>'
+    +'<div class="opt-unit">'+esc(j.type||'')+'</div></div>';
+}
+function renderJobSearch(){
+  const el=document.getElementById('job-res'); if(!el) return;
+  const q=norm((document.getElementById('job-q')||{}).value).toLowerCase();
+  if(q.length<2){ el.innerHTML=''; return; }
+  const list=activeJobs().filter(j=>j.job.toLowerCase().indexOf(q)>=0||String(j.item).toLowerCase().indexOf(q)>=0).slice(0,25);
+  el.innerHTML = list.length ? '<div class="opt-list" style="margin-top:8px">'+list.map(jobRow).join('')+'</div>'
+    : '<div class="muted" style="padding:12px">ไม่พบใบงาน</div>';
+}
+function pickJob(no){
+  const j=S.jobs.find(x=>x.job===no); if(!j) return;
+  S.sel.job=j; S.sel.noJob=false;
+  loadIssuedForJob(j.job);
+  setStep(4);
+}
+function pickNoJob(){ S.sel.job=null; S.sel.noJob=true; setStep(4); }
+
+// ── ยอดเบิกแล้วจาก L13 (ledger) ──
+async function loadIssuedForJob(jobNo){
+  try{
+    const rows=await spGetItems(SP_LISTS.L13, "fields/JobNo eq '"+jobNo+"'", 200);
+    const map={};
+    rows.forEach(r=>{
+      if(norm(pick(r,F.L13.type))!=='ISSUE') return;
+      const c=norm(pick(r,F.L13.code));
+      map[c]=(map[c]||0)+Math.abs(num(pick(r,F.L13.qty)));
+    });
+    S.issued[jobNo]=map;
+    if(S.step===4) renderReq();
+  }catch(e){ console.warn('loadIssuedForJob',e); }
+}
+
+// ── STEP 4: จำนวน ──
+function bomInfo(){
+  const s=S.sel;
+  if(!s.job || issueTypeOf(s.mat.code)!=='BOM') return null;
+  const rows=S.bomByFg[s.job.item]||[];
+  const row=rows.find(r=>r.code===s.mat.code);
+  if(!row) return {noFormula:true};
+  const need=row.qtyPer*(s.job.qty||0);
+  const used=(S.issued[s.job.job]||{})[s.mat.code]||0;
+  return {need:need, used:used, left:need-used, qtyPer:row.qtyPer};
+}
+function viewQty(){
+  const s=S.sel, b=bomInfo();
+  let h='<div class="step-hd"><div class="step-no">4</div><div class="step-t">จำนวนที่เบิก</div></div>';
+  if(b && b.noFormula){
+    h+='<div class="bom"><div class="bom-row"><span>สูตร BOM</span><b>ไม่มีสูตร</b></div>'
+      +'<div class="muted">item '+esc(s.job.item)+' ไม่มีสูตรของวัสดุนี้ — เบิกได้ แต่เทียบเป้าไม่ได้</div></div>';
+  }else if(b){
+    const over=b.left<=0;
+    h+='<div class="bom'+(over?' warn':'')+'">'
+      +'<div class="bom-row"><span>ต้องใช้ทั้งใบงาน</span><b>'+fmtQty(b.need)+' '+esc(s.mat.unit)+'</b></div>'
+      +'<div class="bom-row"><span>เบิกไปแล้ว</span><b>'+fmtQty(b.used)+'</b></div>'
+      +'<div class="bom-row" style="border-top:1px solid var(--b2);margin-top:4px;padding-top:6px">'
+      +'<span>คงเหลือเบิกได้</span><b>'+fmtQty(b.left)+'</b></div>'
+      +(over?'<div class="muted" style="margin-top:6px">⚠️ เบิกครบตามสูตรแล้ว — เบิกเพิ่มได้ แต่ต้องระบุเหตุผล</div>':'')
+      +'</div>';
+  }
+  h+='<div class="ff"><label>จำนวน ('+esc(s.mat.unit)+')</label>'
+    +'<input class="fi fi-big" id="qty-in" type="number" inputmode="decimal" step="any" min="0" '
+    +'value="'+(b&&b.left>0?fmtQty(b.left):'')+'" oninput="onQtyChange()"></div>';
+  h+='<div class="ff"><label>หมายเหตุ'+(b&&b.left<=0?' (บังคับ — เบิกเกินสูตร)':'')+'</label>'
+    +'<input class="fi" id="note-in" placeholder="เช่น ของเสีย / rework / เปลี่ยนใหม่"></div>';
+  h+='<div id="qty-warn"></div>';
+  h+='<button class="btn btn-p btn-full" onclick="addToCart()">➕ เพิ่มลงใบเบิก</button>';
+  h+='<button class="btn btn-s btn-full" style="margin-top:6px" onclick="resetReq()">ยกเลิกรายการนี้</button>';
+  return h;
+}
+function onQtyChange(){
+  const b=bomInfo(), w=document.getElementById('qty-warn'); if(!w) return;
+  const q=num((document.getElementById('qty-in')||{}).value);
+  if(b && !b.noFormula && q>0 && q>b.left){
+    w.innerHTML='<div class="bom warn" style="margin-bottom:10px"><div class="muted">'
+      +'⚠️ เกินสูตร '+fmtQty(q-b.left)+' '+esc(S.sel.mat.unit)+' — ต้องกรอกหมายเหตุ</div></div>';
+  }else w.innerHTML='';
+}
+
+// ─── CART ─────────────────────────────────────────────────────
+function addToCart(){
+  const s=S.sel, b=bomInfo();
+  const q=num((document.getElementById('qty-in')||{}).value);
+  const note=norm((document.getElementById('note-in')||{}).value);
+  if(q<=0){ showToast('❌ กรอกจำนวนก่อน'); return; }
+  if(b && !b.noFormula && q>b.left && !note){ showToast('❌ เบิกเกินสูตร — ต้องกรอกหมายเหตุ'); return; }
+  const type=issueTypeOf(s.mat.code);
+  if(TYPE_UI[type].needJob && !s.job){ showToast('❌ วัสดุตามสูตรต้องระบุใบงาน'); setStep(3); return; }
+  S.cart.push({
+    code:s.mat.code, name:s.mat.name, unit:s.mat.unit, matId:s.mat.id,
+    qty:q, type:type, note:note,
+    job:s.job?s.job.job:'', jobId:s.job?s.job.id:'', item:s.job?s.job.item:'',
+    mach:s.mach||'', machId:s.mach?(S.machNameMap[s.mach]||''):'',
+  });
+  showToast('✅ เพิ่มแล้ว — รวม '+S.cart.length+' รายการ');
+  resetReq();
+}
+function removeCart(i){ S.cart.splice(i,1); renderCart(); }
+function renderCart(){
+  const el=document.getElementById('req-cart');
+  if(!S.cart.length){ el.innerHTML=''; return; }
+  let h='<div class="grp-hd">ใบเบิกนี้ · '+S.cart.length+' รายการ</div><div class="cart">';
+  S.cart.forEach((c,i)=>{
+    const t=TYPE_UI[c.type];
+    h+='<div class="cart-item"><div class="ci-main">'
+      +'<div class="ci-t">'+t.icon+' <span class="mono">'+esc(c.code)+'</span> '+esc(c.name)+'</div>'
+      +'<div class="ci-s">'+(c.job?'ใบงาน '+esc(c.job)+' · ':'')+(c.mach?esc(c.mach):'ไม่ระบุเครื่อง')
+      +(c.note?' · '+esc(c.note):'')+'</div></div>'
+      +'<div class="ci-q">'+fmtQty(c.qty)+'<span class="muted"> '+esc(c.unit)+'</span></div>'
+      +'<div class="ci-x" onclick="removeCart('+i+')">✕</div></div>';
+  });
+  h+='</div><button class="btn btn-p btn-full" id="submit-btn" onclick="submitRequest()">📤 ส่งใบเบิก ('+S.cart.length+' รายการ)</button>';
+  el.innerHTML=h;
+}
+
+// ─── SUBMIT ───────────────────────────────────────────────────
+async function submitRequest(){
+  if(!S.cart.length) return;
+  if(!graphToken){ showToast('❌ ยังไม่ได้เชื่อม SharePoint'); showReconnect(); return; }
+  const btn=document.getElementById('submit-btn');
+  if(btn){ btn.disabled=true; btn.innerHTML='<span class="spin"></span> กำลังส่ง…'; }
+  const reqNo=makeReqNo(), ts=nowLocal();
+  const rows=S.cart.map((c,i)=>{
+    const f={};
+    f.Title=reqNo+'-'+(i+1);
+    f[F.L14.reqNo[0]]=reqNo;
+    f[F.L14.line[0]]=i+1;
+    f[F.L14.code[0]]=c.code;
+    f[F.L14.name[0]]=c.name;
+    f[F.L14.unit[0]]=c.unit;
+    f[F.L14.qtyReq[0]]=c.qty;
+    f[F.L14.type[0]]=c.type;
+    f[F.L14.status[0]]=STATUS.WAIT;
+    f[F.L14.reqBy[0]]=S.user.email;
+    f[F.L14.reqName[0]]=S.user.name;
+    f[F.L14.reqDate[0]]=ts;
+    if(c.note) f[F.L14.note[0]]=c.note;
+    if(c.job){ f[F.L14.job[0]]=c.job; if(c.jobId) f[F.L14.jobLk]=Number(c.jobId); }
+    if(c.item) f[F.L14.item[0]]=c.item;
+    if(c.mach){ f[F.L14.mach[0]]=c.mach; if(c.machId) f[F.L14.machLk]=Number(c.machId); }
+    if(c.matId) f[F.L14.codeLk]=Number(c.matId);
+    return f;
+  });
+  const res=await spBatchAdd(SP_LISTS.L14, rows);
+  if(btn){ btn.disabled=false; }
+  if(res.ok===rows.length){
+    showToast('✅ ส่งใบเบิก '+reqNo+' แล้ว ('+res.ok+' รายการ)');
+    S.cart=[]; resetReq(); navigate('my');
+  }else if(res.ok>0){
+    showToast('⚠️ ส่งได้ '+res.ok+'/'+rows.length+' — ตรวจ Console');
+    S.cart=S.cart.slice(res.ok); renderCart();
+  }else{
+    showToast('❌ ส่งไม่สำเร็จ — ตรวจ Console / internal name');
+    renderCart();
+  }
+}
+
+// ─── ใบของฉัน ─────────────────────────────────────────────────
+async function loadMyRequests(){
+  const el=document.getElementById('my-list');
+  if(!graphToken){ el.innerHTML='<div class="muted">ยังไม่ได้เชื่อม SharePoint</div>'; showReconnect(); return; }
+  el.innerHTML='<div class="muted"><span class="spin"></span> กำลังโหลด…</div>';
+  const since=new Date(Date.now()-30*24*3600*1000).toISOString().slice(0,10);
+  let rows=await spGetItems(SP_LISTS.L14,
+    "fields/RequestBy eq '"+S.user.email+"' and fields/RequestDate ge '"+since+"'", 200);
+  if(!rows.length){
+    rows=await spGetItems(SP_LISTS.L14, "fields/RequestBy eq '"+S.user.email+"'", 200);
+  }
+  if(!rows.length){ el.innerHTML='<div class="card"><div class="muted">ยังไม่มีใบเบิก</div></div>'; return; }
+  const grp={};
+  rows.forEach(r=>{
+    const no=norm(pick(r,F.L14.reqNo))||'(ไม่มีเลข)';
+    (grp[no]=grp[no]||[]).push(r);
+  });
+  const keys=Object.keys(grp).sort().reverse();
+  let h='';
+  keys.forEach(no=>{
+    const lines=grp[no];
+    const st=norm(pick(lines[0],F.L14.status))||STATUS.WAIT;
+    const cls = st===STATUS.DONE?'p-ok' : st===STATUS.NO?'p-red' : 'p-amber';
+    const dt=String(pick(lines[0],F.L14.reqDate)||'').slice(0,16).replace('T',' ');
+    h+='<div class="card"><div class="card-title"><span class="mono">'+esc(no)+'</span>'
+      +'<span class="pill '+cls+'">'+esc(st)+'</span>'
+      +'<span class="muted" style="margin-left:auto;font-weight:400">'+esc(dt)+'</span></div>'
+      +'<div class="tb-wrap"><table class="tb"><thead><tr><th>รหัส</th><th>ชื่อ</th><th>ขอ</th><th>จ่าย</th><th>ใบงาน</th></tr></thead><tbody>';
+    lines.forEach(l=>{
+      const qi=pick(l,F.L14.qtyIss);
+      h+='<tr><td class="mono">'+esc(norm(pick(l,F.L14.code)))+'</td>'
+        +'<td>'+esc(norm(pick(l,F.L14.name)))+'</td>'
+        +'<td class="mono">'+fmtQty(pick(l,F.L14.qtyReq))+' '+esc(norm(pick(l,F.L14.unit)))+'</td>'
+        +'<td class="mono">'+(qi===''?'—':fmtQty(qi))+'</td>'
+        +'<td class="mono">'+esc(norm(pick(l,F.L14.job))||'—')+'</td></tr>';
+    });
+    h+='</tbody></table></div></div>';
+  });
+  el.innerHTML=h;
+}
+
+// ─── TOOLS: dump internal names ───────────────────────────────
+async function dumpFields(key){
+  const listName=SP_LISTS[key];
+  if(!graphToken){ showToast('❌ เชื่อม SharePoint ก่อน'); showReconnect(); return; }
+  showToast('⏳ อ่าน '+key+'…');
+  const siteId=await getSiteId(), listId=await getListId(listName);
+  if(!listId){ console.error('FIELD_DUMP '+key+': ❌ ไม่พบ list "'+listName+'"'); showToast('❌ ไม่พบ list '+listName); return; }
+  const r=await graphGet('/sites/'+siteId+'/lists/'+listId+'/columns?$top=200');
+  if(!r||!r.value){ showToast('❌ อ่าน columns ไม่ได้'); return; }
+  const cols=r.value.filter(c=>c.name&&c.name.charAt(0)!=='_'&&!c.hidden&&!c.readOnly)
+                    .map(c=>({display:c.displayName||c.name, internal:c.name}));
+  console.log('FIELD_DUMP '+key+' ('+listName+') listId='+listId);
+  console.table(cols);
+  console.log('FIELD_DUMP_JSON '+key+'='+JSON.stringify(cols));
+  showToast('✅ '+key+': '+cols.length+' คอลัมน์ — ดู Console');
+  return cols;
+}
+async function dumpAllFields(){
+  const keys=['L11','L12','L13','L14','L6','MACH','DAILY_PLAN'];
+  const out={};
+  for(const k of keys){
+    try{ const c=await dumpFields(k); if(c) out[k]=c; }catch(e){ console.error(k,e); }
+  }
+  console.log('════ FIELD_DUMP_ALL (คัดลอกบรรทัดล่างนี้ส่งให้ Claude) ════');
+  console.log(JSON.stringify(out));
+  showToast('✅ dump ครบ — คัดลอก FIELD_DUMP_ALL จาก Console');
+}
+async function testConnection(){
+  const el=document.getElementById('test-out');
+  if(!graphToken){ el.innerHTML='❌ ยังไม่ได้เชื่อม SharePoint'; showReconnect(); return; }
+  el.innerHTML='<span class="spin"></span> กำลังทดสอบ…';
+  const keys=['L11','L12','L13','L14','L6','MACH','DAILY_PLAN'];
+  let h='<table class="tb"><thead><tr><th>List</th><th>สถานะ</th><th>แถว</th></tr></thead><tbody>';
+  for(const k of keys){
+    const name=SP_LISTS[k];
+    const id=await getListId(name);
+    if(!id){ h+='<tr><td>'+k+'</td><td><span class="pill p-red">ไม่พบ list</span></td><td>—</td></tr>'; continue; }
+    const rows=await spGetItems(name,'',1);
+    h+='<tr><td>'+k+'</td><td><span class="pill p-ok">OK</span></td><td class="mono">'+(rows.length?'มีข้อมูล':'ว่าง')+'</td></tr>';
+  }
+  h+='</tbody></table>';
+  el.innerHTML=h;
+}
+function renderCacheInfo(){
+  const el=document.getElementById('cache-info'); if(!el) return;
+  let at='—';
+  try{ const c=JSON.parse(localStorage.getItem(CACHE_KEY)||'{}'); if(c.at) at=new Date(c.at).toLocaleString('th-TH'); }catch(e){}
+  el.innerHTML='วัสดุ <b>'+S.mats.length+'</b> · สูตร <b>'+S.bom.length+'</b> · เครื่อง <b>'
+    +S.machines.length+'</b> · ใบงาน <b>'+S.jobs.length+'</b><br>อัปเดตล่าสุด: '+at;
+}
+
+// ─── BOOT ─────────────────────────────────────────────────────
+window.addEventListener('unhandledrejection', e=>{
+  console.error('Unhandled rejection:', e.reason);
+  if(e.reason&&e.reason.message) showToast('❌ '+String(e.reason.message).slice(0,80));
+});
+window.addEventListener('load', async function(){
+  initMSAL();
+  if(msalInstance){
+    try{ const r=await msalInstance.handleRedirectPromise();
+      if(r&&r.accessToken){ graphToken=r.accessToken; } }catch(e){}
+  }
+  if(restoreSession()){
+    console.log('✅ Session restored:', S.user.email, '→', S.role);
+    await enterApp(false);
+  }
+});
+</script>
+</body>
+</html>
